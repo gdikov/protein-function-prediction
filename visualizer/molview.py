@@ -14,10 +14,12 @@ class MoleculeView(object):
                  data=None,
                  info=None):
 
-        self.molecule_name = info["name"]
+        if info is not None:
+            self.molecule_name = info["name"]
 
-        self.electron_density = data["density"]
-        self.electron_potential = data["potential"]
+        if data is not None:
+            self.electron_density = data["density"]
+            self.electron_potential = data["potential"]
 
     """
     Create a 3D interactive plot and export images of molecule's electron density and potential.
@@ -66,16 +68,16 @@ class MoleculeView(object):
         mlab.show()
 
     """
-        Create a 2D interactive plot and export images of molecule's electron density and potential.
+    Create a 2D interactive plot and export images of molecule's electron density and potential.
 
-        Input:
-            - export_figure : boolean to tell whether to export images from the generated figure.
-        """
+    Input:
+        - export_figure : boolean to tell whether to export images from the generated figure.
+    """
     def density2d(self, plot_params=None, export_figure=True):
-        # TODO: beautify the plot.
+
         if plot_params is None:
             # use default:
-            plot_params = {"im_shape":(5, 5),
+            plot_params = {"im_shape":(3, 3),
                            "orientation":"z"}
 
         density = self.electron_density
@@ -87,13 +89,43 @@ class MoleculeView(object):
         n_slices = np.prod(plot_params["im_shape"])
         im = None; min = density.min(); max = density.max()
         if plot_params["orientation"] == "z":
-            for ax, slice in zip(axs.flat, density[::(density.shape[2]/n_slices), : ,:]):
+            for ax, slice, index in zip(axs.flat, density[::(density.shape[2]/n_slices), : ,:], xrange(n_slices)):
                 im = ax.imshow(slice,
                                interpolation="nearest",
                                vmin=min, vmax=max)
+                ax.set_title("z {0}".format(index+1), fontsize=10)
+                ax.get_xaxis().set_ticks([])
+                ax.get_yaxis().set_ticks([])
+                ax.set_aspect('equal')
 
-        cax = fig.add_axes([0.9, 0.1, 0.03, 0.8])
-        fig.colorbar(im, cax=cax)
+        elif plot_params["orientation"] == "y":
+            for ax, slice, index in zip(axs.flat, density[:, ::(density.shape[1]/n_slices) ,:], xrange(n_slices)):
+                im = ax.imshow(slice,
+                               interpolation="nearest",
+                               vmin=min, vmax=max)
+                ax.set_title("y {0}".format(index+1), fontsize=10)
+                ax.get_xaxis().set_ticks([])
+                ax.get_yaxis().set_ticks([])
+                ax.set_aspect('equal')
+
+        elif plot_params["orientation"] == "x":
+            for ax, slice, index in zip(axs.flat, density[:, :, ::(density.shape[0]/n_slices)], xrange(n_slices)):
+                im = ax.imshow(slice,
+                               interpolation="nearest",
+                               vmin=min, vmax=max)
+                ax.set_title("x {0}".format(index+1), fontsize=10)
+                ax.get_xaxis().set_ticks([])
+                ax.get_yaxis().set_ticks([])
+                ax.set_aspect('equal')
+        else:
+            raise ValueError('Orientation can be only "x", "y" or "z".')
+
+        fig.subplots_adjust(wspace=0.1, hspace=0.35, left=0.01, right=0.92)
+        fig.suptitle('Electron Density of Molecule {0}'.format(self.molecule_name))
+
+        cax = fig.add_axes([0.9, 0.1, 0.02, 0.8])
+        cbar = fig.colorbar(im, cax=cax)
+        cbar.set_label('Electron Density', rotation=270)
 
         if export_figure:
             if not os.path.exists("../data/figures"):
@@ -102,23 +134,24 @@ class MoleculeView(object):
 
         plt.show()
 
-if __name__ == "__main__":
+    def demo(self):
 
-    # create some dummy molecule data (Gaussian ftw)
-    mean = np.zeros(3)
-    cov = np.eye(3)
+        # create some dummy molecule data (Gaussian ftw)
+        mean = np.zeros(3)
+        cov = np.eye(3)
 
-    from scipy.stats import multivariate_normal
+        from scipy.stats import multivariate_normal
 
-    xs, ys, zs = np.mgrid[-3:3:50j, -3:3:50j, -3:3:50j]
-    pos = np.empty(xs.shape + (3,))
-    pos[:, :, :, 0] = xs; pos[:, :, :, 1] = ys; pos[:, :, :, 2] = zs
-    sample_density = multivariate_normal.pdf(pos, mean=mean, cov=cov)
+        xs, ys, zs = np.mgrid[-3:3:10j, -3:3:10j, -3:3:10j]
+        pos = np.empty(xs.shape + (3,))
+        pos[:, :, :, 0] = xs;
+        pos[:, :, :, 1] = ys;
+        pos[:, :, :, 2] = zs
+        sample_density = multivariate_normal.pdf(pos, mean=mean, cov=cov)
 
-    mol_data = {"density": sample_density, "potential": None}
-    mol_info = {"name": "Unknown", "id": 0}
+        self.electron_density = sample_density
+        self.electron_potential = None
+        self.molecule_name = "Demo Molecule: Gaussian"
 
-    mv = MoleculeView(data=mol_data, info=mol_info)
-    mv.density2d()
-
+        self.density2d()
 
