@@ -36,9 +36,9 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         
         # Molecule file name
         if active_or_inactive == 0:
-            filename = "1798_inactives_cleaned.sdf"
+            filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/1798_inactives_cleaned.sdf")
         elif active_or_inactive == 1:
-            filename = "1798_actives_cleaned.sdf"
+            filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/1798_actives_cleaned.sdf")
             
         # Create a sensible output prefix from the input file name
         split_path = os.path.splitext(filename)
