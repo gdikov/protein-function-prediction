@@ -4,14 +4,14 @@ import lasagne
 import numpy as np
 import os
 import gzip
-import theano.tensor.nlinalg as Tnlin
+import theano.tensor.nlinalg
 
 floatX = theano.config.floatX
 intX = np.int32  # FIXME is this the best choice? (changing would require removing and recreating memmap files)
 
 
 class MoleculeMapLayer(lasagne.layers.Layer):
-    '''
+    """
     This is a Lasagne layer to calculate 3D maps (electrostatic potential, and
     electron density estimated from VdW radii) of molecules (using Theano,
     i.e. on the GPU if the user wishes so).
@@ -22,23 +22,21 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     inactives), and the output are the 3D maps.
     Currently works faster (runtime per sample) if `minibatch_size=1` because
     otherwise `theano.tensor.switch` is slow.
-    '''
+    """
 
-    def __init__(self, incoming, active_or_inactive, minibatch_size=None, **kwargs):
+    def __init__(self, incoming, batch_size=None, **kwargs):
         # input to layer are indices of molecule
 
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)  # see creating custom layer!
 
-        if minibatch_size is None:
-            minibatch_size = 1
+        if batch_size is None:
+            batch_size = 1
             print(("minibatch_size not provided - assuming it is {}.  " +
-                  "\nIf this is wrong, please provide the correct one, otherwise dropout will not work.").format(minibatch_size))
+                   "\nIf this is wrong, please provide the correct one, otherwise dropout will not work.").format(
+                batch_size))
 
         # Molecule file name
-        if active_or_inactive == 0:
-            filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/1798_inactives_cleaned.sdf")
-        elif active_or_inactive == 1:
-            filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/1798_actives_cleaned.sdf")
+        filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/1798_actives_cleaned.sdf")
 
         # Create a sensible output prefix from the input file name
         split_path = os.path.splitext(filename)
@@ -164,8 +162,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             self.endx = endx  # TODO ok to have it on CPU?
 
         # layer options
-        self.minibatch_size = minibatch_size
-        self.active_or_inactive = active_or_inactive  # to know which row of the inputs (molecule numbers) to use
+        self.batch_size = batch_size
 
         # molecule data (tensors)
         self.coords = self.add_param(coords, coords.shape, 'coords', trainable=False)
@@ -183,93 +180,61 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         del tmp
 
     def get_output_shape_for(self, input_shape):
-        return self.minibatch_size, 2, self.stepx, self.stepx, self.stepx
+        return self.batch_size, 2, self.stepx, self.stepx, self.stepx
 
-    def get_output_for(self, molecule_numbers01, **kwargs):
-        # select relevant molecule number, depending on active_or_inactive
-        molecule_number = molecule_numbers01[self.active_or_inactive]
-        # see also stackoverflow.com/questions/2640147
-
-        random_streams = theano.sandbox.rng_mrg.MRG_RandomStreams()  # dynamic generation of values on GPU
-
-        # random rotation matrix Q
-        # randn_matrix = lasagne.random.get_rng().normal(0, 1, size=(3,3)).astype(floatX) # fixed value
-        randn_matrix = random_streams.normal((3, 3), dtype=floatX)  # dynamic generation of values on GPU
-        Q, R = Tnlin.qr(randn_matrix)  # see Golkov MSc thesis, Lemma 1
-        # Mezzadri 2007 "How to generate random matrices from the classical compact groups"
-        Q = T.dot(Q, Tnlin.AllocDiag()(T.sgn(R.diagonal())))  # stackoverflow.com/questions/30692742
-        Q = Q * Tnlin.Det()(Q)  # stackoverflow.com/questions/30132036
-
-        # apply rotation matrix to coordinates of current molecule
-        coords_current = T.dot(self.coords[molecule_number], Q)
-
-        # random translation
-        random_translations = True
-        print "random_translations:", random_translations
-        if random_translations:
-            coords_min = T.min(coords_current, axis=1, keepdims=True)
-            coords_max = T.max(coords_current, axis=1, keepdims=True)
-            # order of summands important, otherwise error (maybe due to broadcastable properties)
-            transl_min = (-self.endx + self.min_dist_from_border) - coords_min
-            transl_max = (self.endx - self.min_dist_from_border) - coords_max
-            rand01 = random_streams.uniform((self.minibatch_size, 1, 3),
-                                            dtype=floatX)  # unifom random in open interval ]0;1[
-            rand01 = T.Rebroadcast((1, True), )(rand01)
-            rand_translation = rand01 * (transl_max - transl_min) + transl_min
-            # coords_current = coords_current + rand01 # FIXME
-            coords_current = coords_current + rand_translation
-            # coords_current = T.add(coords_current, rand_translation)
-            # reshape from (1,135,3) to (135, 3)
-            # coords_current = coords_current[0,:,:,:]
-            # print "coords_current", getshape(coords_current)
-
-        # coords_current = T.Rebroadcast((0,True),(1,True),(2,True),(3,True),(4,True),(5,True),)(coords_current)
+    def get_output_for(self, molecule_ids, **kwargs):
+        current_coords = self.pertubate(self.coords[molecule_ids])
 
         # select subarray for current molecule; extend to 5D using `None`
-        cha = self.charges[molecule_number, :, None, None, None]
-        vdw = self.vdwradii[molecule_number, :, None, None, None]
-        ama = self.atom_mask[molecule_number, :, None, None, None]
-
-        if self.minibatch_size == 1:
-            # minibatch size 1: ignore trailing empty molecule slots
-            # Apparently theano cannot select along several dimensions at the same time (maybe due to ndim of index vars?)
-            # (although `self.vdwradii[molecule_number,T.arange(natoms),None,None,None]` does work within T.maximum),
-            # so here is the second step:
-            natoms = self.n_atoms[molecule_number[
-                0]]  # [0] for correct number of dimensions of natoms (such that T.arange(natoms) works); only for minibatch_size==1
-            cha = cha[:, T.arange(natoms), :, :, :]
-            vdw = vdw[:, T.arange(natoms), :, :, :]
-            ama = ama[:, T.arange(natoms), :, :, :]
-            # coords_current = coords_current[0,:,:] # reshape from (1,135,3) to (135, 3)
-            coords_current = coords_current[:, T.arange(natoms), :]
-
-        # TODO make self.grid_coords and others as required from the start instead of reshaping here (delete memmap files first)
+        cha = self.charges[molecule_ids, :, None, None, None]
+        vdw = self.vdwradii[molecule_ids, :, None, None, None]
+        ama = self.atom_mask[molecule_ids, :, None, None, None]
 
         # pairwise distances from all atoms to all grid points
         distances = T.sqrt(
-            T.sum((self.grid_coords[None, None, :, :, :, :] - coords_current[:, :, :, None, None, None]) ** 2, axis=2))
+            T.sum((self.grid_coords[None, None, :, :, :, :] - current_coords[:, :, :, None, None, None]) ** 2, axis=2))
 
-        # "distance" from atom to grid point should never be smaller than the vdw radius of the atom (otherwise infinite proximity possible)
+        # "distance" from atom to grid point should never be smaller than the vdw radius of the atom
+        # (otherwise infinite proximity possible)
         distances_esp_cap = T.maximum(distances, vdw)
-
-        # TODO: if MBsize>1: [grids with T.switch], else: [grids without T.switch but with the above "relics" - works faster]
 
         # grids_0: electrostatic potential in each of the 70x70x70 grid points
         # (sum over all N atoms, i.e. axis=0, so that shape turns from (N,1,70,70,70) to (1,1,70,70,70))
         # keepdims so that we have (1,70,70,70) instead of (70, 70, 70)
-        # grids_1: vdw value in each of the 70x70x70 grid points (sum over all N atoms, i.e. axis=0, so that shape turns from (N,1,70,70,70) to (1,1,70,70,70))
-        if self.minibatch_size == 1:
-            # For `minibatch_size==1`, the selection via `T.arange(natoms)` above is a faster alternative to `T.swich`.
-            grids_0 = T.sum(cha / distances_esp_cap, axis=1, keepdims=True)
-            grids_1 = T.sum(T.exp((-distances ** 2) / vdw ** 2), axis=1, keepdims=True)
-        else:
-            # T.switch: stackoverflow.com/questions/26621341
-            grids_0 = T.sum(T.switch(ama, cha / distances_esp_cap, 0), axis=1, keepdims=True)
-            grids_1 = T.sum(T.switch(ama, T.exp((-distances ** 2) / vdw ** 2), 0), axis=1, keepdims=True)
+        # grids_1: vdw value in each of the 70x70x70 grid points (sum over all N atoms, i.e. axis=0,
+        # so that shape turns from (N,1,70,70,70) to (1,1,70,70,70))
+
+        grids_0 = T.sum((cha / distances_esp_cap) * ama, axis=1, keepdims=True)
+        grids_1 = T.sum((T.exp((-distances ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
 
         grids = T.concatenate([grids_0, grids_1], axis=1)
 
-        # TODO is T.set_subtensor faster than T.concatenate?
-
-        # print "grids: ", getshape(self.grids)
+        print "grids: ", grids.shape.eval()
         return grids
+
+    def pertubate(self, coords):
+        print "Doing random rotations ... "
+        # generate a random rotation matrix Q
+        random_streams = theano.sandbox.rng_mrg.MRG_RandomStreams()
+        randn_matrix = random_streams.normal((3, 3), dtype=floatX)
+        # QR decomposition, Q is orthogonal, see Golkov MSc thesis, Lemma 1
+        Q, R = T.nlinalg.qr(randn_matrix)
+        # Mezzadri 2007 "How to generate random matrices from the classical compact groups"
+        Q = T.dot(Q, T.nlinalg.AllocDiag()(T.sgn(R.diagonal())))  # stackoverflow.com/questions/30692742
+        Q = Q * T.nlinalg.Det()(Q)  # stackoverflow.com/questions/30132036
+
+        # apply rotation matrix to all molecules
+        pertubated_coords = T.dot(coords, Q)
+
+        print "Doing random translations ... "
+        coords_min = T.min(pertubated_coords, axis=1, keepdims=True)
+        coords_max = T.max(pertubated_coords, axis=1, keepdims=True)
+        # order of summands important, otherwise error (maybe due to broadcastable properties)
+        transl_min = (-self.endx + self.min_dist_from_border) - coords_min
+        transl_max = (self.endx - self.min_dist_from_border) - coords_max
+        rand01 = random_streams.uniform((self.batch_size, 1, 3),
+                                        dtype=floatX)  # unifom random in open interval ]0;1[
+        rand01 = T.Rebroadcast((1, True), )(rand01)
+        rand_translation = rand01 * (transl_max - transl_min) + transl_min
+        pertubated_coords += rand_translation
+        return pertubated_coords
