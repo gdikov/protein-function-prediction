@@ -1,6 +1,3 @@
-# import matplotlib
-# matplotlib.use("Agg")	# needed for the ssh connection
-# import matplotlib.pyplot as plt
 import numpy as np
 import os
 
@@ -64,7 +61,7 @@ if __name__ == '__main__':
             if export_figure:
                 if not os.path.exists("../data/figures"):
                     os.makedirs("../data/figures")
-                mlab.savefig(filename='../data/figures/{0}_elden.png'.format(self.molecule_name))
+                mlab.savefig(filename='../data/figures/{0}_elden3d.png'.format(self.molecule_name))
 
             mlab.show()
 
@@ -74,13 +71,36 @@ if __name__ == '__main__':
             Input:
                 - export_figure : boolean to tell whether to export images from the generated figure.
             """
-        def density2d(self, export_figure=True):
+        def density2d(self, plot_params=None, export_figure=True):
+            # TODO: beautify the plot.
+            if plot_params is None:
+                # use default:
+                plot_params = {"im_shape":(5, 5),
+                               "orientation":"z"}
 
-            # TODO: break the data array in n slices
-            # TODO: for each slice plot the density using imshow
-            # TODO: maybe also use interpolation.
-            # TODO: Plot a colorbar too
-            pass
+            density = self.electron_density
+
+            import matplotlib.pyplot as plt
+
+            fig, axs = plt.subplots(*plot_params["im_shape"])
+
+            n_slices = np.prod(plot_params["im_shape"])
+            im = None; min = density.min(); max = density.max()
+            if plot_params["orientation"] == "z":
+                for ax, slice in zip(axs.flat, density[::(density.shape[2]/n_slices), : ,:]):
+                    im = ax.imshow(slice,
+                                   interpolation="nearest",
+                                   vmin=min, vmax=max)
+
+            cax = fig.add_axes([0.9, 0.1, 0.03, 0.8])
+            fig.colorbar(im, cax=cax)
+
+            if export_figure:
+                if not os.path.exists("../data/figures"):
+                    os.makedirs("../data/figures")
+                plt.savefig(filename='../data/figures/{0}_elden2d.png'.format(self.molecule_name))
+
+            plt.show()
 
 if __name__ == "__main__":
 
@@ -99,6 +119,6 @@ if __name__ == "__main__":
     mol_info = {"name": "Unknown", "id": 0}
 
     mv = MoleculeView(data=mol_data, info=mol_info)
-    mv.density3d()
+    mv.density2d()
 
 
