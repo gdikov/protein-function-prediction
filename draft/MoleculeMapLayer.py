@@ -143,7 +143,6 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         # this will be consistent across all molecules if the grid size doesn't change
         grid_coords = lasagne.utils.floatX(
             np.mgrid[-endx:endx:self.stepx * 1j, -endx:endx:self.stepx * 1j, -endx:endx:self.stepx * 1j])
-
         self.min_dist_from_border = 5  # in Angstrom; for random translations; TODO ok to have it on CPU?
 
         # share variables (on GPU)
