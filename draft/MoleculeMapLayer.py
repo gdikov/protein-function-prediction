@@ -47,6 +47,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         try:
             # attempt to load saved state from memmaps
             max_atoms = np.memmap(prefix + '_max_atoms.memmap', mode='r', dtype=intX)[0]
+
             coords = np.memmap(prefix + '_coords.memmap', mode='r', dtype=floatX).reshape((-1, max_atoms, 3))
             charges = np.memmap(prefix + '_charges.memmap', mode='r', dtype=floatX).reshape((-1, max_atoms))
             vdwradii = np.memmap(prefix + '_vdwradii.memmap', mode='r', dtype=floatX).reshape((-1, max_atoms))
@@ -137,12 +138,12 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         endx = grid_side_length / 2
 
         # +1 because N Angstroms "-" contain N+1 grid points "x": x-x-x-x-x-x-x
-        self.stepx = int(grid_side_length / resolution) + 1
+        self.grid_points_count = int(grid_side_length / resolution) + 1
 
         # an ndarray of grid coordinates: cartesian coordinates of each voxel
         # this will be consistent across all molecules if the grid size doesn't change
         grid_coords = lasagne.utils.floatX(
-            np.mgrid[-endx:endx:self.stepx * 1j, -endx:endx:self.stepx * 1j, -endx:endx:self.stepx * 1j])
+            np.mgrid[-endx:endx:self.grid_points_count * 1j, -endx:endx:self.grid_points_count * 1j, -endx:endx:self.grid_points_count * 1j])
         self.min_dist_from_border = 5  # in Angstrom; for random translations; TODO ok to have it on CPU?
 
         # share variables (on GPU)
@@ -179,7 +180,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         del tmp
 
     def get_output_shape_for(self, input_shape):
-        return self.batch_size, 2, self.stepx, self.stepx, self.stepx
+        return self.batch_size, 2, self.grid_points_count, self.grid_points_count, self.grid_points_count
 
     def get_output_for(self, molecule_ids, **kwargs):
         current_coords = self.pertubate(self.coords[molecule_ids])
