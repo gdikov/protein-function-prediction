@@ -3,13 +3,13 @@ import os
 
 
 class MoleculeView(object):
-
     """
      Parameters:
         - data : a dictionary with keys "density" and "potential" containing 3-dimensional numpy arrays
          with the molecule's electron density and electron potential distribution.
         - info : a dictionary with keys "id", "name" (and more).
     """
+
     def __init__(self,
                  data=None,
                  info=None):
@@ -29,35 +29,20 @@ class MoleculeView(object):
             containing the boundaries of the plot in units of length.
         - export_figure : boolean to tell whether to export images from the generated figure.
     """
+
     def density3d(self, plot_params=None, export_figure=True):
+        from mayavi import mlab
 
         density = self.electron_density
 
         if plot_params is None:
-            # use default:
-            nx = complex(0, density.shape[0])
-            ny = complex(0, density.shape[1])
-            nz = complex(0, density.shape[2])
-            plot_params = {"xmin":-1, "xmax":1,
-                           "ymin":-1, "ymax":1,
-                           "zmin":-1, "zmax":1,
-                           "nx":nx, "ny":ny, "nz":nz,
-                           "mimax_ratio":0.8}
+            plot_params = {"mimax_ratio": 0.3}
 
-        from mayavi import mlab
-
-        figure = mlab.figure('Electron Density of Molecule {0}'.format(self.molecule_name))
-
-        xmin, xmax, ymin, ymax, zmin, zmax = (plot_params[key] for key in ["xmin", "xmax", "ymin", "ymax", "zmin", "zmax"])
-        nx, ny, nz = (plot_params[key] for key in ["nx", "ny", "nz"])
-        xs, ys, zs = np.mgrid[xmin:xmax:nx, ymin:ymax:ny, zmin:zmax:nz]
-
-        grid = mlab.pipeline.scalar_field(xs, ys, zs, density)
+        grid = mlab.pipeline.scalar_field(density)
         min = density.min()
         max = density.max()
 
-        mlab.pipeline.iso_surface(grid, contours=[density.min()+0.1*density.ptp(), ], opacity=0.3)
-        # mlab.pipeline.volume(grid, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
+        mlab.pipeline.volume(grid, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
 
         mlab.axes()
 
@@ -74,12 +59,13 @@ class MoleculeView(object):
     Input:
         - export_figure : boolean to tell whether to export images from the generated figure.
     """
+
     def density2d(self, plot_params=None, export_figure=True):
 
         if plot_params is None:
             # use default:
-            plot_params = {"im_shape":(3, 3),
-                           "orientation":"z"}
+            plot_params = {"im_shape": (3, 3),
+                           "orientation": "z"}
 
         density = self.electron_density
 
@@ -88,33 +74,35 @@ class MoleculeView(object):
         fig, axs = plt.subplots(*plot_params["im_shape"])
 
         n_slices = np.prod(plot_params["im_shape"])
-        im = None; min = density.min(); max = density.max()
+        im = None;
+        min = density.min();
+        max = density.max()
         if plot_params["orientation"] == "z":
-            for ax, slice, index in zip(axs.flat, density[::(density.shape[2]/n_slices), : ,:], xrange(n_slices)):
+            for ax, slice, index in zip(axs.flat, density[::(density.shape[2] / n_slices), :, :], xrange(n_slices)):
                 im = ax.imshow(slice,
                                interpolation="nearest",
                                vmin=min, vmax=max)
-                ax.set_title("z {0}".format(index+1), fontsize=10)
+                ax.set_title("z {0}".format(index + 1), fontsize=10)
                 ax.get_xaxis().set_ticks([])
                 ax.get_yaxis().set_ticks([])
                 ax.set_aspect('equal')
 
         elif plot_params["orientation"] == "y":
-            for ax, slice, index in zip(axs.flat, density[:, ::(density.shape[1]/n_slices) ,:], xrange(n_slices)):
+            for ax, slice, index in zip(axs.flat, density[:, ::(density.shape[1] / n_slices), :], xrange(n_slices)):
                 im = ax.imshow(slice,
                                interpolation="nearest",
                                vmin=min, vmax=max)
-                ax.set_title("y {0}".format(index+1), fontsize=10)
+                ax.set_title("y {0}".format(index + 1), fontsize=10)
                 ax.get_xaxis().set_ticks([])
                 ax.get_yaxis().set_ticks([])
                 ax.set_aspect('equal')
 
         elif plot_params["orientation"] == "x":
-            for ax, slice, index in zip(axs.flat, density[:, :, ::(density.shape[0]/n_slices)], xrange(n_slices)):
+            for ax, slice, index in zip(axs.flat, density[:, :, ::(density.shape[0] / n_slices)], xrange(n_slices)):
                 im = ax.imshow(slice,
                                interpolation="nearest",
                                vmin=min, vmax=max)
-                ax.set_title("x {0}".format(index+1), fontsize=10)
+                ax.set_title("x {0}".format(index + 1), fontsize=10)
                 ax.get_xaxis().set_ticks([])
                 ax.get_yaxis().set_ticks([])
                 ax.set_aspect('equal')
@@ -155,4 +143,3 @@ class MoleculeView(object):
         self.molecule_name = "Demo Molecule: Gaussian"
 
         self.density2d()
-

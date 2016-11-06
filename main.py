@@ -2,7 +2,6 @@ import theano
 import lasagne
 import time
 import numpy as np
-from os import path
 
 import draft.MoleculeMapLayer as mml
 import draft.MoleculeMapOld as old
@@ -34,5 +33,5 @@ def visualize():
 
 
 if __name__ == "__main__":
-    preprocess()
+    # preprocess()
     visualize()
