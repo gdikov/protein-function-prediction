@@ -42,7 +42,7 @@ class MoleculeView(object):
                            "ymin":-1, "ymax":1,
                            "zmin":-1, "zmax":1,
                            "nx":nx, "ny":ny, "nz":nz,
-                           "mimax_ratio":0.5}
+                           "mimax_ratio":0.8}
 
         from mayavi import mlab
 
@@ -56,7 +56,8 @@ class MoleculeView(object):
         min = density.min()
         max = density.max()
 
-        mlab.pipeline.volume(grid, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
+        mlab.pipeline.iso_surface(grid, contours=[density.min()+0.1*density.ptp(), ], opacity=0.3)
+        # mlab.pipeline.volume(grid, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
 
         mlab.axes()
 

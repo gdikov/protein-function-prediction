@@ -2,8 +2,7 @@ import theano
 import theano.tensor as T
 import lasagne
 import numpy as np
-import os
-import gzip
+from os import path, listdir
 import theano.tensor.nlinalg
 
 floatX = theano.config.floatX
@@ -24,71 +23,42 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     otherwise `theano.tensor.switch` is slow.
     """
 
-    def __init__(self, incoming, batch_size=None, **kwargs):
+    def __init__(self, incoming, batch_size=None, grid_side=77.5, resolution=2.5, **kwargs):
         # input to layer are indices of molecule
-
-        super(MoleculeMapLayer, self).__init__(incoming, **kwargs)  # see creating custom layer!
-
+        super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if batch_size is None:
             batch_size = 1
-            print(("minibatch_size not provided - assuming it is {}.  " +
-                   "\nIf this is wrong, please provide the correct one, otherwise dropout will not work.").format(
-                batch_size))
+            print("batch_size not provided - assuming {}.".format(batch_size))
 
-        # # Molecule file name
-        dir_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/pdb")
-        #
-        # # Create a sensible output prefix from the input file name
-        # split_path = os.path.splitext(filename)
-        # while split_path[1] == ".gz" or split_path[1] == ".sdf":
-        #     split_path = os.path.splitext(split_path[0])
-        prefix = "PDB_files" #split_path[0]
+        # PDB data directory
+        prefix = path.join(path.dirname(path.realpath(__file__)), "../data")
+        dir_path = path.join(prefix, 'pdb')
 
         try:
             # attempt to load saved state from memmaps
-            max_atoms = np.memmap(prefix + '_max_atoms.memmap', mode='r', dtype=intX)[0]
-
-            coords = np.memmap(prefix + '_coords.memmap', mode='r', dtype=floatX).reshape((-1, max_atoms, 3))
-            charges = np.memmap(prefix + '_charges.memmap', mode='r', dtype=floatX).reshape((-1, max_atoms))
-            vdwradii = np.memmap(prefix + '_vdwradii.memmap', mode='r', dtype=floatX).reshape((-1, max_atoms))
-            n_atoms = np.memmap(prefix + '_n_atoms.memmap', mode='r', dtype=intX)
-            atom_mask = np.memmap(prefix + '_atom_mask.memmap', mode='r', dtype=floatX).reshape((-1, max_atoms))
+            max_atoms = np.memmap(path.join(prefix, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
+            coords = np.memmap(path.join(prefix, 'coords.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms, 3))
+            charges = np.memmap(path.join(prefix, 'charges.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms))
+            vdwradii = np.memmap(path.join(prefix, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms))
+            n_atoms = np.memmap(path.join(prefix, 'n_atoms.memmap'), mode='r', dtype=intX)
+            atom_mask = np.memmap(path.join(prefix, 'atom_mask.memmap'), mode='r', dtype=floatX).reshape(
+                (-1, max_atoms))
             self.molecules_count = n_atoms.size
         except IOError:
             # memmap files not found, create them
             print "Creating memmap files..."
-
             import rdkit.Chem as Chem
             import rdkit.Chem.rdPartialCharges as rdPC
             import rdkit.Chem.rdMolTransforms as rdMT
-            from draft.PDBFetcher import PDBFetcher
 
-            # # Make sure the .sdf molecule file exists
-            # if not os.path.isfile(filename):
-            #     print "File \"" + filename + "\" does not exist"
-            #
-            # # Open up the file containing the molecules
-            # if os.path.splitext(filename)[1] == ".gz":
-            #     infile = gzip.open(filename, "r")
-            # else:
-            #     infile = open(filename, "r")
+            fetcher = PDBFetcher(dir_path=dir_path, count=10)
+            n_atoms = []
 
-            # the SDF parser object, reads in molecules
-            # there is also a random-access version of this, but it must be given
-            # a filename instead of a file stream (called SDMolSupplier, or FastSDMolSupplier)
-            # defined using: import rdkit.Chem as Chem
-            # sdread = Chem.ForwardSDMolSupplier(infile, removeHs=False)
+            molecules = fetcher.get_molecules()
 
             # Periodic table object, needed for getting VDW radii
             pt = Chem.GetPeriodicTable()
 
-            fetcher = PDBFetcher(dir_path=dir_path, count=5)
-
-            mol_number = 0
-            n_atoms = []
-
-            molecules = fetcher.get_molecules() # [x for x in sdread]
-            print "fetched molecules"
             self.molecules_count = len(molecules)
             max_atoms = max([mol.GetNumAtoms() for mol in molecules])
 
@@ -109,47 +79,48 @@ class MoleculeMapLayer(lasagne.layers.Layer):
                 # Center of mass would require atomic weights for each atom: pt.GetAtomicWeight()
                 center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
 
+                atoms_count = mol.GetNumAtoms()
                 atoms = mol.GetAtoms()
 
-                mol_atoms = mol.GetNumAtoms()
-                n_atoms.append(mol.GetNumAtoms())
-                atom_mask[mol_index, 0:mol_atoms] = 1
+                n_atoms.append(atoms_count)
+                atom_mask[mol_index, 0:atoms_count] = 1
 
                 def get_coords(i):
                     coord = conformer.GetAtomPosition(i)
                     return np.asarray([coord.x, coord.y, coord.z])
 
                 # set the coordinates, charges and VDW radii
-                coords[mol_index, 0:mol_atoms] = np.asarray([get_coords(i) for i in range(0, mol_atoms)]) - np.asarray(
+                coords[mol_index, 0:atoms_count] = np.asarray(
+                    [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
                     [center.x, center.y, center.z])
-                charges[mol_index, 0:mol_atoms] = np.asarray(
+                charges[mol_index, 0:atoms_count] = np.asarray(
                     [float(atom.GetProp("_GasteigerCharge")) for atom in atoms])
-                vdwradii[mol_index, 0:mol_atoms] = np.asarray([pt.GetRvdw(atom.GetAtomicNum()) for atom in atoms])
+                vdwradii[mol_index, 0:atoms_count] = np.asarray([pt.GetRvdw(atom.GetAtomicNum()) for atom in atoms])
 
             n_atoms = np.asarray(n_atoms, dtype=intX)
 
-            self.save_to_memmap(prefix + '_max_atoms.memmap', np.asarray([max_atoms], dtype=intX), dtype=intX)
-            self.save_to_memmap(prefix + '_coords.memmap', coords, dtype=floatX)
-            self.save_to_memmap(prefix + '_charges.memmap', charges, dtype=floatX)
-            self.save_to_memmap(prefix + '_vdwradii.memmap', vdwradii, dtype=floatX)
-            self.save_to_memmap(prefix + '_n_atoms.memmap', n_atoms, dtype=intX)
-            self.save_to_memmap(prefix + '_atom_mask.memmap', atom_mask, dtype=floatX)
+            self.save_to_memmap(path.join(prefix, 'max_atoms.memmap'), np.asarray([max_atoms], dtype=intX), dtype=intX)
+            self.save_to_memmap(path.join(prefix, 'coords.memmap'), coords, dtype=floatX)
+            self.save_to_memmap(path.join(prefix, 'charges.memmap'), charges, dtype=floatX)
+            self.save_to_memmap(path.join(prefix, 'vdwradii.memmap'), vdwradii, dtype=floatX)
+            self.save_to_memmap(path.join(prefix, 'n_atoms.memmap'), n_atoms, dtype=intX)
+            self.save_to_memmap(path.join(prefix, 'atom_mask.memmap'), atom_mask, dtype=floatX)
 
         print("Total number of molecules: %s" % self.molecules_count)
 
         # Set the grid side length and resolution in Angstroms.
-        grid_side_length = float(34.5)  # FIXME choose this number such that grid coordinates are nice
-        resolution = float(0.5)
-        endx = grid_side_length / 2
+        resolution
+        endx = grid_side / 2
 
         # +1 because N Angstroms "-" contain N+1 grid points "x": x-x-x-x-x-x-x
-        self.grid_points_count = int(grid_side_length / resolution) + 1
+        self.grid_points_count = int(grid_side / resolution) + 1
 
         # an ndarray of grid coordinates: cartesian coordinates of each voxel
         # this will be consistent across all molecules if the grid size doesn't change
         grid_coords = lasagne.utils.floatX(
-            np.mgrid[-endx:endx:self.grid_points_count * 1j, -endx:endx:self.grid_points_count * 1j, -endx:endx:self.grid_points_count * 1j])
-        self.min_dist_from_border = 5  # in Angstrom; for random translations; TODO ok to have it on CPU?
+            np.mgrid[-endx:endx:self.grid_points_count * 1j, -endx:endx:self.grid_points_count * 1j,
+            -endx:endx:self.grid_points_count * 1j])
+        self.min_dist_from_border = 5  # in Angstrom; for random translations
 
         # share variables (on GPU)
         self.grid_coords = self.add_param(grid_coords, grid_coords.shape, 'grid_coords', trainable=False)
@@ -179,7 +150,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     @staticmethod
     def save_to_memmap(filename, data, dtype):
         tmp = np.memmap(filename, shape=data.shape, mode='w+', dtype=dtype)
-        print("Shape of {} is {}".format(filename, data.shape))
+        print("Saving memmap. Shape of {} is {}".format(filename, data.shape))
         tmp[:] = data[:]
         tmp.flush()
         del tmp
@@ -204,17 +175,14 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         distances_esp_cap = T.maximum(distances, vdw)
 
         # grids_0: electrostatic potential in each of the 70x70x70 grid points
-        # (sum over all N atoms, i.e. axis=0, so that shape turns from (N,1,70,70,70) to (1,1,70,70,70))
-        # keepdims so that we have (1,70,70,70) instead of (70, 70, 70)
-        # grids_1: vdw value in each of the 70x70x70 grid points (sum over all N atoms, i.e. axis=0,
-        # so that shape turns from (N,1,70,70,70) to (1,1,70,70,70))
+        # grids_1: vdw value in each of the 70x70x70 grid points
 
         grids_0 = T.sum((cha / distances_esp_cap) * ama, axis=1, keepdims=True)
         grids_1 = T.sum((T.exp((-distances ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
 
         grids = T.concatenate([grids_0, grids_1], axis=1)
 
-        print "grids: ", grids.shape.eval()
+        # print "grids: ", grids.shape.eval()
         return grids
 
     def pertubate(self, coords):
@@ -243,3 +211,35 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         rand_translation = rand01 * (transl_max - transl_min) + transl_min
         pertubated_coords += rand_translation
         return pertubated_coords
+
+
+class PDBFetcher(object):
+    """
+    PDBFetcher can download PDB files from the PDB and
+    also convert the files to rdkit molecules.
+    """
+
+    def __init__(self, dir_path, count=None):
+        self.dir_path = dir_path
+        self.count = count
+
+    def download_pdb(self):
+        from Bio.PDB import PDBList
+        pl = PDBList(pdb=self.dir_path)
+        pl.flat_tree = 1
+        pl.download_entire_pdb()
+
+    def get_molecules(self):
+        import rdkit.Chem as Chem
+        files = [path.join(self.dir_path, f) for f in listdir(self.dir_path)
+                 if f.endswith(".ent") or f.endswith(".pdb")]
+        if self.count is None:
+            self.count = len(files)
+        files = files[:self.count]
+        res = [Chem.MolFromPDBFile(molFileName=f) for f in files]
+        return [mol for mol in res if mol is not None]
+
+
+# run if you wish to download the PDB database
+if __name__ == "__main__":
+    fetcher = PDBFetcher(dir_path=path.join(path.dirname(path.realpath(__file__)), "../data/pdb"))
