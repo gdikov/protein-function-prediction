@@ -2,8 +2,10 @@ import theano
 import theano.tensor as T
 import lasagne
 import numpy as np
-from os import path, listdir
+import os
 import theano.tensor.nlinalg
+
+from os import path, listdir
 
 floatX = theano.config.floatX
 intX = np.int32  # FIXME is this the best choice? (changing would require removing and recreating memmap files)
@@ -240,6 +242,9 @@ class PDBFetcher(object):
         return [mol for mol in res if mol is not None]
 
 
-# run if you wish to download the PDB database
+# run this if you wish to download the PDB database
 if __name__ == "__main__":
-    fetcher = PDBFetcher(dir_path=path.join(path.dirname(path.realpath(__file__)), "../data/pdb"))
+    pdb_dir = path.join(path.dirname(path.realpath(__file__)), "../data/pdb")
+    if not path.exists(pdb_dir):
+        os.makedirs(pdb_dir)
+    fetcher = PDBFetcher(dir_path=pdb_dir)
