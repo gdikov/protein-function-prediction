@@ -1,3 +1,4 @@
 # Large input data files
 *.sdf
 *.pdb
+*.memmap

@@ -35,14 +35,14 @@ class MoleculeMapLayer(lasagne.layers.Layer):
                    "\nIf this is wrong, please provide the correct one, otherwise dropout will not work.").format(
                 batch_size))
 
-        # Molecule file name
-        filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/1798_actives_cleaned.sdf")
-
-        # Create a sensible output prefix from the input file name
-        split_path = os.path.splitext(filename)
-        while split_path[1] == ".gz" or split_path[1] == ".sdf":
-            split_path = os.path.splitext(split_path[0])
-        prefix = split_path[0]
+        # # Molecule file name
+        dir_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/pdb")
+        #
+        # # Create a sensible output prefix from the input file name
+        # split_path = os.path.splitext(filename)
+        # while split_path[1] == ".gz" or split_path[1] == ".sdf":
+        #     split_path = os.path.splitext(split_path[0])
+        prefix = "PDB_files" #split_path[0]
 
         try:
             # attempt to load saved state from memmaps
@@ -61,29 +61,34 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             import rdkit.Chem as Chem
             import rdkit.Chem.rdPartialCharges as rdPC
             import rdkit.Chem.rdMolTransforms as rdMT
+            from draft.PDBFetcher import PDBFetcher
 
-            # Make sure the .sdf molecule file exists
-            if not os.path.isfile(filename):
-                print "File \"" + filename + "\" does not exist"
-
-            # Open up the file containing the molecules
-            if os.path.splitext(filename)[1] == ".gz":
-                infile = gzip.open(filename, "r")
-            else:
-                infile = open(filename, "r")
+            # # Make sure the .sdf molecule file exists
+            # if not os.path.isfile(filename):
+            #     print "File \"" + filename + "\" does not exist"
+            #
+            # # Open up the file containing the molecules
+            # if os.path.splitext(filename)[1] == ".gz":
+            #     infile = gzip.open(filename, "r")
+            # else:
+            #     infile = open(filename, "r")
 
             # the SDF parser object, reads in molecules
             # there is also a random-access version of this, but it must be given
             # a filename instead of a file stream (called SDMolSupplier, or FastSDMolSupplier)
             # defined using: import rdkit.Chem as Chem
-            sdread = Chem.ForwardSDMolSupplier(infile, removeHs=False)
+            # sdread = Chem.ForwardSDMolSupplier(infile, removeHs=False)
 
             # Periodic table object, needed for getting VDW radii
             pt = Chem.GetPeriodicTable()
 
+            fetcher = PDBFetcher(dir_path=dir_path, count=5)
+
             mol_number = 0
             n_atoms = []
-            molecules = [x for x in sdread]
+
+            molecules = fetcher.get_molecules() # [x for x in sdread]
+            print "fetched molecules"
             self.molecules_count = len(molecules)
             max_atoms = max([mol.GetNumAtoms() for mol in molecules])
 
