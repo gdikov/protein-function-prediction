@@ -2,12 +2,13 @@ import theano
 import lasagne
 import time
 import numpy as np
+from os import path
 
 import draft.MoleculeMapLayer as mml
 import draft.MoleculeMapOld as old
 from visualizer.molview import MoleculeView
 
-grid_file = "data/computed_grid.npy"
+grid_file = path.join(path.dirname(path.realpath(__file__)), "data/computed_grid.npy")
 
 
 def preprocess():

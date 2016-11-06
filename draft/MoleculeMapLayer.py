@@ -53,7 +53,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             import rdkit.Chem.rdPartialCharges as rdPC
             import rdkit.Chem.rdMolTransforms as rdMT
 
-            fetcher = PDBFetcher(dir_path=dir_path, count=10)
+            fetcher = PDBFetcher(dir_path=dir_path)
             n_atoms = []
 
             molecules = fetcher.get_molecules()
