@@ -2,3 +2,4 @@
 *.sdf
 *.pdb
 *.memmap
+*.npy

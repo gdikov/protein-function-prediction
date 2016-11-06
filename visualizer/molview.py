@@ -34,15 +34,14 @@ class MoleculeView(object):
         from mayavi import mlab
 
         density = self.electron_density
-        potential = self.electron_potential
 
         if plot_params is None:
             plot_params = {"mimax_ratio": 0.3}
 
-        grid1 = mlab.pipeline.scalar_field(density)
+        grid = mlab.pipeline.scalar_field(density)
         min = density.min()
         max = density.max()
-        mlab.pipeline.volume(grid1, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
+        mlab.pipeline.volume(grid, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
 
         mlab.axes()
 
@@ -53,19 +52,6 @@ class MoleculeView(object):
 
         mlab.show()
 
-
-        grid2 = mlab.pipeline.scalar_field(potential)
-        mlab.pipeline.image_plane_widget(grid2,
-                                         plane_orientation='x_axes',
-                                         slice_index=10,
-                                         )
-
-        mlab.pipeline.image_plane_widget(grid2,
-                                         plane_orientation='y_axes',
-                                         slice_index=10,
-                                         )
-        mlab.outline()
-        mlab.show()
 
     """
     Create a 2D interactive plot and export images of molecule's electron density and potential.
@@ -137,6 +123,24 @@ class MoleculeView(object):
 
         plt.show()
 
+
+    def potential3d(self):
+
+        from mayavi import mlab
+
+        potential = self.electron_potential
+
+        grid = mlab.pipeline.scalar_field(potential)
+        mlab.pipeline.image_plane_widget(grid,
+                                         plane_orientation='x_axes',
+                                         slice_index=10)
+
+        mlab.pipeline.image_plane_widget(grid,
+                                         plane_orientation='y_axes',
+                                         slice_index=10)
+        mlab.outline()
+        mlab.show()
+
     def demo(self):
 
         # create some dummy molecule data (Gaussian ftw)
@@ -156,4 +160,14 @@ class MoleculeView(object):
         self.electron_potential = None
         self.molecule_name = "Demo Molecule: Gaussian"
 
-        self.density2d()
+        import imp
+        try:
+            imp.find_module('mayavi')
+            use_mayavi = True
+        except ImportError:
+            use_mayavi = False
+
+        if use_mayavi:
+            self.density3d()
+        else:
+            self.density2d()
