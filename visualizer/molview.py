@@ -34,15 +34,15 @@ class MoleculeView(object):
         from mayavi import mlab
 
         density = self.electron_density
+        potential = self.electron_potential
 
         if plot_params is None:
             plot_params = {"mimax_ratio": 0.3}
 
-        grid = mlab.pipeline.scalar_field(density)
+        grid1 = mlab.pipeline.scalar_field(density)
         min = density.min()
         max = density.max()
-
-        mlab.pipeline.volume(grid, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
+        mlab.pipeline.volume(grid1, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
 
         mlab.axes()
 
@@ -51,6 +51,20 @@ class MoleculeView(object):
                 os.makedirs("../data/figures")
             mlab.savefig(filename='../data/figures/{0}_elden3d.png'.format(self.molecule_name))
 
+        mlab.show()
+
+
+        grid2 = mlab.pipeline.scalar_field(potential)
+        mlab.pipeline.image_plane_widget(grid2,
+                                         plane_orientation='x_axes',
+                                         slice_index=10,
+                                         )
+
+        mlab.pipeline.image_plane_widget(grid2,
+                                         plane_orientation='y_axes',
+                                         slice_index=10,
+                                         )
+        mlab.outline()
         mlab.show()
 
     """
