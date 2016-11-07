@@ -41,6 +41,7 @@ class MoleculeView(object):
         grid = mlab.pipeline.scalar_field(density)
         min = density.min()
         max = density.max()
+
         mlab.pipeline.volume(grid, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
 
         mlab.axes()
@@ -51,7 +52,6 @@ class MoleculeView(object):
             mlab.savefig(filename='../data/figures/{0}_elden3d.png'.format(self.molecule_name))
 
         mlab.show()
-
 
     """
     Create a 2D interactive plot and export images of molecule's electron density and potential.
