@@ -25,12 +25,14 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     otherwise `theano.tensor.switch` is slow.
     """
 
-    def __init__(self, incoming, batch_size=None, grid_side=77.5, resolution=2.5, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=77.5, resolution=2.5, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
-        if batch_size is None:
-            batch_size = 1
-            print("batch_size not provided - assuming {}.".format(batch_size))
+        if minibatch_size is None:
+            minibatch_size = 1
+            print("minibatch_size not provided - assuming {}.".format(minibatch_size))
+
+        self.minibatch_size = minibatch_size
 
         # PDB data directory
         prefix = path.join(path.dirname(path.realpath(__file__)), "../data")
@@ -140,7 +142,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             self.endx = endx  # TODO ok to have it on CPU?
 
         # layer options
-        self.batch_size = batch_size
+        self.batch_size = minibatch_size
 
         # molecule data (tensors)
         self.coords = self.add_param(coords, coords.shape, 'coords', trainable=False)
@@ -178,9 +180,12 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
         # grids_0: electrostatic potential in each of the 70x70x70 grid points
         # grids_1: vdw value in each of the 70x70x70 grid points
-
-        grids_0 = T.sum((cha / distances_esp_cap) * ama, axis=1, keepdims=True)
-        grids_1 = T.sum((T.exp((-distances ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
+        if self.minibatch_size==1:
+            grids_0 = T.sum(cha / distances_esp_cap, axis=1, keepdims=True)
+            grids_1 = T.sum(T.exp((-distances ** 2) / vdw ** 2), axis=1, keepdims=True)
+        else:
+            grids_0 = T.sum((cha / distances_esp_cap) * ama, axis=1, keepdims=True)
+            grids_1 = T.sum((T.exp((-distances ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
 
         grids = T.concatenate([grids_0, grids_1], axis=1)
 

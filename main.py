@@ -16,7 +16,7 @@ def preprocess():
     inputs = theano.tensor.tensor4()
     network = lasagne.layers.InputLayer(shape=(None, 1, None, None), input_var=inputs)
 
-    network = mml.MoleculeMapLayer(network, batch_size=batch_size)
+    network = mml.MoleculeMapLayer(network, minibatch_size=batch_size)
     # network = old.MoleculeMapLayer(incoming=network, active_or_inactive=1, minibatch_size=batch_size)
 
     start = time.time()
