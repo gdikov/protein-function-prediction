@@ -22,14 +22,13 @@ class MoleculeView(object):
             self.electron_potential = data["potential"]
 
     """
-    Create a 3D interactive plot and export images of molecule's electron density and potential.
+    Create a 3D interactive plot and export images of molecule's electron density.
 
     Input:
         - plot_params : a dictionary with keys "xmin", "xmax", "ymin", "ymax", "zmin", "zmax"
             containing the boundaries of the plot in units of length.
         - export_figure : boolean to tell whether to export images from the generated figure.
     """
-
     def density3d(self, plot_params=None, export_figure=True):
         from mayavi import mlab
 
@@ -54,12 +53,11 @@ class MoleculeView(object):
         mlab.show()
 
     """
-    Create a 2D interactive plot and export images of molecule's electron density and potential.
+    Create a 2D interactive plot and export images of molecule's electron density.
 
     Input:
         - export_figure : boolean to tell whether to export images from the generated figure.
     """
-
     def density2d(self, plot_params=None, export_figure=True):
 
         if plot_params is None:
@@ -123,8 +121,15 @@ class MoleculeView(object):
 
         plt.show()
 
+    """
+    Create a 3D interactive plot and export images of molecule's electrostatic potential.
 
-    def potential3d(self):
+    Input:
+        - plot_params : a dictionary with keys "xmin", "xmax", "ymin", "ymax", "zmin", "zmax"
+            containing the boundaries of the plot in units of length.
+        - export_figure : boolean to tell whether to export images from the generated figure.
+    """
+    def potential3d(self, export_figure=True):
 
         from mayavi import mlab
 
@@ -139,6 +144,12 @@ class MoleculeView(object):
                                          plane_orientation='y_axes',
                                          slice_index=10)
         mlab.outline()
+
+        if export_figure:
+            if not os.path.exists("../data/figures"):
+                os.makedirs("../data/figures")
+            mlab.savefig(filename='../data/figures/{0}_elstpot3d.png'.format(self.molecule_name))
+
         mlab.show()
 
     def demo(self):
