@@ -25,7 +25,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     otherwise `theano.tensor.switch` is slow.
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=77.5, resolution=2.5, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=75.0, resolution=5.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
@@ -36,7 +36,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
         # PDB data directory
         prefix = path.join(path.dirname(path.realpath(__file__)), "../data")
-        dir_path = prefix #path.join(prefix, 'pdb')
+        dir_path = prefix  # path.join(prefix, 'pdb')
 
         try:
             # attempt to load saved state from memmaps
@@ -113,7 +113,6 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         print("Total number of molecules: %s" % self.molecules_count)
 
         # Set the grid side length and resolution in Angstroms.
-        resolution
         endx = grid_side / 2
 
         # +1 because N Angstroms "-" contain N+1 grid points "x": x-x-x-x-x-x-x
@@ -180,7 +179,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
         # grids_0: electrostatic potential in each of the 70x70x70 grid points
         # grids_1: vdw value in each of the 70x70x70 grid points
-        if self.minibatch_size==1:
+        if self.minibatch_size == 1:
             grids_0 = T.sum(cha / distances_esp_cap, axis=1, keepdims=True)
             grids_1 = T.sum(T.exp((-distances ** 2) / vdw ** 2), axis=1, keepdims=True)
         else:

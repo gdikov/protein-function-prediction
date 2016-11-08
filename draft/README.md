@@ -24,3 +24,9 @@ this step will be always executed.
 > new layer, 40 molecules, batch_size = 4, T.switch instead of elem-wise mult -> 12.8 seconds, 1.4 GB max memory
 
 > new layer, batch_size = 5 -> cannot fit into memory any more
+
+##### More crunched numbers (on beetz7, no other load, 2GB gpu memory, whole proteins, grid_size=16x16x16):
+> minibatch 1, 40 molecules -> 36 - 37 seconds
+> minibatch 2, 40 molecules -> 21 - 22 seconds
+> minibatch 3, 39 molecules -> 13 - 14 seconds
+> minibatch 4, 40 molecules -> out of memory on the small video card
