@@ -92,7 +92,8 @@ class MoleculeMapLayer(lasagne.layers.Layer):
                 def get_coords(i):
                     coord = conformer.GetAtomPosition(i)
                     return np.asarray([coord.x, coord.y, coord.z])
-
+                # TODO: export this section outside the loop! VdW raduis and charge are constant for each atom.
+                # TODO: consider instead a look-up table (e.g. dict) and save it as a global memmap.
                 # set the coordinates, charges and VDW radii
                 coords[mol_index, 0:atoms_count] = np.asarray(
                     [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
@@ -169,13 +170,30 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         vdw = self.vdwradii[molecule_ids, :, None, None, None]
         ama = self.atom_mask[molecule_ids, :, None, None, None]
 
+        if self.minibatch_size==1:
+            natoms = self.n_atoms[molecule_ids[0]]
+            cha = cha[:, T.arange(natoms), :, :, :]
+            vdw = vdw[:, T.arange(natoms), :, :, :]
+            ama = ama[:, T.arange(natoms), :, :, :]
+            current_coords = current_coords[:, T.arange(natoms), :]
+
         # pairwise distances from all atoms to all grid points
         distances = T.sqrt(
             T.sum((self.grid_coords[None, None, :, :, :, :] - current_coords[:, :, :, None, None, None]) ** 2, axis=2))
 
         # "distance" from atom to grid point should never be smaller than the vdw radius of the atom
         # (otherwise infinite proximity possible)
+        # TODO: distances_esp_cap is unintuitive name. Refactor.
+        # TODO: When estimating the electric potential, a constant value is ommited:
+        # TODO: k the electric constant. Maybe this is not important, but the units in which
+        # TODO: it is computed are not SI units. Just saying...
+        # TODO: Could this lead to some numeric issues or this help prevent them?
         distances_esp_cap = T.maximum(distances, vdw)
+        # TODO: Some remarks: the electric potential (not potential energy) V = kQ/r where r is the distance from the
+        # TODO: charge point charge Q. Its SI units are J/C, i.e. energy per unit charge.
+        # TODO: I don't see how computes some accumulated charge of the molecule. One considers only atomic charges?
+        # TODO: I will inspect it more.
+
 
         # grids_0: electrostatic potential in each of the 70x70x70 grid points
         # grids_1: vdw value in each of the 70x70x70 grid points
@@ -195,6 +213,8 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         print "Doing random rotations ... "
         # generate a random rotation matrix Q
         random_streams = theano.sandbox.rng_mrg.MRG_RandomStreams()
+        # TODO: consider a different way of generating a rotational matrix, e.g. Givens rotations around x, y, z.
+        # TODO: not so important though
         randn_matrix = random_streams.normal((3, 3), dtype=floatX)
         # QR decomposition, Q is orthogonal, see Golkov MSc thesis, Lemma 1
         Q, R = T.nlinalg.qr(randn_matrix)
