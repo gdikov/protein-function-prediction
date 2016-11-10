@@ -29,6 +29,7 @@ class MoleculeView(object):
             containing the boundaries of the plot in units of length.
         - export_figure : boolean to tell whether to export images from the generated figure.
     """
+
     def density3d(self, plot_params=None, export_figure=True):
         from mayavi import mlab
 
@@ -58,6 +59,7 @@ class MoleculeView(object):
     Input:
         - export_figure : boolean to tell whether to export images from the generated figure.
     """
+
     def density2d(self, plot_params=None, export_figure=True):
 
         if plot_params is None:
@@ -72,8 +74,8 @@ class MoleculeView(object):
         fig, axs = plt.subplots(*plot_params["im_shape"])
 
         n_slices = np.prod(plot_params["im_shape"])
-        im = None;
-        min = density.min();
+        im = None
+        min = density.min()
         max = density.max()
         if plot_params["orientation"] == "z":
             for ax, slice, index in zip(axs.flat, density[::(density.shape[2] / n_slices), :, :], xrange(n_slices)):
@@ -129,6 +131,7 @@ class MoleculeView(object):
             containing the boundaries of the plot in units of length.
         - export_figure : boolean to tell whether to export images from the generated figure.
     """
+
     def potential3d(self, export_figure=True):
 
         from mayavi import mlab
@@ -171,8 +174,8 @@ class MoleculeView(object):
 
         xs, ys, zs = np.mgrid[-3:3:10j, -3:3:10j, -3:3:10j]
         pos = np.empty(xs.shape + (3,))
-        pos[:, :, :, 0] = xs;
-        pos[:, :, :, 1] = ys;
+        pos[:, :, :, 0] = xs
+        pos[:, :, :, 1] = ys
         pos[:, :, :, 2] = zs
         sample_density = multivariate_normal.pdf(pos, mean=mean, cov=cov)
 
