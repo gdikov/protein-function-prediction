@@ -5,6 +5,7 @@ import theano.tensor as T
 import lasagne
 import lasagne.layers.dnn
 
+import data_prep as dp
 
 class NitroCounter():
 
@@ -12,13 +13,13 @@ class NitroCounter():
         self.minibatch_size = minibatch_size
 
         # dictionary with keywords "x_train", "y_train", "x_val", "y_val", "x_test", "y_test"
-        self.data = self._load_dataset()
+        self.data = dp.load_dataset("computed_grid.npy")
 
         # the input has the shape of the X_train portion of the dataset
-        self.input_shape = self.data['x_train'].shape
+        self.input_shape = self.data['x_train'].shape[1:]
         # set the minibatch size in the input dimension
-        self.input_shape[0] = minibatch_size
-        self.output_shape = self.data['y_train'].shape[1:]
+        self.input_shape = tuple([minibatch_size]) + self.input_shape
+        self.output_shape = self.data['y_train'].shape
 
         # define input and output symbolic variables of the computation graph
         input_tensor_var = T.tensor5('inputs')
@@ -49,6 +50,7 @@ class NitroCounter():
         self.train_function = theano.function([input_tensor_var, target_tensor_var],
                                               [train_loss, train_accuracy],
                                               updates=train_params_updates)
+
         self.validation_function = theano.function([input_tensor_var, target_tensor_var],
                                                    [val_loss, val_accuracy])
 
@@ -58,13 +60,9 @@ class NitroCounter():
                         'val_loss': list(),
                         'val_accuracy': list(),
                         'time_epoche': list()}
-
-    def _load_dataset(self):
-        # TODO: create labeled data from PDB parsed samples
-        data = {'x_train': None, 'y_train': None,
-                'x_val': None, 'y_val': None,
-                'x_test': None, 'y_test': None}
-        return data
+        print("INFO: Computational graph compiled")
+        print(self.input_shape)
+        print(self.output_shape)
 
     def _build_network(self, input_tensor_var=None):
         input_layer = lasagne.layers.InputLayer(shape=self.input_shape, input_var=input_tensor_var)
@@ -91,24 +89,27 @@ class NitroCounter():
             yield xs[mask], ys[mask]
 
     def train(self, epoch_count=1):
+        print("INFO: Training...")
         for e in xrange(epoch_count):
             for minibatch in self._iter_minibatches(self.data['x_train'], self.data['y_train']):
                 x, y = minibatch
-                loss, acc = self.train_function([x, y])
+                loss, acc = self.train_function(x, y)
                 self.history['train_loss'].append(loss)
                 self.history['train_accuracy'].append(acc)
 
+        print("INFO: Validating...")
         for minibatch in self._iter_minibatches(self.data['x_val'], self.data['y_val']):
             x, y = minibatch
-            loss, acc = self.validation_function([x, y])
+            loss, acc = self.validation_function(x, y)
             self.history['val_loss'].append(loss)
             self.history['val_accuracy'].append(acc)
 
     def test(self):
+        print("INFO: Testing...")
         loss = list(); acc = list()
         for minibatch in self._iter_minibatches(self.data['x_test'], self.data['y_test']):
             x, y = minibatch
-            l, a = self.validation_function([x, y])
+            l, a = self.validation_function(x, y)
             loss.append(l); acc.append(a)
 
         mean_loss = sum(loss)/float(len(loss))
