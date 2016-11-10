@@ -190,8 +190,8 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         # TODO: Could this lead to some numeric issues or this help prevent them?
         distances_esp_cap = T.maximum(distances, vdw)
         # TODO: Some remarks: the electric potential (not potential energy) V = kQ/r where r is the distance from the
-        # TODO: charge point charge Q. Its SI units are J/C, i.e. energy per unit charge.
-        # TODO: I don't see how computes some accumulated charge of the molecule. One considers only atomic charges?
+        # TODO: point charge Q. Its SI units are J/C, i.e. energy per unit charge.
+        # TODO: I don't see how one computes some accumulated charge of the molecule. One considers only atomic charges?
         # TODO: I will inspect it more.
 
 

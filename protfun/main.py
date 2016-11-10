@@ -1,14 +1,13 @@
-import theano
-import lasagne
 import time
-import numpy as np
 from os import path
 
-import draft.MoleculeMapLayer as mml
-import draft.MoleculeMapOld as old
-from visualizer.molview import MoleculeView
+import lasagne
+import numpy as np
+import theano
 
-grid_file = path.join(path.dirname(path.realpath(__file__)), "data/computed_grid.npy")
+import layers.molmap_layer as mml
+
+grid_file = path.join(path.dirname(path.realpath(__file__)), "../data/computed_grid.npy")
 
 
 def preprocess():
@@ -29,8 +28,11 @@ def preprocess():
 
 def visualize():
     grids = np.load(grid_file)
-    viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
-    viewer.density3d()
+    print(grids.shape)
+    print(grids[0, 0].mean())
+    # viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
+    # viewer.density3d()
+    # viewer.potential3d()
 
 
 if __name__ == "__main__":
