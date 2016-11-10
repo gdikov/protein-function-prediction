@@ -36,5 +36,5 @@ def visualize():
 
 
 if __name__ == "__main__":
-    # preprocess()
-    visualize()
+    preprocess()
+    # visualize()
