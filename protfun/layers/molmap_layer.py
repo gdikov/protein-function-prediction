@@ -25,7 +25,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     otherwise `theano.tensor.switch` is slow.
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=75.0, resolution=5.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=62.0, resolution=2.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
@@ -35,8 +35,8 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         self.minibatch_size = minibatch_size
 
         # PDB data directory
-        prefix = path.join(path.dirname(path.realpath(__file__)), "../data")
-        dir_path = prefix  # path.join(prefix, 'pdb')
+        prefix = path.join(path.dirname(path.realpath(__file__)), "../../data")
+        dir_path = path.join(prefix, 'test')
 
         try:
             # attempt to load saved state from memmaps
@@ -55,7 +55,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             import rdkit.Chem.rdPartialCharges as rdPC
             import rdkit.Chem.rdMolTransforms as rdMT
 
-            fetcher = PDBFetcher(dir_path=dir_path)
+            fetcher = PDBFetcher(dir_path=dir_path, count=1)
             n_atoms = []
 
             molecules = fetcher.get_molecules()
@@ -73,7 +73,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
             for mol_index, mol in enumerate(molecules):
                 # compute the atomic partial charges
-                rdPC.ComputeGasteigerCharges(mol)
+                rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
 
                 # get the conformation of the molecule and number of atoms (3D coordinates)
                 conformer = mol.GetConformer()
@@ -92,8 +92,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
                 def get_coords(i):
                     coord = conformer.GetAtomPosition(i)
                     return np.asarray([coord.x, coord.y, coord.z])
-                # TODO: export this section outside the loop! VdW raduis and charge are constant for each atom.
-                # TODO: consider instead a look-up table (e.g. dict) and save it as a global memmap.
+
                 # set the coordinates, charges and VDW radii
                 coords[mol_index, 0:atoms_count] = np.asarray(
                     [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
@@ -170,30 +169,13 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         vdw = self.vdwradii[molecule_ids, :, None, None, None]
         ama = self.atom_mask[molecule_ids, :, None, None, None]
 
-        if self.minibatch_size==1:
-            natoms = self.n_atoms[molecule_ids[0]]
-            cha = cha[:, T.arange(natoms), :, :, :]
-            vdw = vdw[:, T.arange(natoms), :, :, :]
-            ama = ama[:, T.arange(natoms), :, :, :]
-            current_coords = current_coords[:, T.arange(natoms), :]
-
         # pairwise distances from all atoms to all grid points
         distances = T.sqrt(
             T.sum((self.grid_coords[None, None, :, :, :, :] - current_coords[:, :, :, None, None, None]) ** 2, axis=2))
 
         # "distance" from atom to grid point should never be smaller than the vdw radius of the atom
         # (otherwise infinite proximity possible)
-        # TODO: distances_esp_cap is unintuitive name. Refactor.
-        # TODO: When estimating the electric potential, a constant value is ommited:
-        # TODO: k the electric constant. Maybe this is not important, but the units in which
-        # TODO: it is computed are not SI units. Just saying...
-        # TODO: Could this lead to some numeric issues or this help prevent them?
         distances_esp_cap = T.maximum(distances, vdw)
-        # TODO: Some remarks: the electric potential (not potential energy) V = kQ/r where r is the distance from the
-        # TODO: point charge Q. Its SI units are J/C, i.e. energy per unit charge.
-        # TODO: I don't see how one computes some accumulated charge of the molecule. One considers only atomic charges?
-        # TODO: I will inspect it more.
-
 
         # grids_0: electrostatic potential in each of the 70x70x70 grid points
         # grids_1: vdw value in each of the 70x70x70 grid points
@@ -201,7 +183,8 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             grids_0 = T.sum(cha / distances_esp_cap, axis=1, keepdims=True)
             grids_1 = T.sum(T.exp((-distances ** 2) / vdw ** 2), axis=1, keepdims=True)
         else:
-            grids_0 = T.sum((cha / distances_esp_cap) * ama, axis=1, keepdims=True)
+            grids_0 = T.sum((cha / distances_esp_cap) * ama, axis=1,
+                            keepdims=True)
             grids_1 = T.sum((T.exp((-distances ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
 
         grids = T.concatenate([grids_0, grids_1], axis=1)
@@ -213,8 +196,6 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         print "Doing random rotations ... "
         # generate a random rotation matrix Q
         random_streams = theano.sandbox.rng_mrg.MRG_RandomStreams()
-        # TODO: consider a different way of generating a rotational matrix, e.g. Givens rotations around x, y, z.
-        # TODO: not so important though
         randn_matrix = random_streams.normal((3, 3), dtype=floatX)
         # QR decomposition, Q is orthogonal, see Golkov MSc thesis, Lemma 1
         Q, R = T.nlinalg.qr(randn_matrix)
@@ -231,8 +212,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         # order of summands important, otherwise error (maybe due to broadcastable properties)
         transl_min = (-self.endx + self.min_dist_from_border) - coords_min
         transl_max = (self.endx - self.min_dist_from_border) - coords_max
-        rand01 = random_streams.uniform((self.batch_size, 1, 3),
-                                        dtype=floatX)  # unifom random in open interval ]0;1[
+        rand01 = random_streams.uniform((self.batch_size, 1, 3), dtype=floatX)  # unifom random in open interval ]0;1[
         rand01 = T.Rebroadcast((1, True), )(rand01)
         rand_translation = rand01 * (transl_max - transl_min) + transl_min
         pertubated_coords += rand_translation
@@ -255,20 +235,28 @@ class PDBFetcher(object):
         pl.flat_tree = 1
         pl.download_entire_pdb()
 
+    def download_protein(self, pdb_code):
+        from Bio.PDB import PDBList
+        pl = PDBList(pdb=self.dir_path)
+        pl.flat_tree = 1
+        pl.retrieve_pdb_file(pdb_code=pdb_code)
+
     def get_molecules(self):
         import rdkit.Chem as Chem
+        import rdkit.Chem.rdmolops as rdMO
         files = [path.join(self.dir_path, f) for f in listdir(self.dir_path)
                  if f.endswith(".ent") or f.endswith(".pdb")]
         if self.count is None:
             self.count = len(files)
         files = files[:self.count]
         res = [Chem.MolFromPDBFile(molFileName=f) for f in files]
-        return [mol for mol in res if mol is not None]
+        return [rdMO.AddHs(mol, addCoords=True) for mol in res if mol is not None]
 
 
 # run this if you wish to download the PDB database
 if __name__ == "__main__":
-    pdb_dir = path.join(path.dirname(path.realpath(__file__)), "../data/pdb")
+    pdb_dir = path.join(path.dirname(path.realpath(__file__)), "../data")
     if not path.exists(pdb_dir):
         os.makedirs(pdb_dir)
     fetcher = PDBFetcher(dir_path=pdb_dir)
+    fetcher.download_pdb()

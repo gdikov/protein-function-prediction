@@ -3,3 +3,5 @@
 *.pdb
 *.memmap
 *.npy
+test/
+figures/

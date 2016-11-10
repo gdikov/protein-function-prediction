@@ -135,15 +135,24 @@ class MoleculeView(object):
 
         potential = self.electron_potential
 
-        grid = mlab.pipeline.scalar_field(potential)
-        mlab.pipeline.image_plane_widget(grid,
-                                         plane_orientation='x_axes',
-                                         slice_index=10)
+        # grid = mlab.pipeline.scalar_field(potential)
+        # # mlab.pipeline.image_plane_widget(grid,
+        # #                                  plane_orientation='x_axes',
+        # #                                  slice_index=10)
+        # #
+        # # mlab.pipeline.image_plane_widget(grid,
+        # #                                  plane_orientation='y_axes',
+        # #                                  slice_index=10)
+        # # mlab.outline()
+        #
+        # min = potential.min()
+        # max = potential.max()
 
-        mlab.pipeline.image_plane_widget(grid,
-                                         plane_orientation='y_axes',
-                                         slice_index=10)
-        mlab.outline()
+        # mlab.pipeline.volume(grid, vmin=min, vmax=max)
+        mlab.contour3d(potential)
+
+        # mlab.contour3d(potential)
+        mlab.axes()
 
         if export_figure:
             if not os.path.exists("../data/figures"):
