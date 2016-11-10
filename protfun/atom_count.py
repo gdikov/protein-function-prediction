@@ -17,13 +17,13 @@ class NitroCounter():
 
         # the input has the shape of the X_train portion of the dataset
         self.input_shape = self.data['x_train'].shape[1:]
-        # set the minibatch size in the input dimension
         self.input_shape = tuple([minibatch_size]) + self.input_shape
-        self.output_shape = self.data['y_train'].shape
+        self.output_shape = self.data['y_train'].shape[1:]
+        self.output_shape = tuple([minibatch_size]) + self.output_shape
 
         # define input and output symbolic variables of the computation graph
         input_tensor_var = T.tensor5('inputs')
-        target_tensor_var = T.ivector('targets')
+        target_tensor_var = T.dmatrix('targets')
 
         # build the network architecture
         self.network = self._build_network(input_tensor_var)
@@ -37,14 +37,14 @@ class NitroCounter():
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss, params=train_params,
                                               learning_rate=1e-3)
 
-        train_accuracy = T.mean(T.eq(T.argmax(train_predictions, axis=1), target_tensor_var),
+        train_accuracy = T.mean(T.eq(T.gt(train_predictions, 0.5), target_tensor_var),
                                dtype=theano.config.floatX)
 
         val_predictions = lasagne.layers.get_output(self.network, deterministic=True)
-        val_loss = lasagne.objectives.categorical_crossentropy(predictions=val_predictions,
-                                                                targets=target_tensor_var).mean()
+        val_loss = lasagne.objectives.binary_crossentropy(predictions=val_predictions,
+                                                          targets=target_tensor_var).mean()
 
-        val_accuracy = T.mean(T.eq(T.argmax(val_predictions, axis=1), target_tensor_var),
+        val_accuracy = T.mean(T.eq(T.gt(val_predictions, 0.5), target_tensor_var),
                                dtype=theano.config.floatX)
 
         self.train_function = theano.function([input_tensor_var, target_tensor_var],
@@ -61,8 +61,6 @@ class NitroCounter():
                         'val_accuracy': list(),
                         'time_epoche': list()}
         print("INFO: Computational graph compiled")
-        print(self.input_shape)
-        print(self.output_shape)
 
     def _build_network(self, input_tensor_var=None):
         input_layer = lasagne.layers.InputLayer(shape=self.input_shape, input_var=input_tensor_var)
@@ -73,7 +71,7 @@ class NitroCounter():
         network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(10, 10, 10))
         network = lasagne.layers.DenseLayer(incoming=network,num_units=10)
         network = lasagne.layers.DenseLayer(incoming=network, num_units=1,
-                                            nonlinearity=lasagne.nonlinearities.softmax)
+                                            nonlinearity=lasagne.nonlinearities.sigmoid)
 
         return network
 
@@ -88,7 +86,7 @@ class NitroCounter():
             mask = order[minibatch_index:minibatch_index+self.minibatch_size]
             yield xs[mask], ys[mask]
 
-    def train(self, epoch_count=1):
+    def train(self, epoch_count=10):
         print("INFO: Training...")
         for e in xrange(epoch_count):
             for minibatch in self._iter_minibatches(self.data['x_train'], self.data['y_train']):
