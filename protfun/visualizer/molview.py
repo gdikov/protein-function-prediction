@@ -138,23 +138,49 @@ class MoleculeView(object):
 
         potential = self.electron_potential
 
-        # grid = mlab.pipeline.scalar_field(potential)
-        # # mlab.pipeline.image_plane_widget(grid,
-        # #                                  plane_orientation='x_axes',
-        # #                                  slice_index=10)
-        # #
-        # # mlab.pipeline.image_plane_widget(grid,
-        # #                                  plane_orientation='y_axes',
-        # #                                  slice_index=10)
-        # # mlab.outline()
+        grid = mlab.pipeline.scalar_field(potential)
+        # mlab.pipeline.image_plane_widget(grid,
+        #                                  plane_orientation='x_axes',
+        #                                  slice_index=10)
         #
-        # min = potential.min()
-        # max = potential.max()
+        # mlab.pipeline.image_plane_widget(grid,
+        #                                  plane_orientation='y_axes',
+        #                                  slice_index=10)
+        # mlab.outline()
 
-        # mlab.pipeline.volume(grid, vmin=min, vmax=max)
-        mlab.contour3d(potential)
+        min = potential.min()
+        negative_steps = np.percentile(potential[potential < 0], [2.0, 3.0, 7.5])
+        positive_steps = np.percentile(potential[potential > 0], [92.5, 97.0, 98.0])
+        max = potential.max()
 
+        vol = mlab.pipeline.volume(grid, vmin=min, vmax=max)
         # mlab.contour3d(potential)
+
+        from tvtk.util.ctf import ColorTransferFunction
+        ctf = ColorTransferFunction()
+        ctf.add_rgb_point(min, 1, 0.3, 0.3)  # numbers are r,g,b in [0;1]
+        ctf.add_rgb_point(negative_steps[1], 1, 0.3, 0.3)
+        ctf.add_rgb_point(negative_steps[2], 1, 1, 1)
+        ctf.add_rgb_point(positive_steps[0], 1, 1, 1)
+        ctf.add_rgb_point(positive_steps[1], 0.3, 0.3, 1)
+        ctf.add_rgb_point(max, 0.3, 0.3, 1)
+        ctf.range = np.asarray([min, max])
+        vol._volume_property.set_color(ctf)
+        vol._ctf = ctf
+        vol.update_ctf = True
+
+        # Changing the otf:
+        from tvtk.util.ctf import PiecewiseFunction
+        otf = PiecewiseFunction()
+        otf.add_point(min, 1.0)
+        otf.add_point(negative_steps[1], 1.0)
+        otf.add_point(negative_steps[2], 0.0)
+        otf.add_point(positive_steps[0], 0.0)
+        otf.add_point(positive_steps[1], 1.0)
+        otf.add_point(max, 1.0)
+        vol._otf = otf
+        vol._volume_property.set_scalar_opacity(otf)
+
         mlab.axes()
 
         if export_figure:
