@@ -3,8 +3,8 @@ import theano
 import theano.tensor as T
 
 import lasagne
+import lasagne.layers.dnn
 
-import protfun.layers as custom
 
 class NitroCounter():
 
@@ -52,9 +52,10 @@ class NitroCounter():
         self.validation_function = theano.function([input_tensor_var, target_tensor_var],
                                                    [val_loss, val_accuracy])
 
-        # monitoring variables
+        # save history data
         self.history = {'train_loss': list(),
                         'train_accuracy': list(),
+                        'val_loss': list(),
                         'val_accuracy': list(),
                         'time_epoche': list()}
 
@@ -67,19 +68,27 @@ class NitroCounter():
 
     def _build_network(self, input_tensor_var=None):
         input_layer = lasagne.layers.InputLayer(shape=self.input_shape, input_var=input_tensor_var)
-        network = custom.Conv3DLayer(incoming=input_layer,
-                                  num_filters=16, filter_size=(5, 5, 5),
-                                  nonlinearity=lasagne.nonlinearities.rectify,
-                                  W=lasagne.init.GlorotNormal())
-        network = custom.MaxPool3DLayer(incoming=network, pool_size=(10,10,10))
+        network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=input_layer,
+                                                    num_filters=16, filter_size=(5, 5, 5),
+                                                    nonlinearity=lasagne.nonlinearities.rectify,
+                                                    W=lasagne.init.GlorotNormal())
+        network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(10, 10, 10))
         network = lasagne.layers.DenseLayer(incoming=network,num_units=10)
         network = lasagne.layers.DenseLayer(incoming=network, num_units=1,
                                             nonlinearity=lasagne.nonlinearities.softmax)
 
         return network
 
-    def _iter_minibatches(self, xs, ys):
-        yield None
+    def _iter_minibatches(self, xs, ys, shuffle=True):
+        data_size = xs.shape[0]
+        minibatch_count = data_size / self.minibatch_size
+        if data_size % self.minibatch_size != 0:
+            minibatch_count += 1
+
+        order = np.random.permutation(data_size)
+        for minibatch_index in xrange(0, minibatch_count):
+            mask = order[minibatch_index:minibatch_index+self.minibatch_size]
+            yield xs[mask], ys[mask]
 
     def train(self, epoch_count=1):
         for e in xrange(epoch_count):
@@ -94,3 +103,18 @@ class NitroCounter():
             loss, acc = self.validation_function([x, y])
             self.history['val_loss'].append(loss)
             self.history['val_accuracy'].append(acc)
+
+    def test(self):
+        loss = list(); acc = list()
+        for minibatch in self._iter_minibatches(self.data['x_test'], self.data['y_test']):
+            x, y = minibatch
+            l, a = self.validation_function([x, y])
+            loss.append(l); acc.append(a)
+
+        mean_loss = sum(loss)/float(len(loss))
+        mean_acc = sum(acc)/float(len(acc))
+
+        print("Mean test loss: {0}".format(mean_loss))
+        print("Mean test accuracy: {0}".format(mean_acc))
+
+        return mean_loss, mean_acc
