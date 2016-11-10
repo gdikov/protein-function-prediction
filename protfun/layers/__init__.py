@@ -1,3 +1,1 @@
-
-from conv3d_layer import *
-from maxpool3d_layer import *
+from molmap_layer import *
