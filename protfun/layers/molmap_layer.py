@@ -36,7 +36,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
         # PDB data directory
         prefix = path.join(path.dirname(path.realpath(__file__)), "../../data")
-        dir_path = path.join(prefix, 'test')
+        dir_path = path.join(prefix, 'pdb')
 
         try:
             # attempt to load saved state from memmaps
@@ -55,7 +55,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             import rdkit.Chem.rdPartialCharges as rdPC
             import rdkit.Chem.rdMolTransforms as rdMT
 
-            fetcher = PDBFetcher(dir_path=dir_path, count=1)
+            fetcher = PDBFetcher(dir_path=dir_path)
             n_atoms = []
 
             molecules = fetcher.get_molecules()
@@ -140,9 +140,6 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         else:
             self.endx = endx  # TODO ok to have it on CPU?
 
-        # layer options
-        self.batch_size = minibatch_size
-
         # molecule data (tensors)
         self.coords = self.add_param(coords, coords.shape, 'coords', trainable=False)
         self.charges = self.add_param(charges, charges.shape, 'charges', trainable=False)
@@ -159,7 +156,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         del tmp
 
     def get_output_shape_for(self, input_shape):
-        return self.batch_size, 2, self.grid_points_count, self.grid_points_count, self.grid_points_count
+        return self.minibatch_size, 2, self.grid_points_count, self.grid_points_count, self.grid_points_count
 
     def get_output_for(self, molecule_ids, **kwargs):
         current_coords = self.pertubate(self.coords[molecule_ids])
@@ -168,6 +165,13 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         cha = self.charges[molecule_ids, :, None, None, None]
         vdw = self.vdwradii[molecule_ids, :, None, None, None]
         ama = self.atom_mask[molecule_ids, :, None, None, None]
+
+        if self.minibatch_size == 1:
+            natoms = self.n_atoms[molecule_ids[0]]
+            cha = cha[:, T.arange(natoms), :, :, :]
+            vdw = vdw[:, T.arange(natoms), :, :, :]
+            ama = ama[:, T.arange(natoms), :, :, :]
+            current_coords = current_coords[:, T.arange(natoms), :]
 
         # pairwise distances from all atoms to all grid points
         distances = T.sqrt(
@@ -212,7 +216,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         # order of summands important, otherwise error (maybe due to broadcastable properties)
         transl_min = (-self.endx + self.min_dist_from_border) - coords_min
         transl_max = (self.endx - self.min_dist_from_border) - coords_max
-        rand01 = random_streams.uniform((self.batch_size, 1, 3), dtype=floatX)  # unifom random in open interval ]0;1[
+        rand01 = random_streams.uniform((self.minibatch_size, 1, 3), dtype=floatX)  # unifom random in open interval ]0;1[
         rand01 = T.Rebroadcast((1, True), )(rand01)
         rand_translation = rand01 * (transl_max - transl_min) + transl_min
         pertubated_coords += rand_translation
