@@ -36,7 +36,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
         # PDB data directory
         prefix = path.join(path.dirname(path.realpath(__file__)), "../../data")
-        dir_path = path.join(prefix, 'pdb')
+        dir_path = path.join(prefix, 'test')
 
         try:
             # attempt to load saved state from memmaps
@@ -110,7 +110,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             self.save_to_memmap(path.join(prefix, 'n_atoms.memmap'), n_atoms, dtype=intX)
             self.save_to_memmap(path.join(prefix, 'atom_mask.memmap'), atom_mask, dtype=floatX)
 
-        print("Total number of molecules: %s" % self.molecules_count)
+        print("INFO: Total number of molecules: %s" % self.molecules_count)
 
         # Set the grid side length and resolution in Angstroms.
         endx = grid_side / 2
@@ -197,7 +197,6 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         return grids
 
     def pertubate(self, coords):
-        print "Doing random rotations ... "
         # generate a random rotation matrix Q
         random_streams = theano.sandbox.rng_mrg.MRG_RandomStreams()
         randn_matrix = random_streams.normal((3, 3), dtype=floatX)
@@ -210,7 +209,6 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         # apply rotation matrix to all molecules
         pertubated_coords = T.dot(coords, Q)
 
-        print "Doing random translations ... "
         coords_min = T.min(pertubated_coords, axis=1, keepdims=True)
         coords_max = T.max(pertubated_coords, axis=1, keepdims=True)
         # order of summands important, otherwise error (maybe due to broadcastable properties)

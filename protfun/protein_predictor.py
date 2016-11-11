@@ -6,65 +6,65 @@ import lasagne.layers.dnn
 
 import data_prep as dp
 
+from protfun.layers.molmap_layer import MoleculeMapLayer
+
 
 class ProteinPredictor(object):
-    def __init__(self, minibatch_size=16):
+    def __init__(self, minibatch_size=1):
         self.minibatch_size = minibatch_size
 
-        # dictionary with keywords "x_train", "y_train", "x_val", "y_val", "x_test", "y_test"
-        self.data = dp.load_dataset("computed_grid.npy")
+        # TODO: load a proper memmap here
+        self.labels_data = dp.load_labels("foobar.memmap")
 
         # the input has the shape of the X_train portion of the dataset
-        self.data_size = self.data['y_train'].shape[0]
-        self.input_shape = self.data['x_train'].shape[1:]
-        self.input_shape = tuple([minibatch_size]) + self.input_shape
-        self.output_shape = self.data['y_train'].shape[1:]
+        self.train_data_size = self.labels_data['y_train'].shape[0]
+        self.val_data_size = self.labels_data['y_val'].shape[0]
+        self.output_shape = self.labels_data['y_train'].shape[1:]
         self.output_shape = tuple([minibatch_size]) + self.output_shape
 
         # define input and output symbolic variables of the computation graph
-        input_tensor_var = T.TensorType('float32', (False,)*5)(name="inputs")
-        target_tensor_var = T.dmatrix('targets')
+        mol_indices = T.ivector("molecule_indices")
+        targets = T.dvector('targets')
 
         # build the network architecture
-        self.network = self._build_network(input_tensor_var)
+        self.network = self._build_network(mol_indices=mol_indices)
 
         # define objective and training parameters
         train_predictions = lasagne.layers.get_output(self.network)
-        train_loss = lasagne.objectives.categorical_crossentropy(predictions=train_predictions,
-                                                                 targets=target_tensor_var).mean()
+        train_loss = lasagne.objectives.binary_crossentropy(predictions=train_predictions,
+                                                            targets=targets).mean()
 
         train_params = lasagne.layers.get_all_params(self.network, trainable=True)
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss, params=train_params,
-                                                    learning_rate=1e-3)
+                                                    learning_rate=1e-6)
 
-        train_accuracy = T.mean(T.eq(T.gt(train_predictions, 0.5), target_tensor_var),
+        train_accuracy = T.mean(T.eq(T.gt(train_predictions, 0.5), targets),
                                 dtype=theano.config.floatX)
 
         val_predictions = lasagne.layers.get_output(self.network, deterministic=True)
         val_loss = lasagne.objectives.binary_crossentropy(predictions=val_predictions,
-                                                          targets=target_tensor_var).mean()
+                                                          targets=targets).mean()
 
-        val_accuracy = T.mean(T.eq(T.gt(val_predictions, 0.5), target_tensor_var),
+        val_accuracy = T.mean(T.eq(T.gt(val_predictions, 0.5), targets),
                               dtype=theano.config.floatX)
 
-        self.train_function = theano.function([input_tensor_var, target_tensor_var],
-                                              [train_loss, train_accuracy],
+        self.train_function = theano.function(inputs=[mol_indices, targets],
+                                              outputs=[train_loss, train_accuracy],
                                               updates=train_params_updates)
 
-        self.validation_function = theano.function([input_tensor_var, target_tensor_var],
-                                                   [val_loss, val_accuracy])
+        self.validation_function = theano.function(inputs=[mol_indices, targets],
+                                                   outputs=[val_loss, val_accuracy])
 
-        # save history data
-        self.history = {'train_loss': list(),
-                        'train_accuracy': list(),
-                        'val_loss': list(),
+        # save training history data
+        self.history = {'val_loss': list(),
                         'val_accuracy': list(),
                         'time_epoche': list()}
         print("INFO: Computational graph compiled")
 
-    def _build_network(self, input_tensor_var=None):
-        input_layer = lasagne.layers.InputLayer(shape=self.input_shape, input_var=input_tensor_var)
-        network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=input_layer,
+    def _build_network(self, mol_indices):
+        indices_input = lasagne.layers.InputLayer(shape=(None,), input_var=mol_indices)
+        data_gen = MoleculeMapLayer(incoming=indices_input, minibatch_size=self.minibatch_size)
+        network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=data_gen,
                                                     num_filters=16, filter_size=(5, 5, 5),
                                                     nonlinearity=lasagne.nonlinearities.rectify,
                                                     W=lasagne.init.GlorotNormal())
@@ -83,38 +83,41 @@ class ProteinPredictor(object):
         if shuffle:
             order = np.random.permutation(data_size)
         else:
-            order = xrange(0, data_size)
+            order = np.array(xrange(0, data_size))
 
         for minibatch_index in xrange(0, minibatch_count):
             mask = order[minibatch_index:minibatch_index + self.minibatch_size]
-            yield mask
+            yield np.asarray(mask, dtype=np.int32)
 
     def train(self, epoch_count=10):
         print("INFO: Training...")
         for e in xrange(epoch_count):
-            for indices in self._iter_minibatches(self.data_size):
-                x = self.data['x_train'][indices]
-                y = self.data['y_train'][indices]
-                loss, acc = self.train_function(x, y)
-                self.history['train_loss'].append(loss)
-                self.history['train_accuracy'].append(acc)
+            for indices in self._iter_minibatches(self.train_data_size):
+                y = self.labels_data['y_train'][indices]
+                self.train_function(indices, y)
 
-        print("INFO: Validating...")
-        for indices in self._iter_minibatches(self.data_size):
-            x = self.data['x_val'][indices]
-            y = self.data['y_val'][indices]
-            loss, acc = self.validation_function(x, y)
-            self.history['val_loss'].append(loss)
-            self.history['val_accuracy'].append(acc)
+            # validate
+            losses = []
+            accs = []
+            for indices in self._iter_minibatches(self.val_data_size, shuffle=False):
+                y = self.labels_data['y_val'][indices]
+                loss, acc = self.validation_function(indices, y)
+                losses.append(loss)
+                accs.append(acc)
+
+            mean_loss = np.mean(np.array(losses))
+            mean_accuracy = np.mean(np.array(accs))
+            print("INFO: epoch %d val loss: %f val accuracy: %f" % (e, mean_loss, mean_accuracy))
+            self.history['val_loss'].append(mean_loss)
+            self.history['val_accuracy'].append(mean_accuracy)
 
     def test(self):
         print("INFO: Testing...")
         loss = list()
         acc = list()
-        for indices in self._iter_minibatches(self.data_size):
-            x = self.data['x_test'][indices]
-            y = self.data['y_test'][indices]
-            l, a = self.validation_function(x, y)
+        for indices in self._iter_minibatches(self.train_data_size):
+            y = self.labels_data['y_test'][indices]
+            l, a = self.validation_function(indices, y)
             loss.append(l)
             acc.append(a)
 
