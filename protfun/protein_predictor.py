@@ -1,14 +1,13 @@
 import numpy as np
 import theano
 import theano.tensor as T
-
 import lasagne
 import lasagne.layers.dnn
 
 import data_prep as dp
 
-class NitroCounter():
 
+class ProteinPredictor(object):
     def __init__(self, minibatch_size=16):
         self.minibatch_size = minibatch_size
 
@@ -16,13 +15,14 @@ class NitroCounter():
         self.data = dp.load_dataset("computed_grid.npy")
 
         # the input has the shape of the X_train portion of the dataset
+        self.data_size = self.data['y_train'].shape[0]
         self.input_shape = self.data['x_train'].shape[1:]
         self.input_shape = tuple([minibatch_size]) + self.input_shape
         self.output_shape = self.data['y_train'].shape[1:]
         self.output_shape = tuple([minibatch_size]) + self.output_shape
 
         # define input and output symbolic variables of the computation graph
-        input_tensor_var = T.tensor5('inputs')
+        input_tensor_var = T.TensorType('float32', (False,)*5)(name="inputs")
         target_tensor_var = T.dmatrix('targets')
 
         # build the network architecture
@@ -31,21 +31,21 @@ class NitroCounter():
         # define objective and training parameters
         train_predictions = lasagne.layers.get_output(self.network)
         train_loss = lasagne.objectives.categorical_crossentropy(predictions=train_predictions,
-                                                           targets=target_tensor_var).mean()
+                                                                 targets=target_tensor_var).mean()
 
         train_params = lasagne.layers.get_all_params(self.network, trainable=True)
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss, params=train_params,
-                                              learning_rate=1e-3)
+                                                    learning_rate=1e-3)
 
         train_accuracy = T.mean(T.eq(T.gt(train_predictions, 0.5), target_tensor_var),
-                               dtype=theano.config.floatX)
+                                dtype=theano.config.floatX)
 
         val_predictions = lasagne.layers.get_output(self.network, deterministic=True)
         val_loss = lasagne.objectives.binary_crossentropy(predictions=val_predictions,
                                                           targets=target_tensor_var).mean()
 
         val_accuracy = T.mean(T.eq(T.gt(val_predictions, 0.5), target_tensor_var),
-                               dtype=theano.config.floatX)
+                              dtype=theano.config.floatX)
 
         self.train_function = theano.function([input_tensor_var, target_tensor_var],
                                               [train_loss, train_accuracy],
@@ -69,49 +69,57 @@ class NitroCounter():
                                                     nonlinearity=lasagne.nonlinearities.rectify,
                                                     W=lasagne.init.GlorotNormal())
         network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(10, 10, 10))
-        network = lasagne.layers.DenseLayer(incoming=network,num_units=10)
+        network = lasagne.layers.DenseLayer(incoming=network, num_units=10)
         network = lasagne.layers.DenseLayer(incoming=network, num_units=1,
                                             nonlinearity=lasagne.nonlinearities.sigmoid)
 
         return network
 
-    def _iter_minibatches(self, xs, ys, shuffle=True):
-        data_size = xs.shape[0]
+    def _iter_minibatches(self, data_size, shuffle=True):
         minibatch_count = data_size / self.minibatch_size
         if data_size % self.minibatch_size != 0:
             minibatch_count += 1
 
-        order = np.random.permutation(data_size)
+        if shuffle:
+            order = np.random.permutation(data_size)
+        else:
+            order = xrange(0, data_size)
+
         for minibatch_index in xrange(0, minibatch_count):
-            mask = order[minibatch_index:minibatch_index+self.minibatch_size]
-            yield xs[mask], ys[mask]
+            mask = order[minibatch_index:minibatch_index + self.minibatch_size]
+            yield mask
 
     def train(self, epoch_count=10):
         print("INFO: Training...")
         for e in xrange(epoch_count):
-            for minibatch in self._iter_minibatches(self.data['x_train'], self.data['y_train']):
-                x, y = minibatch
+            for indices in self._iter_minibatches(self.data_size):
+                x = self.data['x_train'][indices]
+                y = self.data['y_train'][indices]
                 loss, acc = self.train_function(x, y)
                 self.history['train_loss'].append(loss)
                 self.history['train_accuracy'].append(acc)
 
         print("INFO: Validating...")
-        for minibatch in self._iter_minibatches(self.data['x_val'], self.data['y_val']):
-            x, y = minibatch
+        for indices in self._iter_minibatches(self.data_size):
+            x = self.data['x_val'][indices]
+            y = self.data['y_val'][indices]
             loss, acc = self.validation_function(x, y)
             self.history['val_loss'].append(loss)
             self.history['val_accuracy'].append(acc)
 
     def test(self):
         print("INFO: Testing...")
-        loss = list(); acc = list()
-        for minibatch in self._iter_minibatches(self.data['x_test'], self.data['y_test']):
-            x, y = minibatch
+        loss = list()
+        acc = list()
+        for indices in self._iter_minibatches(self.data_size):
+            x = self.data['x_test'][indices]
+            y = self.data['y_test'][indices]
             l, a = self.validation_function(x, y)
-            loss.append(l); acc.append(a)
+            loss.append(l)
+            acc.append(a)
 
-        mean_loss = sum(loss)/float(len(loss))
-        mean_acc = sum(acc)/float(len(acc))
+        mean_loss = sum(loss) / float(len(loss))
+        mean_acc = sum(acc) / float(len(acc))
 
         print("Mean test loss: {0}".format(mean_loss))
         print("Mean test accuracy: {0}".format(mean_acc))

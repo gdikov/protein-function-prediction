@@ -40,11 +40,19 @@ def visualize():
     viewer.potential3d()
 
 
+def train():
+    from protein_predictor import ProteinPredictor
+    predictor = ProteinPredictor(minibatch_size=1)
+    predictor.train()
+    predictor.test()
+
+
 if __name__ == "__main__":
-    preprocess()
+    # preprocess()
     # get_original()
-    visualize()
-    grids = np.load(grid_file)
-    print("max potential %s" % grids[0, 0].max())
-    print("min potential %s" % grids[0, 0].min())
-    print("potential at corner %s" % grids[0, 0, 0, 0, 0])
+    # visualize()
+    # grids = np.load(grid_file)
+    # print("max potential %s" % grids[0, 0].max())
+    # print("min potential %s" % grids[0, 0].min())
+    # print("potential at corner %s" % grids[0, 0, 0, 0, 0])
+    train()
