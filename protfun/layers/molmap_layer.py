@@ -3,6 +3,8 @@ import theano.tensor as T
 import lasagne
 import numpy as np
 import os
+import csv
+import StringIO
 import theano.tensor.nlinalg
 
 from os import path, listdir
@@ -36,7 +38,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
         # PDB data directory
         prefix = path.join(path.dirname(path.realpath(__file__)), "../../data")
-        dir_path = path.join(prefix, 'test')
+        dir_path = path.join(prefix, 'pdb')
 
         try:
             # attempt to load saved state from memmaps
@@ -59,6 +61,10 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             n_atoms = []
 
             molecules = fetcher.get_molecules()
+            go_ids = fetcher.get_gene_ontologies()
+            with open(path.join(prefix, "go_ids.csv"), "wb") as f:
+                writer = csv.writer(f)
+                writer.writerows(go_ids)
 
             # Periodic table object, needed for getting VDW radii
             pt = Chem.GetPeriodicTable()
@@ -73,7 +79,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
             for mol_index, mol in enumerate(molecules):
                 # compute the atomic partial charges
-                rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
+                rdPC.ComputeGasteigerCharges(mol)  # , throwOnParamFailure=True)
 
                 # get the conformation of the molecule and number of atoms (3D coordinates)
                 conformer = mol.GetConformer()
@@ -214,7 +220,8 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         # order of summands important, otherwise error (maybe due to broadcastable properties)
         transl_min = (-self.endx + self.min_dist_from_border) - coords_min
         transl_max = (self.endx - self.min_dist_from_border) - coords_max
-        rand01 = random_streams.uniform((self.minibatch_size, 1, 3), dtype=floatX)  # unifom random in open interval ]0;1[
+        rand01 = random_streams.uniform((self.minibatch_size, 1, 3),
+                                        dtype=floatX)  # unifom random in open interval ]0;1[
         rand01 = T.Rebroadcast((1, True), )(rand01)
         rand_translation = rand01 * (transl_max - transl_min) + transl_min
         pertubated_coords += rand_translation
@@ -231,6 +238,12 @@ class PDBFetcher(object):
         self.dir_path = dir_path
         self.count = count
 
+        files = [path.join(self.dir_path, f) for f in listdir(self.dir_path)
+                 if f.endswith(".ent") or f.endswith(".pdb")]
+        if self.count is None:
+            self.count = len(files)
+        self.files = files[:self.count]
+
     def download_pdb(self):
         from Bio.PDB import PDBList
         pl = PDBList(pdb=self.dir_path)
@@ -246,18 +259,49 @@ class PDBFetcher(object):
     def get_molecules(self):
         import rdkit.Chem as Chem
         import rdkit.Chem.rdmolops as rdMO
-        files = [path.join(self.dir_path, f) for f in listdir(self.dir_path)
-                 if f.endswith(".ent") or f.endswith(".pdb")]
-        if self.count is None:
-            self.count = len(files)
-        files = files[:self.count]
-        res = [Chem.MolFromPDBFile(molFileName=f) for f in files]
+
+        # get molecules
+        res = [Chem.MolFromPDBFile(molFileName=f, removeHs=False, sanitize=True) for f in self.files]
         return [rdMO.AddHs(mol, addCoords=True) for mol in res if mol is not None]
+
+    def get_gene_ontologies(self):
+        return [self._get_gene_ontology(f) for f in self.files]
+
+    @staticmethod
+    def _get_gene_ontology(pdb_file):
+        from prody.proteins.header import parsePDBHeader
+        import requests
+
+        polymers = parsePDBHeader(pdb_file, "polymers")
+        uniprot_ids = set()
+        for polymer in polymers:
+            for dbref in polymer.dbrefs:
+                if dbref.database == "UniProt":
+                    uniprot_ids.add(dbref.accession)
+
+        go_ids = []
+        for uniprot_id in uniprot_ids:
+            url = "http://www.ebi.ac.uk/QuickGO/GAnnotation?protein=" + uniprot_id + "&format=tsv"
+            response = requests.get(url)
+            go_ids += PDBFetcher._parse_gene_ontology(response.text)
+        return go_ids
+
+    @staticmethod
+    def _parse_gene_ontology(tsv_text):
+        f = StringIO.StringIO(tsv_text)
+        reader = csv.reader(f, dialect="excel-tab")
+        # skip the header
+        next(reader)
+        try:
+            return zip(*[line for line in reader])[6]
+        except IndexError:
+            # protein has no GO terms associated with it
+            return ["unknown"]
 
 
 # run this if you wish to download the PDB database
 if __name__ == "__main__":
-    pdb_dir = path.join(path.dirname(path.realpath(__file__)), "../data")
+    pdb_dir = path.join(path.dirname(path.realpath(__file__)), "../../data/pdb")
     if not path.exists(pdb_dir):
         os.makedirs(pdb_dir)
     fetcher = PDBFetcher(dir_path=pdb_dir)

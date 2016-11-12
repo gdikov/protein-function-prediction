@@ -1,7 +1,10 @@
 # Large input data files
 *.sdf
 *.pdb
+*.ent
 *.memmap
 *.npy
+*.csv
 test/
 figures/
+go/
