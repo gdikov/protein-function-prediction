@@ -2,12 +2,10 @@ import theano
 import theano.tensor as T
 import lasagne
 import numpy as np
-import os
-import csv
-import StringIO
+
 import theano.tensor.nlinalg
 
-from os import path, listdir
+from os import path
 
 floatX = theano.config.floatX
 intX = np.int32  # FIXME is this the best choice? (changing would require removing and recreating memmap files)
@@ -27,96 +25,23 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     otherwise `theano.tensor.switch` is slow.
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=62.0, resolution=2.0, **kwargs):
+    def __init__(self, incoming, path_to_moldata, minibatch_size=None, grid_side=62.0, resolution=2.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
             minibatch_size = 1
-            print("minibatch_size not provided - assuming {}.".format(minibatch_size))
+            print("INFO: Minibatch size not provided - assuming {}.".format(minibatch_size))
 
         self.minibatch_size = minibatch_size
 
-        # PDB data directory
-        prefix = path.join(path.dirname(path.realpath(__file__)), "../../data")
-        dir_path = path.join(prefix, 'pdb')
-
-        try:
-            # attempt to load saved state from memmaps
-            max_atoms = np.memmap(path.join(prefix, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
-            coords = np.memmap(path.join(prefix, 'coords.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms, 3))
-            charges = np.memmap(path.join(prefix, 'charges.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms))
-            vdwradii = np.memmap(path.join(prefix, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms))
-            n_atoms = np.memmap(path.join(prefix, 'n_atoms.memmap'), mode='r', dtype=intX)
-            atom_mask = np.memmap(path.join(prefix, 'atom_mask.memmap'), mode='r', dtype=floatX).reshape(
-                (-1, max_atoms))
-            self.molecules_count = n_atoms.size
-        except IOError:
-            # memmap files not found, create them
-            print "Creating memmap files..."
-            import rdkit.Chem as Chem
-            import rdkit.Chem.rdPartialCharges as rdPC
-            import rdkit.Chem.rdMolTransforms as rdMT
-
-            fetcher = PDBFetcher(dir_path=dir_path)
-            n_atoms = []
-
-            molecules = fetcher.get_molecules()
-            go_ids = fetcher.get_gene_ontologies()
-            with open(path.join(prefix, "go_ids.csv"), "wb") as f:
-                writer = csv.writer(f)
-                writer.writerows(go_ids)
-
-            # Periodic table object, needed for getting VDW radii
-            pt = Chem.GetPeriodicTable()
-
-            self.molecules_count = len(molecules)
-            max_atoms = max([mol.GetNumAtoms() for mol in molecules])
-
-            coords = np.zeros(shape=(self.molecules_count, max_atoms, 3), dtype=floatX)
-            charges = np.zeros(shape=(self.molecules_count, max_atoms), dtype=floatX)
-            vdwradii = np.ones(shape=(self.molecules_count, max_atoms), dtype=floatX)
-            atom_mask = np.zeros(shape=(self.molecules_count, max_atoms), dtype=floatX)
-
-            for mol_index, mol in enumerate(molecules):
-                # compute the atomic partial charges
-                rdPC.ComputeGasteigerCharges(mol)  # , throwOnParamFailure=True)
-
-                # get the conformation of the molecule and number of atoms (3D coordinates)
-                conformer = mol.GetConformer()
-
-                # calculate the center of the molecule
-                # Centroid is the center of coordinates (center of mass of unit-weight atoms)
-                # Center of mass would require atomic weights for each atom: pt.GetAtomicWeight()
-                center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
-
-                atoms_count = mol.GetNumAtoms()
-                atoms = mol.GetAtoms()
-
-                n_atoms.append(atoms_count)
-                atom_mask[mol_index, 0:atoms_count] = 1
-
-                def get_coords(i):
-                    coord = conformer.GetAtomPosition(i)
-                    return np.asarray([coord.x, coord.y, coord.z])
-
-                # set the coordinates, charges and VDW radii
-                coords[mol_index, 0:atoms_count] = np.asarray(
-                    [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
-                    [center.x, center.y, center.z])
-                charges[mol_index, 0:atoms_count] = np.asarray(
-                    [float(atom.GetProp("_GasteigerCharge")) for atom in atoms])
-                vdwradii[mol_index, 0:atoms_count] = np.asarray([pt.GetRvdw(atom.GetAtomicNum()) for atom in atoms])
-
-            n_atoms = np.asarray(n_atoms, dtype=intX)
-
-            self.save_to_memmap(path.join(prefix, 'max_atoms.memmap'), np.asarray([max_atoms], dtype=intX), dtype=intX)
-            self.save_to_memmap(path.join(prefix, 'coords.memmap'), coords, dtype=floatX)
-            self.save_to_memmap(path.join(prefix, 'charges.memmap'), charges, dtype=floatX)
-            self.save_to_memmap(path.join(prefix, 'vdwradii.memmap'), vdwradii, dtype=floatX)
-            self.save_to_memmap(path.join(prefix, 'n_atoms.memmap'), n_atoms, dtype=intX)
-            self.save_to_memmap(path.join(prefix, 'atom_mask.memmap'), atom_mask, dtype=floatX)
-
-        print("INFO: Total number of molecules: %s" % self.molecules_count)
+        # load saved state from memmaps
+        max_atoms = np.memmap(path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
+        coords = np.memmap(path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms, 3))
+        charges = np.memmap(path.join(path_to_moldata, 'charges.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms))
+        vdwradii = np.memmap(path.join(path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms))
+        n_atoms = np.memmap(path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=intX)
+        atom_mask = np.memmap(path.join(path_to_moldata, 'atom_mask.memmap'), mode='r', dtype=floatX).reshape(
+            (-1, max_atoms))
 
         # Set the grid side length and resolution in Angstroms.
         endx = grid_side / 2
@@ -153,19 +78,11 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         self.n_atoms = self.add_param(n_atoms, n_atoms.shape, 'n_atoms', trainable=False)
         self.atom_mask = self.add_param(atom_mask, atom_mask.shape, 'atom_mask', trainable=False)
 
-    @staticmethod
-    def save_to_memmap(filename, data, dtype):
-        tmp = np.memmap(filename, shape=data.shape, mode='w+', dtype=dtype)
-        print("Saving memmap. Shape of {} is {}".format(filename, data.shape))
-        tmp[:] = data[:]
-        tmp.flush()
-        del tmp
-
     def get_output_shape_for(self, input_shape):
         return self.minibatch_size, 2, self.grid_points_count, self.grid_points_count, self.grid_points_count
 
     def get_output_for(self, molecule_ids, **kwargs):
-        current_coords = self.pertubate(self.coords[molecule_ids])
+        current_coords = self.perturbate(self.coords[molecule_ids])
 
         # select subarray for current molecule; extend to 5D using `None`
         cha = self.charges[molecule_ids, :, None, None, None]
@@ -202,7 +119,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         # print "grids: ", grids.shape.eval()
         return grids
 
-    def pertubate(self, coords):
+    def perturbate(self, coords):
         # generate a random rotation matrix Q
         random_streams = theano.sandbox.rng_mrg.MRG_RandomStreams()
         randn_matrix = random_streams.normal((3, 3), dtype=floatX)
@@ -213,10 +130,10 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         Q = Q * T.nlinalg.Det()(Q)  # stackoverflow.com/questions/30132036
 
         # apply rotation matrix to all molecules
-        pertubated_coords = T.dot(coords, Q)
+        perturbated_coords = T.dot(coords, Q)
 
-        coords_min = T.min(pertubated_coords, axis=1, keepdims=True)
-        coords_max = T.max(pertubated_coords, axis=1, keepdims=True)
+        coords_min = T.min(perturbated_coords, axis=1, keepdims=True)
+        coords_max = T.max(perturbated_coords, axis=1, keepdims=True)
         # order of summands important, otherwise error (maybe due to broadcastable properties)
         transl_min = (-self.endx + self.min_dist_from_border) - coords_min
         transl_max = (self.endx - self.min_dist_from_border) - coords_max
@@ -224,85 +141,6 @@ class MoleculeMapLayer(lasagne.layers.Layer):
                                         dtype=floatX)  # unifom random in open interval ]0;1[
         rand01 = T.Rebroadcast((1, True), )(rand01)
         rand_translation = rand01 * (transl_max - transl_min) + transl_min
-        pertubated_coords += rand_translation
-        return pertubated_coords
+        perturbated_coords += rand_translation
 
-
-class PDBFetcher(object):
-    """
-    PDBFetcher can download PDB files from the PDB and
-    also convert the files to rdkit molecules.
-    """
-
-    def __init__(self, dir_path, count=None):
-        self.dir_path = dir_path
-        self.count = count
-
-        files = [path.join(self.dir_path, f) for f in listdir(self.dir_path)
-                 if f.endswith(".ent") or f.endswith(".pdb")]
-        if self.count is None:
-            self.count = len(files)
-        self.files = files[:self.count]
-
-    def download_pdb(self):
-        from Bio.PDB import PDBList
-        pl = PDBList(pdb=self.dir_path)
-        pl.flat_tree = 1
-        pl.download_entire_pdb()
-
-    def download_protein(self, pdb_code):
-        from Bio.PDB import PDBList
-        pl = PDBList(pdb=self.dir_path)
-        pl.flat_tree = 1
-        pl.retrieve_pdb_file(pdb_code=pdb_code)
-
-    def get_molecules(self):
-        import rdkit.Chem as Chem
-        import rdkit.Chem.rdmolops as rdMO
-
-        # get molecules
-        res = [Chem.MolFromPDBFile(molFileName=f, removeHs=False, sanitize=True) for f in self.files]
-        return [rdMO.AddHs(mol, addCoords=True) for mol in res if mol is not None]
-
-    def get_gene_ontologies(self):
-        return [self._get_gene_ontology(f) for f in self.files]
-
-    @staticmethod
-    def _get_gene_ontology(pdb_file):
-        from prody.proteins.header import parsePDBHeader
-        import requests
-
-        polymers = parsePDBHeader(pdb_file, "polymers")
-        uniprot_ids = set()
-        for polymer in polymers:
-            for dbref in polymer.dbrefs:
-                if dbref.database == "UniProt":
-                    uniprot_ids.add(dbref.accession)
-
-        go_ids = []
-        for uniprot_id in uniprot_ids:
-            url = "http://www.ebi.ac.uk/QuickGO/GAnnotation?protein=" + uniprot_id + "&format=tsv"
-            response = requests.get(url)
-            go_ids += PDBFetcher._parse_gene_ontology(response.text)
-        return go_ids
-
-    @staticmethod
-    def _parse_gene_ontology(tsv_text):
-        f = StringIO.StringIO(tsv_text)
-        reader = csv.reader(f, dialect="excel-tab")
-        # skip the header
-        next(reader)
-        try:
-            return zip(*[line for line in reader])[6]
-        except IndexError:
-            # protein has no GO terms associated with it
-            return ["unknown"]
-
-
-# run this if you wish to download the PDB database
-if __name__ == "__main__":
-    pdb_dir = path.join(path.dirname(path.realpath(__file__)), "../../data/pdb")
-    if not path.exists(pdb_dir):
-        os.makedirs(pdb_dir)
-    fetcher = PDBFetcher(dir_path=pdb_dir)
-    fetcher.download_pdb()
+        return perturbated_coords
