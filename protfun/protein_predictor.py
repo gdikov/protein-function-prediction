@@ -4,22 +4,22 @@ import theano.tensor as T
 import lasagne
 import lasagne.layers.dnn
 
-import data_prep as dp
-
 from protfun.layers.molmap_layer import MoleculeMapLayer
 
 
 class ProteinPredictor(object):
-    def __init__(self, minibatch_size=1):
-        self.minibatch_size = minibatch_size
+    def __init__(self, train_data, test_data, minibatch_size=1, num_output_classes=1):
 
-        # TODO: load a proper memmap here
-        self.labels_data = dp.load_labels("foobar.memmap")
+        self.minibatch_size = minibatch_size
+        self.num_output_classes = num_output_classes
+
+        self.train_data = train_data
+        self.test_data = test_data
 
         # the input has the shape of the X_train portion of the dataset
-        self.train_data_size = self.labels_data['y_train'].shape[0]
-        self.val_data_size = self.labels_data['y_val'].shape[0]
-        self.output_shape = self.labels_data['y_train'].shape[1:]
+        self.train_data_size = self.train_data['y_train'].shape[0]
+        self.val_data_size = self.train_data['y_val'].shape[0]
+        self.output_shape = self.train_data['y_train'].shape[1:]
         self.output_shape = tuple([minibatch_size]) + self.output_shape
 
         # define input and output symbolic variables of the computation graph
@@ -63,14 +63,15 @@ class ProteinPredictor(object):
 
     def _build_network(self, mol_indices):
         indices_input = lasagne.layers.InputLayer(shape=(None,), input_var=mol_indices)
-        data_gen = MoleculeMapLayer(incoming=indices_input, minibatch_size=self.minibatch_size)
+        data_gen = MoleculeMapLayer(incoming=indices_input,
+                                    minibatch_size=self.minibatch_size)
         network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=data_gen,
                                                     num_filters=16, filter_size=(5, 5, 5),
                                                     nonlinearity=lasagne.nonlinearities.rectify,
                                                     W=lasagne.init.GlorotNormal())
         network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(10, 10, 10))
         network = lasagne.layers.DenseLayer(incoming=network, num_units=10)
-        network = lasagne.layers.DenseLayer(incoming=network, num_units=1,
+        network = lasagne.layers.DenseLayer(incoming=network, num_units=self.num_output_classes,
                                             nonlinearity=lasagne.nonlinearities.sigmoid)
 
         return network
@@ -128,3 +129,6 @@ class ProteinPredictor(object):
         print("Mean test accuracy: {0}".format(mean_acc))
 
         return mean_loss, mean_acc
+
+    def summarize(self):
+        print("The network has been tremendously successful!")

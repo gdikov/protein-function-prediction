@@ -7,6 +7,8 @@ import theano
 
 import layers.molmap_layer as mml
 from protfun.visualizer.molview import MoleculeView
+from protfun.data_prep import DataSetup
+from protfun.protein_predictor import ProteinPredictor
 
 grid_file = path.join(path.dirname(path.realpath(__file__)), "../data/computed_grid.npy")
 
@@ -42,10 +44,27 @@ def train():
 
 
 if __name__ == "__main__":
-    preprocess(index=0)
-    grids = np.load(grid_file)
-    print("max potential %s" % grids[0, 0].max())
-    print("min potential %s" % grids[0, 0].min())
-    print("potential at corner %s" % grids[0, 0, 0, 0, 0])
-    visualize()
+    # preprocess(index=0)
+    # grids = np.load(grid_file)
+    # print("max potential %s" % grids[0, 0].max())
+    # print("min potential %s" % grids[0, 0].min())
+    # print("potential at corner %s" % grids[0, 0, 0, 0, 0])
+    # visualize()
     # train()
+
+    data = DataSetup(prot_codes=["1UBI"])
+
+    train_test_data, num_gene_ontologies = data.load_dataset()
+    #
+    # predictor = ProteinPredictor(train_data=train_mol_ids,
+    #                              test_data=test_mol_ids,
+    #                              minibatch_size=1,
+    #                              num_output_classes=num_gene_ontologies)
+    #
+    # predictor.train(epoch_count=1)
+    # predictor.test()
+    # predictor.summarize()
+
+
+
+
