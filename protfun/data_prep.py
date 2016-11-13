@@ -8,231 +8,149 @@ floatX = theano.config.floatX
 intX = np.int32  # FIXME is this the best choice? (changing would require removing and recreating memmap files)
 
 
-class DataSetup():
-    """ safemode should prevent redoing time consuming tasks such as downloading and memmapping
-    the PDB and GOs. If turned off it will overwrite the data. """
-    def __init__(self, foldername='data', safemode=True, prot_codes=None, split_test=0.1):
+class DataSetup(object):
+    """
+    Sets up the data set by downloading PDB proteins and doing initial processing into memmaps.
+    """
 
-        self.safemode = safemode
+    def __init__(self, foldername='data', update=True, prot_codes=None, split_test=0.1):
+        """
 
-        path_to_data = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../")
-        self.foldername = os.path.join(path_to_data, foldername)
+        :param foldername: the directory that will contain the data set
+        :param update: whether the data set should be updated (downloaded again & memmaps generated).
+        :param prot_codes: which protein codes the dataset should contain. Only makes sense if redownload=True.
+        :param split_test: ration of training vs. test data
+        """
 
-        self.num_gene_ontologies = 0
+        self.data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../", foldername)
+        self.pdb_dir = os.path.join(self.data_dir, "pdb")
+        self.go_dir = os.path.join(self.data_dir, "go")
+        self.memmap_dir = os.path.join(self.data_dir, "moldata")
+
+        if not os.path.exists(self.pdb_dir):
+            os.makedirs(self.pdb_dir)
+        if not os.path.exists(self.go_dir):
+            os.makedirs(self.go_dir)
+        if not os.path.exists(self.memmap_dir):
+            os.makedirs(self.memmap_dir)
+
         self.prot_codes = prot_codes
         self.split_test = split_test
-
         self.pdb_files = []
-        self._setup()
+        self._setup(update)
 
-    def _setup(self):
-
-        pdb_dir = os.path.join(self.foldername, "pdb")
-        go_dir = os.path.join(self.foldername, "go")
-        moldata_dir = os.path.join(self.foldername, "moldata")
-
-        if not os.path.exists(pdb_dir):
-            os.makedirs(pdb_dir)
-        if not os.path.exists(go_dir):
-            os.makedirs(go_dir)
-        if not os.path.exists(moldata_dir):
-            os.makedirs(moldata_dir)
-
-        if self.safemode:
+    def _setup(self, update):
+        if update:
+            print("INFO: Proceeding to download the Protein Data Base...")
+            self._download_dataset()
+            print("INFO: Creating molecule data memmap files...")
+            self._preprocess_dataset()
+        else:
             # checking for pdb related files
-            filelist = [f for f in os.listdir(pdb_dir)
-                        if f.endswith('.gz') or f.endswith('.pdb') or f.endswith('.ent')]
-            if filelist:
-                print("INFO: Safemode is ON and the Protein Data Base seems to be downloaded. "
-                      "Skipping download.")
-            else:
-                print("INFO: Proceeding to download the Protein Data Base...")
-                self._download_dataset(pdb_dir=pdb_dir, ontologies_dir=go_dir, pdb_codes=self.prot_codes)
+            pdb_list = [f for f in os.listdir(self.pdb_dir) if
+                        f.endswith('.gz') or f.endswith('.pdb') or f.endswith('.ent')]
+            if not pdb_list:
+                print("WARNING: %s does not contain any PDB files. " +
+                      "Run the DataSetup with update=True to download them." % self.pdb_dir)
 
             # checking for molecule data memmaps
-            filelist = [f for f in os.listdir(moldata_dir) if f.endswith('.memmap')]
-            if filelist:
-                print("INFO: Safemode is ON and the molecule data files (memmap) seem to be there. "
-                      "Skipping molecule info memmap generation.")
-            else:
-                self._store_molecule_info(moldata_dir=moldata_dir, sanitize=True)
+            memmap_list = [f for f in os.listdir(self.memmap_dir) if f.endswith('.memmap')]
+            if not memmap_list:
+                print("WARNING: %s does not contain any memmap files. " +
+                      "Run the DataSetup with update=True to recreate them." % self.pdb_dir)
 
-        else:
-            print("INFO: Proceeding to download the Protein Data Base...")
-            self._download_dataset(pdb_dir=pdb_dir, ontologies_dir=go_dir)
-            print("INFO: Creating molecule data memmap files...")
-            self._store_molecule_info(moldata_dir=moldata_dir, sanitize=True)
-
-        # TODO integrate splitting in test and training datasets
-        return self.num_gene_ontologies
-
-    """ TODO add documentation """
-    def _download_dataset(self, pdb_dir, ontologies_dir=None, pdb_codes=None):
+    def _download_dataset(self):
+        """
+        Downloads the PDB database (or a part of it) as PDB files.
+        """
         # TODO: control the number of molecules to download if the entire DB is too large
         # download the Protein Data Base
         from Bio.PDB import PDBList
-        pl = PDBList(pdb=pdb_dir)
+        pl = PDBList(pdb=self.pdb_dir)
         pl.flat_tree = 1
-        if pdb_codes is not None:
-            for code in pdb_codes:
+        if self.prot_codes is not None:
+            for code in self.prot_codes:
                 pl.retrieve_pdb_file(pdb_code=code)
         else:
             pl.download_entire_pdb()
 
-        self.pdb_files = [os.path.join(pdb_dir, f) for f in os.listdir(pdb_dir)
+        self.pdb_files = [os.path.join(self.pdb_dir, f) for f in os.listdir(self.pdb_dir)
                           if f.endswith(".ent") or f.endswith(".pdb")]
 
-        # TODO remove the pdb file from self.pdb_files if get_gene_onotlogy fails somewhere
-        def _get_gene_ontologies():
-            from prody.proteins.header import parsePDBHeader
-            import requests
+    def _preprocess_dataset(self):
+        """
+        Does pre-processing of the downloaded PDB files.
+        numpy.memmap's are created for molecules (from the PDB files with no errors)
+        A .csv file is created with all GO (Gene Ontology) IDs for the processed molecules.
+        :return:
+        """
 
-            all_go_ids = []
+        molecule_processor = MoleculeProcessor()
+        go_processor = GeneOntologyProcessor()
 
-            def parse_gene_ontology(tsv_text):
-                f = StringIO.StringIO(tsv_text)
-                reader = csv.reader(f, dialect="excel-tab")
-                # skip the header
-                next(reader)
-                try:
-                    return zip(*[line for line in reader])[6]
-                except IndexError:
-                    # protein has no GO terms associated with it
-                    return ["unknown"]
+        molecules = list()
+        go_targets = list()
 
-            for f in self.pdb_files:
-                polymers = parsePDBHeader(f, "polymers")
-                uniprot_ids = set()
-                for polymer in polymers:
-                    for dbref in polymer.dbrefs:
-                        if dbref.database == "UniProt":
-                            uniprot_ids.add(dbref.accession)
+        # process all PDB files
+        for f in self.pdb_files:
+            # process molecule from file
+            mol = molecule_processor.process_molecule(f)
+            if mol is None:
+                print("INFO: removing PDB file %s for invalid molecule" % f)
+                self.pdb_files.remove(f)
+                continue
 
-                go_ids = []
-                for uniprot_id in uniprot_ids:
-                    url = "http://www.ebi.ac.uk/QuickGO/GAnnotation?protein=" + uniprot_id + "&format=tsv"
-                    response = requests.get(url)
-                    go_ids += parse_gene_ontology(response.text)
+            # process gene ontology (GO) target label from file
+            go_ids = go_processor.process_gene_ontologies(f)
+            if go_ids is None or len(go_ids) == 0:
+                print("INFO: removing PDB file %s because it has no gene ontologies associated with it." % f)
+                self.pdb_files.remove(f)
+                continue
 
-                all_go_ids.append(go_ids)
+            molecules.append(mol)
+            go_targets.append(go_ids)
 
-            return all_go_ids
+        n_atoms = np.array([mol["atoms_count"] for mol in molecules])
+        max_atoms = n_atoms.max()
+        molecules_count = len(molecules)
 
-        # download the gene ontologies for each protein
-        if ontologies_dir is not None:
-            with open(os.path.join(self.foldername, "go_ids.csv"), "wb") as f:
-                # log the gene ontology IDs into a csv file
-                gene_ontologies = _get_gene_ontologies()
-                csv.writer(f).writerows(gene_ontologies)
+        # after pre-processing, the PDB files should match the final molecules
+        assert molecules_count == len(self.pdb_files)
 
-    """TODO add documentation """
-    def _store_molecule_info(self, moldata_dir, sanitize=True):
+        # create numpy arrays for the final data
+        coords = np.zeros(shape=(molecules_count, max_atoms, 3), dtype=floatX)
+        charges = np.zeros(shape=(molecules_count, max_atoms), dtype=floatX)
+        vdwradii = np.ones(shape=(molecules_count, max_atoms), dtype=floatX)
+        atom_mask = np.zeros(shape=(molecules_count, max_atoms), dtype=floatX)
 
-        # memmap files not found, create them
-        print "INFO: Creating memmap files with molecule data..."
+        for i, mol in enumerate(molecules):
+            coords[i, 0:mol["atoms_count"]] = mol["coords"]
+            charges[i, 0:mol["atoms_count"]] = mol["charges"]
+            vdwradii[i, 0:mol["atoms_count"]] = mol["vdwradii"]
+            atom_mask[i, 0:mol["atoms_count"]] = 1
 
-        import rdkit.Chem as Chem
-        import rdkit.Chem.rdPartialCharges as rdPC
-        import rdkit.Chem.rdMolTransforms as rdMT
+        n_atoms = np.asarray(n_atoms, dtype=intX)
 
-        n_atoms = []
-
-        def _get_molecules():
-            import rdkit.Chem as Chem
-            import rdkit.Chem.rdmolops as rdMO
-
-            # get molecules
-            # sanitize the data for incorrectly built molecules
-            if sanitize:
-                res = []
-                for f in self.pdb_files:
-                    mol_from_pdb = Chem.MolFromPDBFile(molFileName=f, removeHs=False, sanitize=True)
-                    if mol_from_pdb is None:
-                        self.pdb_files.remove(f)
-                        print("WARNING: Bad pdb file found. Protein will be removed.")
-                        continue
-                    res.append(rdMO.AddHs(mol_from_pdb, addCoords=True))
-            else:
-                res = [Chem.MolFromPDBFile(molFileName=f, removeHs=False, sanitize=True) for f in self.pdb_files]
-                res = [rdMO.AddHs(mol, addCoords=True) for mol in res if mol is not None]
-            return res
-
-        molecules = _get_molecules()
-
-        # Periodic table object, needed for getting VDW radii
-        pt = Chem.GetPeriodicTable()
-
-        self.molecules_count = len(molecules)
-        max_atoms = max([mol.GetNumAtoms() for mol in molecules])
-
-        coords = np.zeros(shape=(self.molecules_count, max_atoms, 3), dtype=floatX)
-        charges = np.zeros(shape=(self.molecules_count, max_atoms), dtype=floatX)
-        vdwradii = np.ones(shape=(self.molecules_count, max_atoms), dtype=floatX)
-        atom_mask = np.zeros(shape=(self.molecules_count, max_atoms), dtype=floatX)
-
-        def _save_to_memmap(filename, data, dtype):
+        # save the final molecules into memmap files
+        def save_to_memmap(filename, data, dtype):
             tmp = np.memmap(filename, shape=data.shape, mode='w+', dtype=dtype)
             print("INFO: Saving memmap. Shape of {0} is {1}".format(filename, data.shape))
             tmp[:] = data[:]
             tmp.flush()
             del tmp
 
-        mol_index = -1
-        for mol in molecules:
-            mol_index += 1
-            # TODO: add sanitiziation
-            # compute the atomic partial charges
-            if sanitize:
-                try:
-                    rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
-                except ValueError:
-                    print("WARNING: Bad Gasteiger charge evaluation. Protein will be removed.")
-                    # comment this removal if molecules aren't use any more
-                    molecules.remove(mol)
-                    del self.pdb_files[mol_index]
-                    mol_index -= 1
-                    continue
-            else:
-                rdPC.ComputeGasteigerCharges(mol)
+        save_to_memmap(os.path.join(self.memmap_dir, 'max_atoms.memmap'), np.asarray([max_atoms], dtype=intX),
+                       dtype=intX)
+        save_to_memmap(os.path.join(self.memmap_dir, 'coords.memmap'), coords, dtype=floatX)
+        save_to_memmap(os.path.join(self.memmap_dir, 'charges.memmap'), charges, dtype=floatX)
+        save_to_memmap(os.path.join(self.memmap_dir, 'vdwradii.memmap'), vdwradii, dtype=floatX)
+        save_to_memmap(os.path.join(self.memmap_dir, 'n_atoms.memmap'), n_atoms, dtype=intX)
+        save_to_memmap(os.path.join(self.memmap_dir, 'atom_mask.memmap'), atom_mask, dtype=floatX)
 
-            # get the conformation of the molecule and number of atoms (3D coordinates)
-            conformer = mol.GetConformer()
+        # save the final GO targets into a .csv file
+        with open(os.path.join(self.go_dir, "go_ids.csv"), "wb") as f:
+            csv.writer(f).writerows(go_targets)
 
-            # calculate the center of the molecule
-            # Centroid is the center of coordinates (center of mass of unit-weight atoms)
-            # Center of mass would require atomic weights for each atom: pt.GetAtomicWeight()
-            center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
-
-            atoms_count = mol.GetNumAtoms()
-            atoms = mol.GetAtoms()
-
-            n_atoms.append(atoms_count)
-            atom_mask[mol_index, 0:atoms_count] = 1
-
-            def get_coords(i):
-                coord = conformer.GetAtomPosition(i)
-                return np.asarray([coord.x, coord.y, coord.z])
-
-            # set the coordinates, charges and VDW radii
-            coords[mol_index, 0:atoms_count] = np.asarray(
-                [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
-                [center.x, center.y, center.z])
-            charges[mol_index, 0:atoms_count] = np.asarray(
-                [float(atom.GetProp("_GasteigerCharge")) for atom in atoms])
-            vdwradii[mol_index, 0:atoms_count] = np.asarray([pt.GetRvdw(atom.GetAtomicNum()) for atom in atoms])
-
-        n_atoms = np.asarray(n_atoms, dtype=intX)
-
-        _save_to_memmap(os.path.join(moldata_dir, 'max_atoms.memmap'), np.asarray([max_atoms], dtype=intX), dtype=intX)
-        _save_to_memmap(os.path.join(moldata_dir, 'coords.memmap'), coords, dtype=floatX)
-        _save_to_memmap(os.path.join(moldata_dir, 'charges.memmap'), charges, dtype=floatX)
-        _save_to_memmap(os.path.join(moldata_dir, 'vdwradii.memmap'), vdwradii, dtype=floatX)
-        _save_to_memmap(os.path.join(moldata_dir, 'n_atoms.memmap'), n_atoms, dtype=intX)
-        _save_to_memmap(os.path.join(moldata_dir, 'atom_mask.memmap'), atom_mask, dtype=floatX)
-
-        del molecules
-
-    """TODO add documentation """
     def load_dataset(self):
         # TODO: make it work meaningfully
         data = np.random.randn(10, 10)
@@ -244,8 +162,115 @@ class DataSetup():
 
         print("INFO: Data loaded")
         # TODO set the num_gene_ontologies to the filtered number of different ontologies
-        return data_dict, self.num_gene_ontologies
+        return data_dict
 
+    @staticmethod
     def _split_dataset(self, data_ids=None):
         # TODO use self.split_test
-        return np.random.randint(0,10,2), np.random.randint(0,10,2)
+        return np.random.randint(0, 10, 2), np.random.randint(0, 10, 2)
+
+
+class MoleculeProcessor(object):
+    """
+    MoleculeProcessor can produce a ProcessedMolecule from the contents of a PDB file.
+    """
+
+    def __init__(self):
+        import rdkit.Chem as Chem
+        self.periodic_table = Chem.GetPeriodicTable()
+
+    def process_molecule(self, pdb_file):
+        """
+        Processes a molecule from the passed PDB file if the file contents has no errors.
+        :param pdb_file: path to the PDB file to process the molecule from.
+        :return: a ProcessedMolecule object
+        """
+        import rdkit.Chem as Chem
+        import rdkit.Chem.rdPartialCharges as rdPC
+        import rdkit.Chem.rdMolTransforms as rdMT
+        import rdkit.Chem.rdmolops as rdMO
+
+        # read a molecule from the PDB file
+        mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
+        if mol is None:
+            print("WARNING: Bad pdb file found.")
+            return None
+
+        # add missing hydrogen atoms
+        rdMO.AddHs(mol, addCoords=True)
+
+        # compute partial charges
+        try:
+            rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
+        except ValueError:
+            print("WARNING: Bad Gasteiger charge evaluation.")
+            return None
+
+        # get the conformation of the molecule
+        conformer = mol.GetConformer()
+
+        # calculate the center of the molecule
+        center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
+
+        atoms_count = mol.GetNumAtoms()
+        atoms = mol.GetAtoms()
+
+        def get_coords(i):
+            coord = conformer.GetAtomPosition(i)
+            return np.asarray([coord.x, coord.y, coord.z])
+
+        # set the coordinates, charges, VDW radii and atom count
+        res = {}
+        res["coords"] = np.asarray(
+            [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
+            [center.x, center.y, center.z])
+
+        res["charges"] = np.asarray(
+            [float(atom.GetProp("_GasteigerCharge")) for atom in atoms])
+
+        res["vdwradii"] = np.asarray([self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in atoms])
+
+        res["atoms_count"] = atoms_count
+        return res
+
+
+class GeneOntologyProcessor(object):
+    """
+    GeneOntologyProcessor can read a list of GO (Gene Ontology) from a PDB file.
+    """
+
+    def process_gene_ontologies(self, pdb_file):
+        """
+        Processes a PDB file and returns a list with GO ids that can be associated with it.
+        :param pdb_file: the path to the PDB file that is to be processed.
+        :return: a list of GO ids for the molecule contained in the PDB file.
+        """
+        from prody.proteins.header import parsePDBHeader
+        import requests
+
+        polymers = parsePDBHeader(pdb_file, "polymers")
+        uniprot_ids = set()
+        for polymer in polymers:
+            for dbref in polymer.dbrefs:
+                if dbref.database == "UniProt":
+                    uniprot_ids.add(dbref.accession)
+
+        go_ids = []
+        for uniprot_id in uniprot_ids:
+            url = "http://www.ebi.ac.uk/QuickGO/GAnnotation?protein=" + uniprot_id + "&format=tsv"
+            response = requests.get(url)
+            go_ids += self._parse_gene_ontology(response.text)
+
+        return go_ids
+
+    @staticmethod
+    def _parse_gene_ontology(tsv_text):
+        f = StringIO.StringIO(tsv_text)
+        reader = csv.reader(f, dialect="excel-tab")
+        # skip the header
+        next(reader)
+        try:
+            return zip(*[line for line in reader])[6]
+        except IndexError:
+            # protein has no GO terms associated with it
+            return ["unknown"]

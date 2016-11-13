@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     data = DataSetup(prot_codes=["1UBI"])
 
-    train_test_data, num_gene_ontologies = data.load_dataset()
+    train_test_data = data.load_dataset()
     #
     # predictor = ProteinPredictor(train_data=train_mol_ids,
     #                              test_data=test_mol_ids,
