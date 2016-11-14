@@ -8,18 +8,17 @@ from protfun.layers.molmap_layer import MoleculeMapLayer
 
 
 class ProteinPredictor(object):
-    def __init__(self, train_data, test_data, minibatch_size=1, num_output_classes=1):
+    def __init__(self, data, minibatch_size=1):
 
         self.minibatch_size = minibatch_size
-        self.num_output_classes = num_output_classes
+        self.num_output_classes = len(data['y_id2name'])
 
-        self.train_data = train_data
-        self.test_data = test_data
+        self.data = data
 
         # the input has the shape of the X_train portion of the dataset
-        self.train_data_size = self.train_data['y_train'].shape[0]
-        self.val_data_size = self.train_data['y_val'].shape[0]
-        self.output_shape = self.train_data['y_train'].shape[1:]
+        self.train_data_size = self.data['y_train'].shape[0]
+        self.val_data_size = self.data['y_val'].shape[0]
+        self.output_shape = self.data['y_train'].shape[1:]
         self.output_shape = tuple([minibatch_size]) + self.output_shape
 
         # define input and output symbolic variables of the computation graph
@@ -94,14 +93,14 @@ class ProteinPredictor(object):
         print("INFO: Training...")
         for e in xrange(epoch_count):
             for indices in self._iter_minibatches(self.train_data_size):
-                y = self.labels_data['y_train'][indices]
+                y = self.data['y_train'][indices]
                 self.train_function(indices, y)
 
             # validate
             losses = []
             accs = []
             for indices in self._iter_minibatches(self.val_data_size, shuffle=False):
-                y = self.labels_data['y_val'][indices]
+                y = self.data['y_val'][indices]
                 loss, acc = self.validation_function(indices, y)
                 losses.append(loss)
                 accs.append(acc)
@@ -117,7 +116,7 @@ class ProteinPredictor(object):
         loss = list()
         acc = list()
         for indices in self._iter_minibatches(self.train_data_size):
-            y = self.labels_data['y_test'][indices]
+            y = self.data['y_test'][indices]
             l, a = self.validation_function(indices, y)
             loss.append(l)
             acc.append(a)

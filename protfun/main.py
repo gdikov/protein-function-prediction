@@ -54,16 +54,19 @@ if __name__ == "__main__":
 
     data = DataSetup(prot_codes=["1UBI", "5GLF", "5TD4"])
 
+    # data dict with keys:
+    # 'x_id2name', 'y_id2name'  :   the encoding of names and ids for molecules and labels
+    # 'x_train', 'y_train'      :   all training samples
+    # 'x_val', 'y_val'          :   all validation samples used during training
+    # 'x_test', 'y_test'        :   all test samples for performance evaluation
     train_test_data = data.load_dataset()
-    #
-    # predictor = ProteinPredictor(train_data=train_mol_ids,
-    #                              test_data=test_mol_ids,
-    #                              minibatch_size=1,
-    #                              num_output_classes=num_gene_ontologies)
-    #
-    # predictor.train(epoch_count=1)
-    # predictor.test()
-    # predictor.summarize()
+
+    predictor = ProteinPredictor(train_test_data,
+                                 minibatch_size=1)
+
+    predictor.train(epoch_count=1)
+    predictor.test()
+    predictor.summarize()
 
 
 

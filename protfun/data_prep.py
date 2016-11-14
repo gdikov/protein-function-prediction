@@ -166,17 +166,45 @@ class DataSetup(object):
         # get all but the indices of the test_data
         train_ids = np.setdiff1d(np.arange(data_size), test_ids, assume_unique=True)
 
-        # TODO make labels
-        labels = np.random.randint(0, data_size, 1000)
+        labels, go_dict_id2name = self._load_labels()
+
+        # for the sake of completion, generate prot_id2name dictionary
+        prot_dict_id2name = {prot_id: prot_name[-8:-4] for prot_id, prot_name in enumerate(self.pdb_files)}
 
         validation_portion = train_ids.size / 5
-        data_dict = {'x_train': train_ids[validation_portion:], 'y_train': labels[train_ids[validation_portion:]],
+        data_dict = {'x_id2name': prot_dict_id2name, 'y_id2name': go_dict_id2name,
+                     'x_train': train_ids[validation_portion:], 'y_train': labels[train_ids[validation_portion:]],
                      'x_val': train_ids[:validation_portion], 'y_val': labels[train_ids[:validation_portion]],
                      'x_test': test_ids, 'y_test': labels[test_ids]}
 
         print("INFO: Data loaded")
 
         return data_dict
+
+    def _load_labels(self):
+        """ find the number of different GO Ids and
+        create a binary matrix with rows representing different proteins and columns all the gene ontology terms
+        :return: label matrix, id2name dictionary for label decoding
+        """
+        go_ids = set()
+        with open(os.path.join(self.go_dir, "go_ids.csv"), 'r') as gene_ontologies:
+            gos_all_mols = csv.reader(gene_ontologies)
+            for gos_per_mol in gos_all_mols:
+                go_ids.update(gos_per_mol)
+
+        go_name2id = dict(zip(go_ids, np.arange(len(go_ids))))
+        prot_gos_matrix = np.zeros((len(self.pdb_files), len(go_ids)))
+
+        # csv.reader return a iterator so we need to call it again along with the file opening
+        with open(os.path.join(self.go_dir, "go_ids.csv"), 'r') as gene_ontologies:
+            gos_all_mols = csv.reader(gene_ontologies)
+            for prot_id, gos_per_mol in enumerate(gos_all_mols):
+                prot_gos_matrix[prot_id, np.asarray([go_name2id[go] for go in gos_per_mol])] = 1
+
+        go_id2name = {y: x for x, y in go_name2id.iteritems()}
+
+        return prot_gos_matrix, go_id2name
+
 
 
 class MoleculeProcessor(object):
