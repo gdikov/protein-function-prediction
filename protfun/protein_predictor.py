@@ -7,7 +7,7 @@ import lasagne.layers.dnn
 from protfun.layers.molmap_layer import MoleculeMapLayer
 
 
-class ProteinPredictor(object):
+class ProteinPredictor():
     def __init__(self, data, minibatch_size=1):
 
         self.minibatch_size = minibatch_size

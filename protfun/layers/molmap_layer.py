@@ -25,7 +25,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     otherwise `theano.tensor.switch` is slow.
     """
 
-    def __init__(self, incoming, path_to_moldata, minibatch_size=None, grid_side=62.0, resolution=2.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=62.0, resolution=2.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
@@ -35,6 +35,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         self.minibatch_size = minibatch_size
 
         # load saved state from memmaps
+        path_to_moldata = path.join(path.dirname(path.realpath(__file__)), "../../data/moldata",)
         max_atoms = np.memmap(path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
         coords = np.memmap(path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms, 3))
         charges = np.memmap(path.join(path_to_moldata, 'charges.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms))

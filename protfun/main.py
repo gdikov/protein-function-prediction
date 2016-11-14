@@ -61,7 +61,7 @@ if __name__ == "__main__":
     # 'x_test', 'y_test'        :   all test samples for performance evaluation
     train_test_data = data.load_dataset()
 
-    predictor = ProteinPredictor(train_test_data,
+    predictor = ProteinPredictor(data=train_test_data,
                                  minibatch_size=1)
 
     predictor.train(epoch_count=1)

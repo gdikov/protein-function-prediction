@@ -177,7 +177,7 @@ class DataSetup(object):
                      'x_val': train_ids[:validation_portion], 'y_val': labels[train_ids[:validation_portion]],
                      'x_test': test_ids, 'y_test': labels[test_ids]}
 
-        print("INFO: Data loaded")
+        print("INFO: Train and test data loaded")
 
         return data_dict
 
