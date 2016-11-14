@@ -18,8 +18,6 @@ class ProteinPredictor():
         # the input has the shape of the X_train portion of the dataset
         self.train_data_size = self.data['y_train'].shape[0]
         self.val_data_size = self.data['y_val'].shape[0]
-        self.output_shape = self.data['y_train'].shape[1:]
-        self.output_shape = tuple([minibatch_size]) + self.output_shape
 
         # define input and output symbolic variables of the computation graph
         mol_indices = T.ivector("molecule_indices")
@@ -61,7 +59,7 @@ class ProteinPredictor():
         print("INFO: Computational graph compiled")
 
     def _build_network(self, mol_indices):
-        indices_input = lasagne.layers.InputLayer(shape=(None,), input_var=mol_indices)
+        indices_input = lasagne.layers.InputLayer(shape=(self.minibatch_size,), input_var=mol_indices)
         data_gen = MoleculeMapLayer(incoming=indices_input,
                                     minibatch_size=self.minibatch_size)
         network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=data_gen,
@@ -93,7 +91,10 @@ class ProteinPredictor():
         print("INFO: Training...")
         for e in xrange(epoch_count):
             for indices in self._iter_minibatches(self.train_data_size):
-                y = self.data['y_train'][indices]
+                # FIXME: y should be of dimension (95,) and not (1, 95). Why? We set the minibatch size to 1.
+                # in that case somethis like y = self.data...[indices][0] works but shouldn't it be working
+                # the other way round too?
+                y = self.data['y_train'][indices][0]
                 self.train_function(indices, y)
 
             # validate
