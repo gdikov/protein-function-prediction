@@ -53,6 +53,8 @@ class DataSetup(object):
                 print("WARNING: %s does not contain any PDB files. " +
                       "Run the DataSetup with update=True to download them." % self.pdb_dir)
 
+            self.pdb_files = pdb_list
+
             # checking for molecule data memmaps
             memmap_list = [f for f in os.listdir(self.memmap_dir) if f.endswith('.memmap')]
             if not memmap_list:
