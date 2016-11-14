@@ -21,28 +21,28 @@ class ProteinPredictor(object):
 
         # define input and output symbolic variables of the computation graph
         mol_indices = T.ivector("molecule_indices")
-        targets = T.dvector('targets')
+        targets = T.dmatrix('targets')
 
         # build the network architecture
         self.network = self._build_network(mol_indices=mol_indices)
 
         # define objective and training parameters
         train_predictions = lasagne.layers.get_output(self.network)
-        train_loss = lasagne.objectives.binary_crossentropy(predictions=train_predictions,
-                                                            targets=targets).mean()
+        train_loss = lasagne.objectives.categorical_crossentropy(predictions=train_predictions,
+                                                                 targets=targets).mean()
 
         train_params = lasagne.layers.get_all_params(self.network, trainable=True)
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss, params=train_params,
                                                     learning_rate=1e-6)
 
-        train_accuracy = T.mean(T.eq(T.gt(train_predictions, 0.5), targets),
+        train_accuracy = T.mean(T.eq(T.argmax(train_predictions, axis=-1), T.argmax(targets, axis=-1)),
                                 dtype=theano.config.floatX)
 
         val_predictions = lasagne.layers.get_output(self.network, deterministic=True)
-        val_loss = lasagne.objectives.binary_crossentropy(predictions=val_predictions,
-                                                          targets=targets).mean()
+        val_loss = lasagne.objectives.categorical_crossentropy(predictions=val_predictions,
+                                                               targets=targets).mean()
 
-        val_accuracy = T.mean(T.eq(T.gt(val_predictions, 0.5), targets),
+        val_accuracy = T.mean(T.eq(T.argmax(val_predictions, axis=-1), T.argmax(targets, axis=-1)),
                               dtype=theano.config.floatX)
 
         self.train_function = theano.function(inputs=[mol_indices, targets],
@@ -69,7 +69,7 @@ class ProteinPredictor(object):
         network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(10, 10, 10))
         network = lasagne.layers.DenseLayer(incoming=network, num_units=10)
         network = lasagne.layers.DenseLayer(incoming=network, num_units=self.num_output_classes,
-                                            nonlinearity=lasagne.nonlinearities.sigmoid)
+                                            nonlinearity=lasagne.nonlinearities.softmax)
 
         return network
 
