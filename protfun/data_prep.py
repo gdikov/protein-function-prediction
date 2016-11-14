@@ -35,7 +35,7 @@ class DataSetup(object):
             os.makedirs(self.memmap_dir)
 
         self.prot_codes = prot_codes
-        self.split_test = split_test
+        self.test_train_ratio = split_test
         self.pdb_files = []
         self._setup(update)
 
@@ -91,28 +91,34 @@ class DataSetup(object):
         molecules = list()
         go_targets = list()
 
+        # BUG FOUND: one cannot remove element from list while iterating over it.
+        # Instead, check for each element if it is passing a condition and store it temporarily.
+        # Then re-init the list.
+        pdb_files_tmp = []
         # process all PDB files
         for f in self.pdb_files:
             # process molecule from file
             mol = molecule_processor.process_molecule(f)
             if mol is None:
                 print("INFO: removing PDB file %s for invalid molecule" % f)
-                self.pdb_files.remove(f)
                 continue
 
             # process gene ontology (GO) target label from file
             go_ids = go_processor.process_gene_ontologies(f)
             if go_ids is None or len(go_ids) == 0:
                 print("INFO: removing PDB file %s because it has no gene ontologies associated with it." % f)
-                self.pdb_files.remove(f)
                 continue
 
+            pdb_files_tmp.append(f)
             molecules.append(mol)
             go_targets.append(go_ids)
 
         n_atoms = np.array([mol["atoms_count"] for mol in molecules])
         max_atoms = n_atoms.max()
         molecules_count = len(molecules)
+
+        self.pdb_files = pdb_files_tmp
+        del pdb_files_tmp   # this will not invalidate self.pdb_files
 
         # after pre-processing, the PDB files should match the final molecules
         assert molecules_count == len(self.pdb_files)
@@ -152,22 +158,25 @@ class DataSetup(object):
             csv.writer(f).writerows(go_targets)
 
     def load_dataset(self):
-        # TODO: make it work meaningfully
-        data = np.random.randn(10, 10)
-        labels = np.random.randn(10, 10)
-        train_data_mask, test_data_mask = self._split_dataset(data)
-        data_dict = {'x_train': data[train_data_mask], 'y_train': labels[train_data_mask],
-                     'x_val': data[train_data_mask], 'y_val': labels[train_data_mask],
-                     'x_test': data[test_data_mask], 'y_test': labels[test_data_mask]}
+
+        data_size = len(self.pdb_files)
+
+        # split into test and training data
+        test_ids = np.random.randint(0, data_size, int(self.test_train_ratio * data_size))
+        # get all but the indices of the test_data
+        train_ids = np.setdiff1d(np.arange(data_size), test_ids, assume_unique=True)
+
+        # TODO make labels
+        labels = np.random.randint(0, data_size, 1000)
+
+        validation_portion = train_ids.size / 5
+        data_dict = {'x_train': train_ids[validation_portion:], 'y_train': labels[train_ids[validation_portion:]],
+                     'x_val': train_ids[:validation_portion], 'y_val': labels[train_ids[:validation_portion]],
+                     'x_test': test_ids, 'y_test': labels[test_ids]}
 
         print("INFO: Data loaded")
-        # TODO set the num_gene_ontologies to the filtered number of different ontologies
-        return data_dict
 
-    @staticmethod
-    def _split_dataset(self, data_ids=None):
-        # TODO use self.split_test
-        return np.random.randint(0, 10, 2), np.random.randint(0, 10, 2)
+        return data_dict
 
 
 class MoleculeProcessor(object):

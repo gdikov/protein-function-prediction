@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # visualize()
     # train()
 
-    data = DataSetup(prot_codes=["1UBI"])
+    data = DataSetup(prot_codes=["1UBI", "5GLF", "5TD4"])
 
     train_test_data = data.load_dataset()
     #
