@@ -97,18 +97,25 @@ class DataSetup(object):
         # Instead, check for each element if it is passing a condition and store it temporarily.
         # Then re-init the list.
         pdb_files_tmp = []
+        # also create a list of all deleted files to be inspected manually later
+        erroneous_pdb_files = []
         # process all PDB files
         for f in self.pdb_files:
             # process molecule from file
             mol = molecule_processor.process_molecule(f)
             if mol is None:
                 print("INFO: removing PDB file %s for invalid molecule" % f)
+                # remove from disk as it could be miscounted later if setup() is called with update=False
+                erroneous_pdb_files.append((f, "invalid molecule"))
+                os.remove(f)
                 continue
 
             # process gene ontology (GO) target label from file
             go_ids = go_processor.process_gene_ontologies(f)
             if go_ids is None or len(go_ids) == 0:
                 print("INFO: removing PDB file %s because it has no gene ontologies associated with it." % f)
+                erroneous_pdb_files.append((f, "no associated gene ontologies"))
+                os.remove(f)
                 continue
 
             pdb_files_tmp.append(f)
@@ -121,6 +128,11 @@ class DataSetup(object):
 
         self.pdb_files = pdb_files_tmp
         del pdb_files_tmp   # this will not invalidate self.pdb_files
+
+        # save the error pdb files log
+        with open(os.path.join(self.pdb_dir, "erroneous_pdb_files.log"), "wb") as f:
+            for er in erroneous_pdb_files:
+                f.write(str(er))
 
         # after pre-processing, the PDB files should match the final molecules
         assert molecules_count == len(self.pdb_files)
