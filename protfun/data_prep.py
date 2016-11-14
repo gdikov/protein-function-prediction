@@ -50,16 +50,15 @@ class DataSetup(object):
             pdb_list = [f for f in os.listdir(self.pdb_dir) if
                         f.endswith('.gz') or f.endswith('.pdb') or f.endswith('.ent')]
             if not pdb_list:
-                print("WARNING: %s does not contain any PDB files. " +
-                      "Run the DataSetup with update=True to download them." % self.pdb_dir)
-
+                print("WARNING: %s does not contain any PDB files. " % self.pdb_dir +
+                      "Run the DataSetup with update=True to download them.")
             self.pdb_files = pdb_list
 
             # checking for molecule data memmaps
             memmap_list = [f for f in os.listdir(self.memmap_dir) if f.endswith('.memmap')]
             if not memmap_list:
-                print("WARNING: %s does not contain any memmap files. " +
-                      "Run the DataSetup with update=True to recreate them." % self.pdb_dir)
+                print("WARNING: %s does not contain any memmap files. " % self.pdb_dir +
+                      "Run the DataSetup with update=True to recreate them.")
 
     def _download_dataset(self):
         """
@@ -93,20 +92,18 @@ class DataSetup(object):
         molecules = list()
         go_targets = list()
 
-        # BUG FOUND: one cannot remove element from list while iterating over it.
-        # Instead, check for each element if it is passing a condition and store it temporarily.
-        # Then re-init the list.
-        pdb_files_tmp = []
         # also create a list of all deleted files to be inspected manually later
         erroneous_pdb_files = []
+
         # process all PDB files
-        for f in self.pdb_files:
+        for f in self.pdb_files[:]:
             # process molecule from file
             mol = molecule_processor.process_molecule(f)
             if mol is None:
                 print("INFO: removing PDB file %s for invalid molecule" % f)
                 # remove from disk as it could be miscounted later if setup() is called with update=False
                 erroneous_pdb_files.append((f, "invalid molecule"))
+                self.pdb_files.remove(f)
                 os.remove(f)
                 continue
 
@@ -116,18 +113,15 @@ class DataSetup(object):
                 print("INFO: removing PDB file %s because it has no gene ontologies associated with it." % f)
                 erroneous_pdb_files.append((f, "no associated gene ontologies"))
                 os.remove(f)
+                self.pdb_files.remove(f)
                 continue
 
-            pdb_files_tmp.append(f)
             molecules.append(mol)
             go_targets.append(go_ids)
 
         n_atoms = np.array([mol["atoms_count"] for mol in molecules])
         max_atoms = n_atoms.max()
         molecules_count = len(molecules)
-
-        self.pdb_files = pdb_files_tmp
-        del pdb_files_tmp   # this will not invalidate self.pdb_files
 
         # save the error pdb files log
         with open(os.path.join(self.pdb_dir, "erroneous_pdb_files.log"), "wb") as f:
