@@ -53,7 +53,8 @@ if __name__ == "__main__":
     # train()
 
     data = DataSetup(prot_codes=["1UBI", "5GLF", "5TD4"],
-                     update=False)
+                     download_again=False,
+                     process_again=True)
 
     # data dict with keys:
     # 'x_id2name', 'y_id2name'  :   the encoding of names and ids for molecules and labels

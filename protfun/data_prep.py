@@ -13,7 +13,7 @@ class DataSetup(object):
     Sets up the data set by downloading PDB proteins and doing initial processing into memmaps.
     """
 
-    def __init__(self, foldername='data', update=True, prot_codes=None, split_test=0.1):
+    def __init__(self, foldername='data', download_again=False, process_again=True, prot_codes=None, split_test=0.1):
         """
 
         :param foldername: the directory that will contain the data set
@@ -37,14 +37,12 @@ class DataSetup(object):
         self.prot_codes = prot_codes
         self.test_train_ratio = split_test
         self.pdb_files = []
-        self._setup(update)
+        self._setup(download_again, process_again)
 
-    def _setup(self, update):
-        if update:
+    def _setup(self, download_again, process_again):
+        if download_again:
             print("INFO: Proceeding to download the Protein Data Base...")
             self._download_dataset()
-            print("INFO: Creating molecule data memmap files...")
-            self._preprocess_dataset()
         else:
             # checking for pdb related files
             pdb_list = [f for f in os.listdir(self.pdb_dir) if
@@ -54,6 +52,10 @@ class DataSetup(object):
                       "Run the DataSetup with update=True to download them.")
             self.pdb_files = pdb_list
 
+        if process_again:
+            print("INFO: Creating molecule data memmap files...")
+            self._preprocess_dataset()
+        else:
             # checking for molecule data memmaps
             memmap_list = [f for f in os.listdir(self.memmap_dir) if f.endswith('.memmap')]
             if not memmap_list:
@@ -176,6 +178,8 @@ class DataSetup(object):
 
         labels, go_dict_id2name = self._load_labels()
 
+        assert labels.shape[0] == data_size, "labels count %d != molecules count %d" % (labels.shape[0], data_size)
+
         # for the sake of completion, generate prot_id2name dictionary
         prot_dict_id2name = {prot_id: prot_name[-8:-4] for prot_id, prot_name in enumerate(self.pdb_files)}
 
@@ -212,7 +216,6 @@ class DataSetup(object):
         go_id2name = {y: x for x, y in go_name2id.iteritems()}
 
         return prot_gos_matrix, go_id2name
-
 
 
 class MoleculeProcessor(object):
