@@ -73,7 +73,10 @@ class DataSetup(object):
         pl.flat_tree = 1
         if self.prot_codes is not None:
             for code in self.prot_codes:
-                pl.retrieve_pdb_file(pdb_code=code)
+                try:
+                    pl.retrieve_pdb_file(pdb_code=code)
+                except IOError:
+                    continue
         else:
             pl.download_entire_pdb()
 
@@ -168,6 +171,8 @@ class DataSetup(object):
             csv.writer(f).writerows(go_targets)
 
     def load_dataset(self):
+
+        print("INFO: Loading total of {0} pdb files.".format(len(self.pdb_files)))
 
         data_size = len(self.pdb_files)
 

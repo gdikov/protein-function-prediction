@@ -18,6 +18,7 @@ class ProteinPredictor(object):
         # the input has the shape of the X_train portion of the dataset
         self.train_data_size = self.data['y_train'].shape[0]
         self.val_data_size = self.data['y_val'].shape[0]
+        self.test_data_size = self.data['y_test'].shape[0]
 
         # define input and output symbolic variables of the computation graph
         mol_indices = T.ivector("molecule_indices")
@@ -116,7 +117,7 @@ class ProteinPredictor(object):
         print("INFO: Testing...")
         loss = list()
         acc = list()
-        for indices in self._iter_minibatches(self.train_data_size):
+        for indices in self._iter_minibatches(self.test_data_size):
             y = self.data['y_test'][indices]
             l, a = self.validation_function(indices, y)
             loss.append(l)
