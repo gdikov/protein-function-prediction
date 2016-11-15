@@ -44,17 +44,13 @@ def train():
 
 
 if __name__ == "__main__":
-    # preprocess(index=0)
-    # grids = np.load(grid_file)
-    # print("max potential %s" % grids[0, 0].max())
-    # print("min potential %s" % grids[0, 0].min())
-    # print("potential at corner %s" % grids[0, 0, 0, 0, 0])
-    # visualize()
-    # train()
+    import os
+    path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
+    with open(path_to_enz, 'r') as f:
+        enzymes = [e.strip() for e in f.readlines()]
 
-    data = DataSetup(prot_codes=["1UBI", "5GLF", "5TD4"],
-                     download_again=False,
-                     process_again=True)
+    data = DataSetup(prot_codes=enzymes[:100],
+                     download_again=True)
 
     # data dict with keys:
     # 'x_id2name', 'y_id2name'  :   the encoding of names and ids for molecules and labels
