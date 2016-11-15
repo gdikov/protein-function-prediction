@@ -21,11 +21,13 @@ if __name__ == "__main__":
 
     path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
     with open(path_to_enz, 'r') as f:
-        enzymes = [e.strip() for e in f.readlines()]
+        enzymes = [e.strip() for e in f.readlines()][:10]
+    path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_24.labels")
+    with open(path_to_enz, 'r') as f:
+        enzymes += [e.strip() for e in f.readlines()][:10]
 
-    data = DataSetup(prot_codes=enzymes[:100],
-                     download_again=False,
-                     process_again=False)
+    data = DataSetup(prot_codes=enzymes,
+                     download_again=True)
 
     # data dict with keys:
     # 'x_id2name', 'y_id2name'  :   the encoding of names and ids for molecules and labels
