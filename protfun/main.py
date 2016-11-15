@@ -10,7 +10,6 @@ grid_file = path.join(path.dirname(path.realpath(__file__)), "../data/computed_g
 
 def visualize():
     grids = np.load(grid_file)
-
     viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
     viewer.density3d()
     viewer.potential3d()
@@ -21,10 +20,10 @@ if __name__ == "__main__":
 
     path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
     with open(path_to_enz, 'r') as f:
-        enzymes = [e.strip() for e in f.readlines()][:10]
+        enzymes = [e.strip() for e in f.readlines()]
     path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_24.labels")
     with open(path_to_enz, 'r') as f:
-        enzymes += [e.strip() for e in f.readlines()][:10]
+        enzymes += [e.strip() for e in f.readlines()]
 
     data = DataSetup(prot_codes=enzymes,
                      download_again=True)
@@ -39,6 +38,6 @@ if __name__ == "__main__":
     predictor = ProteinPredictor(data=train_test_data,
                                  minibatch_size=1)
 
-    predictor.train(epoch_count=10)
+    predictor.train(epoch_count=100)
     predictor.test()
     predictor.summarize()

@@ -37,11 +37,11 @@ class ProteinPredictor(object):
                                                                targets=targets[: 1]).mean()
 
         train_params = lasagne.layers.get_all_params([self.out1, self.out2], trainable=True)
-        train_params_updates = lasagne.updates.adam(loss_or_grads=[train_loss_21, train_loss_24], params=train_params,
-                                                    learning_rate=1e-6)
+        train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss_21 + train_loss_24, params=train_params,
+                                                    learning_rate=1e-3)
 
         train_accuracy = T.mean(
-            T.eq(T.gt(T.concatenate(train_predictions_21, train_predictions_24, axis=-1), 0.5), targets),
+            T.eq(T.gt(T.concatenate([train_predictions_21, train_predictions_24], axis=-1), 0.5), targets),
             dtype=theano.config.floatX)
 
         val_predictions_21 = lasagne.layers.get_output(self.out1, deterministic=True)
@@ -52,7 +52,7 @@ class ProteinPredictor(object):
                                                              targets=targets[:, 1]).mean()
 
         val_accuracy = T.mean(
-            T.eq(T.gt(T.concatenate(val_predictions_21, train_predictions_24, axis=-1), 0.5), targets),
+            T.eq(T.gt(T.concatenate([val_predictions_21, train_predictions_24], axis=-1), 0.5), targets),
             dtype=theano.config.floatX)
 
         self.train_function = theano.function(inputs=[mol_indices, targets],

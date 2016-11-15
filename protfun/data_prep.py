@@ -222,10 +222,10 @@ class DataSetup(object):
 
         path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
         with open(path_to_enz, 'r') as f:
-            class21 = set([e.strip() for e in f.readlines()[:10]])
+            class21 = set([e.strip() for e in f.readlines()])
         path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_24.labels")
         with open(path_to_enz, 'r') as f:
-            class24 = set([e.strip() for e in f.readlines()[:10]])
+            class24 = set([e.strip() for e in f.readlines()])
 
         label_dict21 = np.array([int(x[-8:-4] in class21) for x in self.pdb_files])
         label_dict24 = np.array([int(x[-8:-4] in class24) for x in self.pdb_files])
