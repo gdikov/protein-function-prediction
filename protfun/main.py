@@ -26,7 +26,7 @@ if __name__ == "__main__":
         enzymes += [e.strip() for e in f.readlines()]
 
     data = DataSetup(prot_codes=enzymes,
-                     download_again=True)
+                     download_again=False)
 
     # data dict with keys:
     # 'x_id2name', 'y_id2name'  :   the encoding of names and ids for molecules and labels

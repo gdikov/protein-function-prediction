@@ -50,7 +50,7 @@ class DataSetup(object):
             if not pdb_list:
                 print("WARNING: %s does not contain any PDB files. " % self.pdb_dir +
                       "Run the DataSetup with update=True to download them.")
-            self.pdb_files = pdb_list
+            self.pdb_files = [os.path.join(self.pdb_dir, f) for f in pdb_list]
 
         if process_again:
             print("INFO: Creating molecule data memmap files...")
@@ -108,8 +108,9 @@ class DataSetup(object):
                 print("INFO: removing PDB file %s for invalid molecule" % f)
                 # remove from disk as it could be miscounted later if setup() is called with update=False
                 erroneous_pdb_files.append((f, "invalid molecule"))
-                self.pdb_files.remove(f)
                 os.remove(f)
+
+                self.pdb_files.remove(f)
                 continue
 
             # process gene ontology (GO) target label from file
@@ -254,16 +255,21 @@ class MoleculeProcessor(object):
         import rdkit.Chem.rdmolops as rdMO
 
         # read a molecule from the PDB file
-        mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
+        try:
+            mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
+        except IOError:
+            print("WARNING: Could not read PDB file.")
+            return None
+
         if mol is None:
             print("WARNING: Bad pdb file found.")
             return None
 
-        # add missing hydrogen atoms
-        rdMO.AddHs(mol, addCoords=True)
-
-        # compute partial charges
         try:
+            # add missing hydrogen atoms
+            rdMO.AddHs(mol, addCoords=True)
+
+            # compute partial charges
             rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
         except ValueError:
             print("WARNING: Bad Gasteiger charge evaluation.")
