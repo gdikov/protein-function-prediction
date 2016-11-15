@@ -1,31 +1,11 @@
-import time
 from os import path
-
-import lasagne
 import numpy as np
-import theano
 
-import layers.molmap_layer as mml
 from protfun.visualizer.molview import MoleculeView
 from protfun.data_prep import DataSetup
 from protfun.protein_predictor import ProteinPredictor
 
 grid_file = path.join(path.dirname(path.realpath(__file__)), "../data/computed_grid.npy")
-
-
-def preprocess(index=0):
-    batch_size = 1
-    inputs = theano.tensor.tensor4()
-    network = lasagne.layers.InputLayer(shape=(None, 1, None, None), input_var=inputs)
-
-    network = mml.MoleculeMapLayer(network, minibatch_size=batch_size)
-
-    start = time.time()
-    grids = network.get_output_for(molecule_ids=range(index, index + batch_size)).eval()
-
-    end = time.time()
-    print(end - start)
-    np.save(grid_file, grids)
 
 
 def visualize():
@@ -36,21 +16,16 @@ def visualize():
     viewer.potential3d()
 
 
-def train():
-    from protein_predictor import ProteinPredictor
-    predictor = ProteinPredictor(minibatch_size=1)
-    predictor.train()
-    predictor.test()
-
-
 if __name__ == "__main__":
     import os
+
     path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
     with open(path_to_enz, 'r') as f:
         enzymes = [e.strip() for e in f.readlines()]
 
     data = DataSetup(prot_codes=enzymes[:100],
-                     download_again=True)
+                     download_again=False,
+                     process_again=False)
 
     # data dict with keys:
     # 'x_id2name', 'y_id2name'  :   the encoding of names and ids for molecules and labels
@@ -62,10 +37,6 @@ if __name__ == "__main__":
     predictor = ProteinPredictor(data=train_test_data,
                                  minibatch_size=1)
 
-    predictor.train(epoch_count=1)
+    predictor.train(epoch_count=10)
     predictor.test()
     predictor.summarize()
-
-
-
-
