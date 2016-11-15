@@ -94,7 +94,7 @@ class ProteinPredictor(object):
                 # FIXME: y should be of dimension (95,) and not (1, 95). Why? We set the minibatch size to 1.
                 # in that case somethis like y = self.data...[indices][0] works but shouldn't it be working
                 # the other way round too?
-                y = self.data['y_train'][indices][0]
+                y = self.data['y_train'][indices]
                 self.train_function(indices, y)
 
             # validate

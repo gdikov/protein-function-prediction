@@ -25,7 +25,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     otherwise `theano.tensor.switch` is slow.
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=62.0, resolution=2.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=60.0, resolution=4.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
