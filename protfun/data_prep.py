@@ -72,11 +72,15 @@ class DataSetup(object):
         pl = PDBList(pdb=self.pdb_dir)
         pl.flat_tree = 1
         if self.prot_codes is not None:
+            failed = 0
+            attempted = len(self.prot_codes)
             for code in self.prot_codes:
                 try:
                     pl.retrieve_pdb_file(pdb_code=code)
                 except IOError:
+                    failed += 1
                     continue
+            print("INFO: Downloaded {0}/{1} molecules".format(attempted-failed, attempted))
         else:
             pl.download_entire_pdb()
 
