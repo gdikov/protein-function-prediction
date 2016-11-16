@@ -80,7 +80,7 @@ class DataSetup(object):
                 except IOError:
                     failed += 1
                     continue
-            print("INFO: Downloaded {0}/{1} molecules".format(attempted-failed, attempted))
+            print("INFO: Downloaded {0}/{1} molecules".format(attempted - failed, attempted))
         else:
             pl.download_entire_pdb()
 
@@ -220,15 +220,16 @@ class DataSetup(object):
         dictionary which decodes the column id to class name."""
         path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
         with open(path_to_enz, 'r') as f:
-            class21 = set([e.strip() for e in f.readlines()])
+            class21 = set([e.strip().lower() for e in f.readlines()[:500]])
         path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_24.labels")
         with open(path_to_enz, 'r') as f:
-            class24 = set([e.strip() for e in f.readlines()])
+            class24 = set([e.strip().lower() for e in f.readlines()[:500]])
 
         label_dict21 = np.array([int(x[-8:-4] in class21) for x in self.pdb_files])
         label_dict24 = np.array([int(x[-8:-4] in class24) for x in self.pdb_files])
+
         # the id2name dictionary here represents the column id-class mapping
-        return np.vstack((label_dict21, label_dict24)).T, {0:"class_21", 1:"class_24"}
+        return np.vstack((label_dict21, label_dict24)).T, {0: "class_21", 1: "class_24"}
 
     def _load_go_labels(self):
         """ find the number of different GO Ids and
@@ -253,6 +254,7 @@ class DataSetup(object):
         go_id2name = {y: x for x, y in go_name2id.iteritems()}
 
         return prot_gos_matrix, go_id2name
+
 
 class MoleculeProcessor(object):
     """

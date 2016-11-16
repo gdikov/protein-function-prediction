@@ -76,7 +76,7 @@ class ProteinPredictor(object):
                                                    num_filters=16, filter_size=(5, 5, 5),
                                                    nonlinearity=lasagne.nonlinearities.rectify,
                                                    W=lasagne.init.GlorotNormal())
-        maxpool3d = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=conv3d, pool_size=(10, 10, 10))
+        maxpool3d = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=conv3d, pool_size=(5, 5, 5))
         dense = lasagne.layers.DenseLayer(incoming=maxpool3d, num_units=10)
         output_layer1 = lasagne.layers.DenseLayer(incoming=dense, num_units=1,
                                                   nonlinearity=lasagne.nonlinearities.sigmoid)
@@ -107,7 +107,8 @@ class ProteinPredictor(object):
                 self.train_function(indices, y)
 
             # validate
-            losses21 = losses24 = []
+            losses21 = []
+            losses24 = []
             accs = []
             for indices in self._iter_minibatches(self.val_data_size, shuffle=False):
                 y = self.data['y_val'][indices]

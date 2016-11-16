@@ -14,21 +14,23 @@ def visualize():
     viewer.density3d()
     viewer.potential3d()
 
+
 def collect_proteins():
     path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
     with open(path_to_enz, 'r') as f:
-        enzymes = [e.strip() for e in f.readlines()]
+        enzymes = [e.strip() for e in f.readlines()[:500]]
     path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_24.labels")
     with open(path_to_enz, 'r') as f:
-        enzymes += [e.strip() for e in f.readlines()]
+        enzymes += [e.strip() for e in f.readlines()[:500]]
     return enzymes
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     enzymes = collect_proteins()
 
     data = DataSetup(prot_codes=enzymes,
-                     download_again=False)
+                     download_again=False,
+                     process_again=False)
 
     # data dict with keys:
     # 'x_id2name', 'y_id2name'  :   the encoding of names and ids for molecules and labels
