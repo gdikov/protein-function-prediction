@@ -203,28 +203,22 @@ class DataSetup(object):
 
         return data_dict
 
-    def _load_labels(self):
-        """ find the number of different GO Ids and
-        create a binary matrix with rows representing different proteins and columns all the gene ontology terms
+    def _load_labels(self, label_type='enzyme_classes'):
+        """ call the corresponding label generating function.
         :return: label matrix, id2name dictionary for label decoding
         """
-        # go_ids = set()
-        # with open(os.path.join(self.go_dir, "go_ids.csv"), 'r') as gene_ontologies:
-        #     gos_all_mols = csv.reader(gene_ontologies)
-        #     for gos_per_mol in gos_all_mols:
-        #         go_ids.update(gos_per_mol)
-        #
-        # go_name2id = dict(zip(go_ids, np.arange(len(go_ids))))
-        # prot_gos_matrix = np.zeros((len(self.pdb_files), len(go_ids)))
-        #
-        # # csv.reader return a iterator so we need to call it again along with the file opening
-        # with open(os.path.join(self.go_dir, "go_ids.csv"), 'r') as gene_ontologies:
-        #     gos_all_mols = csv.reader(gene_ontologies)
-        #     for prot_id, gos_per_mol in enumerate(gos_all_mols):
-        #         prot_gos_matrix[prot_id, np.asarray([go_name2id[go] for go in gos_per_mol])] = 1
-        #
-        # go_id2name = {y: x for x, y in go_name2id.iteritems()}
+        if label_type == 'enzyme_classes':
+            return self._load_enz_labels()
+        elif label_type == 'gene_onotlogies':
+            return self._load_go_labels()
+        else:
+            print("ERROR: Unknown label_type argument value")
+            raise ValueError
 
+    def _load_enz_labels(self):
+        """ find if each protein belongs to one of the classes
+        :returns: binary matrix with samples as rows and class association as columns,
+        dictionary which decodes the column id to class name."""
         path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
         with open(path_to_enz, 'r') as f:
             class21 = set([e.strip() for e in f.readlines()])
@@ -234,9 +228,32 @@ class DataSetup(object):
 
         label_dict21 = np.array([int(x[-8:-4] in class21) for x in self.pdb_files])
         label_dict24 = np.array([int(x[-8:-4] in class24) for x in self.pdb_files])
+        # the id2name dictionary here represents the column id-class mapping
+        return np.vstack((label_dict21, label_dict24)).T, {0:"class_21", 1:"class_24"}
 
-        return np.vstack((label_dict21, label_dict24)).T, None
+    def _load_go_labels(self):
+        """ find the number of different GO Ids and
+        create a binary matrix with rows representing different proteins and columns all the gene ontology terms
+        :return: label matrix, id2name dictionary for label decoding"""
 
+        go_ids = set()
+        with open(os.path.join(self.go_dir, "go_ids.csv"), 'r') as gene_ontologies:
+            gos_all_mols = csv.reader(gene_ontologies)
+            for gos_per_mol in gos_all_mols:
+                go_ids.update(gos_per_mol)
+
+        go_name2id = dict(zip(go_ids, np.arange(len(go_ids))))
+        prot_gos_matrix = np.zeros((len(self.pdb_files), len(go_ids)))
+
+        # csv.reader return a iterator so we need to call it again along with the file opening
+        with open(os.path.join(self.go_dir, "go_ids.csv"), 'r') as gene_ontologies:
+            gos_all_mols = csv.reader(gene_ontologies)
+            for prot_id, gos_per_mol in enumerate(gos_all_mols):
+                prot_gos_matrix[prot_id, np.asarray([go_name2id[go] for go in gos_per_mol])] = 1
+
+        go_id2name = {y: x for x, y in go_name2id.iteritems()}
+
+        return prot_gos_matrix, go_id2name
 
 class MoleculeProcessor(object):
     """
