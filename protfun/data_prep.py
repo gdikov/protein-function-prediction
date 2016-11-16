@@ -113,7 +113,6 @@ class DataSetup(object):
                 # remove from disk as it could be miscounted later if setup() is called with update=False
                 erroneous_pdb_files.append((f, "invalid molecule"))
                 os.remove(f)
-
                 self.pdb_files.remove(f)
                 continue
 
@@ -136,7 +135,7 @@ class DataSetup(object):
         # save the error pdb files log
         with open(os.path.join(self.pdb_dir, "erroneous_pdb_files.log"), "wb") as f:
             for er in erroneous_pdb_files:
-                f.write(str(er))
+                f.write(str(er) + "\n")
 
         # after pre-processing, the PDB files should match the final molecules
         assert molecules_count == len(self.pdb_files)
