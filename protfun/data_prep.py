@@ -225,8 +225,8 @@ class DataSetup(object):
         with open(path_to_enz, 'r') as f:
             class24 = set([e.strip().lower() for e in f.readlines()[:500]])
 
-        label_dict21 = np.array([int(x[-8:-4] in class21) for x in self.pdb_files])
-        label_dict24 = np.array([int(x[-8:-4] in class24) for x in self.pdb_files])
+        label_dict21 = np.array([int(x[-8:-4] in class21) for x in self.pdb_files], dtype=np.int32)
+        label_dict24 = np.array([int(x[-8:-4] in class24) for x in self.pdb_files], dtype=np.int32)
 
         # the id2name dictionary here represents the column id-class mapping
         return np.vstack((label_dict21, label_dict24)).T, {0: "class_21", 1: "class_24"}
@@ -243,7 +243,7 @@ class DataSetup(object):
                 go_ids.update(gos_per_mol)
 
         go_name2id = dict(zip(go_ids, np.arange(len(go_ids))))
-        prot_gos_matrix = np.zeros((len(self.pdb_files), len(go_ids)))
+        prot_gos_matrix = np.zeros((len(self.pdb_files), len(go_ids)), dtype=np.int32)
 
         # csv.reader return a iterator so we need to call it again along with the file opening
         with open(os.path.join(self.go_dir, "go_ids.csv"), 'r') as gene_ontologies:

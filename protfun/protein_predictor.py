@@ -22,8 +22,14 @@ class ProteinPredictor(object):
 
         # define input and output symbolic variables of the computation graph
         mol_indices = T.ivector("molecule_indices")
-        targets_21 = T.dvector('targets21')
-        targets_24 = T.dvector('targets24')
+        targets_ints_21 = T.ivector('targets21')
+        targets_ints_24 = T.ivector('targets24')
+
+        # create a one-hot encoding if an integer vector
+        # using a broadcast trick (targets is reshaped from (N) to (N, 1)
+        # and then each entry is compared to [1, 2, ... K] in a broadcast
+        targets_21 = T.eq(targets_ints_21.reshape((-1, 1)), T.arange(2))
+        targets_24 = T.eq(targets_ints_24.reshape((-1, 1)), T.arange(2))
 
         # build the network architecture
         self.out1, self.out2 = self._build_network(mol_indices=mol_indices)
@@ -32,36 +38,44 @@ class ProteinPredictor(object):
         train_predictions_21 = lasagne.layers.get_output(self.out1)
         train_predictions_24 = lasagne.layers.get_output(self.out2)
 
-        train_loss_21 = lasagne.objectives.binary_crossentropy(predictions=train_predictions_21,
-                                                               targets=targets_21).mean()
-        train_loss_24 = lasagne.objectives.binary_crossentropy(predictions=train_predictions_24,
-                                                               targets=targets_24).mean()
+        def categorical_crossentropy_logdomain(log_predictions, targets):
+            return -T.sum(targets * log_predictions, axis=1)
+
+        train_loss_21 = categorical_crossentropy_logdomain(log_predictions=train_predictions_21,
+                                                           targets=targets_21).mean()
+        train_loss_24 = categorical_crossentropy_logdomain(log_predictions=train_predictions_24,
+                                                           targets=targets_24).mean()
 
         train_params = lasagne.layers.get_all_params([self.out1, self.out2], trainable=True)
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss_21 + train_loss_24,
                                                     params=train_params,
-                                                    learning_rate=1e-3)
+                                                    learning_rate=1e-4)
 
-        train_accuracy_21 = T.mean(T.eq(T.gt(train_predictions_21, 0.5), targets_21), dtype=theano.config.floatX)
-        train_accuracy_24 = T.mean(T.eq(T.gt(train_predictions_24, 0.5), targets_24), dtype=theano.config.floatX)
+        train_accuracy_21 = T.mean(T.eq(T.argmax(train_predictions_21, axis=-1), targets_ints_21),
+                                   dtype=theano.config.floatX)
+        train_accuracy_24 = T.mean(T.eq(T.argmax(train_predictions_24, axis=-1), targets_ints_24),
+                                   dtype=theano.config.floatX)
 
         val_predictions_21 = lasagne.layers.get_output(self.out1, deterministic=True)
         val_predictions_24 = lasagne.layers.get_output(self.out2, deterministic=True)
 
-        val_loss_21 = lasagne.objectives.binary_crossentropy(predictions=val_predictions_21,
-                                                             targets=targets_21).mean()
-        val_loss_24 = lasagne.objectives.binary_crossentropy(predictions=val_predictions_24,
-                                                             targets=targets_24).mean()
+        val_loss_21 = categorical_crossentropy_logdomain(log_predictions=val_predictions_21,
+                                                         targets=targets_21).mean()
+        val_loss_24 = categorical_crossentropy_logdomain(log_predictions=val_predictions_24,
+                                                         targets=targets_24).mean()
 
-        val_accuracy_21 = T.mean(T.eq(T.gt(val_predictions_21, 0.5), targets_21), dtype=theano.config.floatX)
-        val_accuracy_24 = T.mean(T.eq(T.gt(val_predictions_24, 0.5), targets_24), dtype=theano.config.floatX)
+        val_accuracy_21 = T.mean(T.eq(T.argmax(val_predictions_21, axis=-1), targets_ints_21),
+                                 dtype=theano.config.floatX)
 
-        self.train_function = theano.function(inputs=[mol_indices, targets_21, targets_24],
+        val_accuracy_24 = T.mean(T.eq(T.argmax(val_predictions_24, axis=-1), targets_ints_24),
+                                 dtype=theano.config.floatX)
+
+        self.train_function = theano.function(inputs=[mol_indices, targets_ints_21, targets_ints_24],
                                               outputs=[train_loss_21, train_loss_24, train_accuracy_21,
                                                        train_accuracy_24],
                                               updates=train_params_updates)
 
-        self.validation_function = theano.function(inputs=[mol_indices, targets_21, targets_24],
+        self.validation_function = theano.function(inputs=[mol_indices, targets_ints_21, targets_ints_24],
                                                    outputs=[val_loss_21, val_loss_24, val_accuracy_21, val_accuracy_24])
 
         self._get_params = theano.function(inputs=[], outputs=train_params)
@@ -78,7 +92,7 @@ class ProteinPredictor(object):
                                     minibatch_size=self.minibatch_size)
 
         network = data_gen
-        for i in range(0, 3):
+        for i in range(0, 1):
             filter_size = (3 - i // 2,) * 3
             network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network,
                                                         num_filters=2 ^ (3 + i), filter_size=filter_size,
@@ -90,10 +104,10 @@ class ProteinPredictor(object):
         dense1 = lasagne.layers.DenseLayer(incoming=network, num_units=32)
         dense2 = lasagne.layers.DenseLayer(incoming=network, num_units=32)
 
-        output_layer1 = lasagne.layers.DenseLayer(incoming=dense1, num_units=1,
-                                                  nonlinearity=lasagne.nonlinearities.sigmoid)
-        output_layer2 = lasagne.layers.DenseLayer(incoming=dense2, num_units=1,
-                                                  nonlinearity=lasagne.nonlinearities.sigmoid)
+        output_layer1 = lasagne.layers.DenseLayer(incoming=dense1, num_units=2,
+                                                  nonlinearity=T.nnet.logsoftmax)
+        output_layer2 = lasagne.layers.DenseLayer(incoming=dense2, num_units=2,
+                                                  nonlinearity=T.nnet.logsoftmax)
 
         return output_layer1, output_layer2
 
@@ -134,7 +148,7 @@ class ProteinPredictor(object):
             print("INFO: train: epoch %d loss21: %f loss24 %f acc21: %f acc24: %f" %
                   (e, mean_loss21, mean_loss24, mean_acc21, mean_acc24))
             if np.isnan(mean_loss21) or np.isnan(mean_loss24):
-                params = [param.eval() for param in self._get_params()]
+                params = [np.array(param) for param in self._get_params()]
                 print(params)
 
                 # # validate
