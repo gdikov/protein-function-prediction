@@ -42,7 +42,7 @@ class DataSetup(object):
     def _setup(self, download_again, process_again):
         if download_again:
             print("INFO: Proceeding to download the Protein Data Base...")
-            self._download_dataset()
+            self._download_pdb_dataset()
         else:
             # checking for pdb related files
             pdb_list = [f for f in os.listdir(self.pdb_dir) if
@@ -62,7 +62,7 @@ class DataSetup(object):
                 print("WARNING: %s does not contain any memmap files. " % self.pdb_dir +
                       "Run the DataSetup with update=True to recreate them.")
 
-    def _download_dataset(self):
+    def _download_pdb_dataset(self):
         """
         Downloads the PDB database (or a part of it) as PDB files.
         """
@@ -86,6 +86,14 @@ class DataSetup(object):
 
         self.pdb_files = [os.path.join(self.pdb_dir, f) for f in os.listdir(self.pdb_dir)
                           if f.endswith(".ent") or f.endswith(".pdb")]
+
+    def _download_ec_dataset(self):
+        """
+        Downloads the enzymes which correspond to some class(es) as
+        """
+        # generate and iterate recursively over the enzymes class ids
+
+
 
     def _preprocess_dataset(self):
         """
@@ -324,7 +332,6 @@ class MoleculeProcessor(object):
         res["atoms_count"] = atoms_count
         return res
 
-
 class GeneOntologyProcessor(object):
     """
     GeneOntologyProcessor can read a list of GO (Gene Ontology) from a PDB file.
@@ -365,3 +372,72 @@ class GeneOntologyProcessor(object):
         except IndexError:
             # protein has no GO terms associated with it
             return ["unknown"]
+
+class EnzymeProzessor(object):
+    """ Generate and filter enzume IDs which are to be downloaded
+     :param categories: list of strings in the form 1.1 or 4.3.2.1 giving the most general category of interest. """
+    def __init__(self, categories=None):
+        self.super_categories = categories
+        self.most_specific_categories = []
+        self.pdb_files = None
+        self._parse_hierarchy()
+
+    def _parse_hierarchy(self):
+        """ """
+        print("INFO: Evaluating the total categorical hierarchy...")
+        num_specific_classes = 0
+        # TODO parse html start pages recursively to find number of sub[n]classes for each sub[n-1]class
+        # TODO fill in self.most_specific_categories
+        self.most_specific_categories = self.super_categories
+
+    def process_enzymes(self):
+        if self.most_specific_categories is not None:
+            print("INFO: Processing html pages for each enzyme ({0} in total). "
+                  "This may take some ages...".format(len(self.most_specific_categories)))
+            self.pdb_files = self._ecs2pdbs()
+        else:
+            print("WARNING: No enzyme classes found.")
+
+    def _ecs2pdbs(self):
+        import requests
+        pdbs = dict()
+        for ec_id in self.most_specific_categories:
+            url = "https://www.ebi.ac.uk/thornton-srv/databases/cgi-bin/enzymes/GetPage.pl?ec_number=" + ec_id
+            response = requests.get(url)
+            pdbs[ec_id] = self._extract_pdbs_from_html(response.text, ec_id)
+        return pdbs
+
+    def _extract_pdbs_from_html(self, html_page, ec_id):
+        from bs4 import BeautifulSoup
+
+        parsed_html = BeautifulSoup(html_page, "html.parser")
+
+        try:
+            pdb_table = parsed_html.find_all('p')[2].find('table')
+        except (AttributeError, IndexError):
+            print("WARNING: Something went wrong while parsing " + str(ec_id))
+            return None
+
+        if pdb_table is None:
+            print("WARNING: A pdbs-containing table was not found while parsing " + str(ec_id))
+            return None
+
+        pdbs = []
+        # skip the first three rows as they don't contain any pdbs and iterate over all others
+        mother_row = pdb_table.find('tr')
+        for row in mother_row.next_siblings:
+            # get the first data entry and the href argument
+            # since it is encoded there is no need to parse the <b> ... </b> tags
+            try:
+                pdb_code = row.find('td').find('a', href=True).text
+            except AttributeError:
+                continue
+            if len(pdb_code) == 4:
+                pdbs.append(str(pdb_code))
+
+        return pdbs
+
+if __name__ == "__main__":
+    ep = EnzymeProzessor(['1.1.1.6', '1.1.1.8'])
+    ep.process_enzymes()
+    print(ep.pdb_files)
