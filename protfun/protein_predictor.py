@@ -8,7 +8,7 @@ from protfun.layers.molmap_layer import MoleculeMapLayer
 
 
 class ProteinPredictor(object):
-    def __init__(self, data, minibatch_size=2):
+    def __init__(self, data, minibatch_size=1):
 
         self.minibatch_size = minibatch_size
         # self.num_output_classes = data['y_id2name'].shape[0]
@@ -49,7 +49,7 @@ class ProteinPredictor(object):
         train_params = lasagne.layers.get_all_params([self.out1, self.out2], trainable=True)
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss_21 + train_loss_24,
                                                     params=train_params,
-                                                    learning_rate=1e-4)
+                                                    learning_rate=1e-3)
 
         train_accuracy_21 = T.mean(T.eq(T.argmax(train_predictions_21, axis=-1), targets_ints_21),
                                    dtype=theano.config.floatX)
@@ -80,6 +80,9 @@ class ProteinPredictor(object):
 
         self._get_params = theano.function(inputs=[], outputs=train_params)
 
+        self._get_all_outputs = theano.function(inputs=[mol_indices], outputs=lasagne.layers.get_output(
+            lasagne.layers.get_all_layers(self.out1)))
+
         # save training history data
         self.history = {'val_loss': list(),
                         'val_accuracy': list(),
@@ -92,21 +95,26 @@ class ProteinPredictor(object):
                                     minibatch_size=self.minibatch_size)
 
         network = data_gen
-        for i in range(0, 1):
-            filter_size = (3 - i // 2,) * 3
-            network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network,
-                                                        num_filters=2 ^ (3 + i), filter_size=filter_size,
+        for i in range(0, 7):
+            filter_size = (3, 3, 3)
+            network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
+                                                        num_filters=2 ** (3 + i), filter_size=filter_size,
                                                         nonlinearity=lasagne.nonlinearities.rectify)
-            # W=lasagne.init.GlorotNormal())
-            if i % 2 == 0:
-                network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2))
+            # network = lasagne.layers.BatchNormLayer(incoming=network)
+            # network = lasagne.layers.DropoutLayer(incoming=network)
+            if i % 3 == 2:
+                network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2), stride=2)
 
-        dense1 = lasagne.layers.DenseLayer(incoming=network, num_units=32)
-        dense2 = lasagne.layers.DenseLayer(incoming=network, num_units=32)
+        network1 = network
+        network2 = network
 
-        output_layer1 = lasagne.layers.DenseLayer(incoming=dense1, num_units=2,
+        for i in range(0, 10):
+            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=128)
+            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=128)
+
+        output_layer1 = lasagne.layers.DenseLayer(incoming=network1, num_units=2,
                                                   nonlinearity=T.nnet.logsoftmax)
-        output_layer2 = lasagne.layers.DenseLayer(incoming=dense2, num_units=2,
+        output_layer2 = lasagne.layers.DenseLayer(incoming=network2, num_units=2,
                                                   nonlinearity=T.nnet.logsoftmax)
 
         return output_layer1, output_layer2
@@ -141,6 +149,9 @@ class ProteinPredictor(object):
                 accs24.append(acc24)
                 # print("INFO: train: loss21: %f loss24 %f acc21: %f acc24: %f" %
                 #       (loss21, loss24, acc21, acc24))
+                outputs = self._get_all_outputs(indices)
+                continue
+
             mean_loss21 = np.mean(np.array(losses21))
             mean_loss24 = np.mean(np.array(losses24))
             mean_acc21 = np.mean(np.array(accs21))
