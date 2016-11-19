@@ -289,7 +289,7 @@ class MoleculeProcessor(object):
 
         try:
             # add missing hydrogen atoms
-            rdMO.AddHs(mol, addCoords=True)
+            mol = rdMO.AddHs(mol, addCoords=True)
 
             # compute partial charges
             rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)

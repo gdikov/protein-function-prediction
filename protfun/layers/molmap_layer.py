@@ -35,14 +35,21 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         self.minibatch_size = minibatch_size
 
         # load saved state from memmaps
-        path_to_moldata = path.join(path.dirname(path.realpath(__file__)), "../../data/moldata",)
+        path_to_moldata = path.join(path.dirname(path.realpath(__file__)), "../../data/moldata")
         max_atoms = np.memmap(path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
-        coords = np.memmap(path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms, 3))
-        charges = np.memmap(path.join(path_to_moldata, 'charges.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms))
-        vdwradii = np.memmap(path.join(path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((-1, max_atoms))
+        coords = np.memmap(path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=floatX).reshape(
+            (-1, max_atoms, 3))
+        charges = np.memmap(path.join(path_to_moldata, 'charges.memmap'), mode='r', dtype=floatX).reshape(
+            (-1, max_atoms))
+        vdwradii = np.memmap(path.join(path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape(
+            (-1, max_atoms))
         n_atoms = np.memmap(path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=intX)
         atom_mask = np.memmap(path.join(path_to_moldata, 'atom_mask.memmap'), mode='r', dtype=floatX).reshape(
             (-1, max_atoms))
+        print("INFO: Loaded %d molecules for pre-processing, max atoms: %d" % (coords.shape[0], max_atoms))
+        # DEBUG:
+        charge_ratios = [(np.sum(mol_charge[mol_charge < 0]), np.sum(mol_charge[mol_charge > 0]))
+                         for mol_charge in charges]
 
         # Set the grid side length and resolution in Angstroms.
         endx = grid_side / 2

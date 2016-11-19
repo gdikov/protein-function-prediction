@@ -1,18 +1,22 @@
 import os
-import numpy as np
+import lasagne
 
 from protfun.visualizer.molview import MoleculeView
 from protfun.data_prep import DataSetup
 from protfun.protein_predictor import ProteinPredictor
+from protfun.layers import MoleculeMapLayer
 
 grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/computed_grid.npy")
 
 
 def visualize():
-    grids = np.load(grid_file)
-    viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
-    viewer.density3d()
-    viewer.potential3d()
+    for i in range(0, 182):
+        dummy = lasagne.layers.InputLayer(shape=(None,))
+        preprocess = MoleculeMapLayer(incoming=dummy, minibatch_size=1)
+        grids = preprocess.get_output_for(molecule_ids=[i]).eval()
+        viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
+        viewer.density3d()
+        viewer.potential3d()
 
 
 def collect_proteins():
@@ -25,18 +29,13 @@ def collect_proteins():
     return enzymes
 
 
-if __name__ == "__main__":
+def train_enzymes():
     enzymes = collect_proteins()
 
     data = DataSetup(prot_codes=enzymes,
-                     download_again=False,
-                     process_again=False)
+                     download_again=True,
+                     process_again=True)
 
-    # data dict with keys:
-    # 'x_id2name', 'y_id2name'  :   the encoding of names and ids for molecules and labels
-    # 'x_train', 'y_train'      :   all training samples
-    # 'x_val', 'y_val'          :   all validation samples used during training
-    # 'x_test', 'y_test'        :   all test samples for performance evaluation
     train_test_data = data.load_dataset()
 
     predictor = ProteinPredictor(data=train_test_data,
@@ -45,3 +44,8 @@ if __name__ == "__main__":
     predictor.train(epoch_count=100)
     predictor.test()
     predictor.summarize()
+
+
+if __name__ == "__main__":
+    train_enzymes()
+    # visualize()
