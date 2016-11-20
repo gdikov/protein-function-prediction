@@ -1,10 +1,11 @@
 import os
+
 import lasagne
 
-from protfun.visualizer.molview import MoleculeView
-from protfun.data_prep import DataSetup
-from protfun.protein_predictor import ProteinPredictor
 from protfun.layers import MoleculeMapLayer
+from protfun.models.protein_predictor import ProteinPredictor
+from protfun.preprocess.data_prep import DataSetup
+from protfun.visualizer.molview import MoleculeView
 
 grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/computed_grid.npy")
 
@@ -20,10 +21,10 @@ def visualize():
 
 
 def collect_proteins():
-    path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
+    path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3.4.21.labels")
     with open(path_to_enz, 'r') as f:
         enzymes = [e.strip() for e in f.readlines()[:500]]
-    path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_24.labels")
+    path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3.4.24.labels")
     with open(path_to_enz, 'r') as f:
         enzymes += [e.strip() for e in f.readlines()[:500]]
     return enzymes

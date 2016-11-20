@@ -22,7 +22,7 @@ class DataSetup(object):
         :param split_test: ration of training vs. test data
         """
 
-        self.data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../", foldername)
+        self.data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", foldername)
         self.pdb_dir = os.path.join(self.data_dir, "pdb")
         self.go_dir = os.path.join(self.data_dir, "go")
         self.memmap_dir = os.path.join(self.data_dir, "moldata")
@@ -218,10 +218,10 @@ class DataSetup(object):
         """ find if each protein belongs to one of the classes
         :returns: binary matrix with samples as rows and class association as columns,
         dictionary which decodes the column id to class name."""
-        path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_21.labels")
+        path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/enzymes/3.4.21.labels")
         with open(path_to_enz, 'r') as f:
             class21 = set([e.strip().lower() for e in f.readlines()[:500]])
-        path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3_4_24.labels")
+        path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/enzymes/3.4.24.labels")
         with open(path_to_enz, 'r') as f:
             class24 = set([e.strip().lower() for e in f.readlines()[:500]])
 
@@ -367,102 +367,3 @@ class GeneOntologyProcessor(object):
             return ["unknown"]
 
 
-class EnzymeFetcher(object):
-    """ Generate and filter enzyme IDs which are to be downloaded
-     :param categories: list of strings in the form 1.1 or 4.3.2.1 giving the most general category of interest. """
-
-    def __init__(self, categories, excluded_categories=[]):
-        self.excluded_categories = excluded_categories
-        self.leaf_categories = []
-        self.pdb_files = None
-
-        print("INFO: Evaluating the total categorical hierarchy...")
-        for cat in set(categories) - set(excluded_categories):
-            self._find_leaf_categories(cat)
-
-    def _find_leaf_categories(self, cat):
-        import requests
-        from bs4 import BeautifulSoup
-
-        hierarchy_level = cat.count('.') + 1
-        if hierarchy_level == 4:
-            print("adding: %s" % cat)
-            self.leaf_categories.append(cat)
-            return
-
-        url = "https://www.ebi.ac.uk/thornton-srv/databases/cgi-bin/enzymes/GetPage.pl?ec_number=" + cat
-        page = BeautifulSoup(requests.get(url).text, "html.parser")
-
-        # children table is located after 2 header tables + 2*hierarchy
-        # tables for parent categories
-        first_child_index = hierarchy_level * 2 + 2
-
-        try:
-            children_table = page.find('body').find_all('table', recursive=False)[2]
-            children = children_table.find('tr').find('td').find_all('table', recursive=False)[first_child_index:]
-        except (AttributeError, IndexError):
-            print("WARNING: No subcategory table found for parent category {0}".format(cat))
-            return
-        for child in children:
-            try:
-                child_cat = child.find('a', {'class': 'menuClass'}, href=True).text
-            except (AttributeError, IndexError):
-                print("WARNING: no link to child category")
-                continue
-            # remove trailing .- and the "EC " in front
-            child_cat = child_cat.rstrip('.-')[3:]
-            self._find_leaf_categories(child_cat)
-
-    def fetch_enzymes(self):
-        if self.leaf_categories is not None:
-            print("INFO: Processing html pages for each enzyme ({0} in total). "
-                  "This may take a while...".format(len(self.leaf_categories)))
-            self.pdb_files = self._ecs2pdbs()
-        else:
-            print("WARNING: No enzyme classes found.")
-
-    def _ecs2pdbs(self):
-        import requests
-        pdbs = dict()
-        for ec_id in self.leaf_categories:
-            url = "https://www.ebi.ac.uk/thornton-srv/databases/cgi-bin/enzymes/GetPage.pl?ec_number=" + ec_id
-            response = requests.get(url)
-            pdbs[ec_id] = self._extract_pdbs_from_html(response.text, ec_id)
-        return pdbs
-
-    @staticmethod
-    def _extract_pdbs_from_html(html_page, ec_id):
-        from bs4 import BeautifulSoup
-
-        parsed_html = BeautifulSoup(html_page, "html.parser")
-
-        try:
-            pdb_table = parsed_html.find_all('p')[2].find('table')
-        except (AttributeError, IndexError):
-            print("WARNING: Something went wrong while parsing " + str(ec_id))
-            return None
-
-        if pdb_table is None:
-            print("WARNING: A pdbs-containing table was not found while parsing " + str(ec_id))
-            return None
-
-        pdbs = []
-
-        # skip the first three rows as they don't contain any pdbs and iterate over all others
-        parent_row = pdb_table.find('tr')
-        for row in parent_row.next_siblings:
-            # get the first data entry and the href argument
-            try:
-                pdb_code = row.find('td').find('a', href=True).text
-            except AttributeError:
-                continue
-            if len(pdb_code) == 4:
-                pdbs.append(str(pdb_code))
-
-        return pdbs
-
-
-if __name__ == "__main__":
-    ep = EnzymeFetcher(['1.1.1', '1.2'])
-    # ep.fetch_enzymes()
-    # print(ep.pdb_files)
