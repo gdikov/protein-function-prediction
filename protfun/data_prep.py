@@ -376,24 +376,54 @@ class GeneOntologyProcessor(object):
 class EnzymeProzessor(object):
     """ Generate and filter enzume IDs which are to be downloaded
      :param categories: list of strings in the form 1.1 or 4.3.2.1 giving the most general category of interest. """
-    def __init__(self, categories=None):
+    def __init__(self, categories=None, excluded_categories=None):
         self.super_categories = categories
+        self.excluded_categories = excluded_categories
         self.most_specific_categories = []
         self.pdb_files = None
         self._parse_hierarchy()
 
     def _parse_hierarchy(self):
         """ """
+        import requests
+        from bs4 import BeautifulSoup
+
         print("INFO: Evaluating the total categorical hierarchy...")
         num_specific_classes = 0
         # TODO parse html start pages recursively to find number of sub[n]classes for each sub[n-1]class
         # TODO fill in self.most_specific_categories
         self.most_specific_categories = self.super_categories
+        # for cat in self.super_categories:
+        #     hierarchy_level = cat.count('.') + 1
+        #     # save some time parsing if in end category
+        #     if hierarchy_level == 4 and cat not in self.excluded_categories:
+        #         self.most_specific_categories.append(cat)
+        #         continue
+        #     parent_cat = cat
+        #     # the hierarchy tree has a fixed depth of 4
+        #     for i in xrange(4-hierarchy_level):
+        #         url = "https://www.ebi.ac.uk/thornton-srv/databases/cgi-bin/enzymes/GetPage.pl?ec_number=" \
+        #               + parent_cat
+        #         response_parent = requests.get(url)
+        #         sub_cats_page = BeautifulSoup(response_parent.text)
+        #         try
+        #             sub_cat_tables = sub_cats_page.find_all('table')[2]
+        #         except (AttributeError, IndexError):
+        #             print("WARNING: No subcategory table found for parent category {0}".format(cat))
+        #             break
+        #         for ec_subs in sub_cat_tables.find('tr').find_all('table')[2*hierarchy_level+2:]:
+        #             # skip some tables for the sibling parents and parents of parents
+        #             # more precisely skip #supercategories*2 + 2 tables
+        #             print(ec_subs)
+
+
+
+
 
     def process_enzymes(self):
         if self.most_specific_categories is not None:
             print("INFO: Processing html pages for each enzyme ({0} in total). "
-                  "This may take some ages...".format(len(self.most_specific_categories)))
+                  "This may take a while...".format(len(self.most_specific_categories)))
             self.pdb_files = self._ecs2pdbs()
         else:
             print("WARNING: No enzyme classes found.")
