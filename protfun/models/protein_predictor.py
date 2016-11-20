@@ -72,7 +72,7 @@ class ProteinPredictor(object):
 
         self.train_function = theano.function(inputs=[mol_indices, targets_ints_21, targets_ints_24],
                                               outputs=[train_loss_21, train_loss_24, train_accuracy_21,
-                                                       train_accuracy_24],
+                                                       train_accuracy_24, train_predictions_21, targets_21],
                                               updates=train_params_updates)
 
         self.validation_function = theano.function(inputs=[mol_indices, targets_ints_21, targets_ints_24],
@@ -81,7 +81,7 @@ class ProteinPredictor(object):
         self._get_params = theano.function(inputs=[], outputs=train_params)
 
         self._get_all_outputs = theano.function(inputs=[mol_indices], outputs=lasagne.layers.get_output(
-            lasagne.layers.get_all_layers([self.out1, self.out2])))
+            lasagne.layers.get_all_layers([self.out1])))
 
         # save training history data
         self.history = {'val_loss': list(),
@@ -91,27 +91,26 @@ class ProteinPredictor(object):
 
     def _build_network(self, mol_indices):
         indices_input = lasagne.layers.InputLayer(shape=(self.minibatch_size,), input_var=mol_indices)
-        data_gen = MoleculeMapLayer(incoming=indices_input,
-                                    minibatch_size=self.minibatch_size)
+        data_gen = MoleculeMapLayer(incoming=indices_input, minibatch_size=self.minibatch_size)
 
-        network = lasagne.layers.BatchNormLayer(incoming=data_gen)
-        for i in range(0, 3):
+        network = data_gen  # lasagne.layers.BatchNormLayer(incoming=data_gen)
+        for i in range(0, 6):
             filter_size = (3, 3, 3)
             network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
-                                                        num_filters=2 ** (3 + i), filter_size=filter_size,
-                                                        nonlinearity=lasagne.nonlinearities.rectify)
-            # network = lasagne.layers.DropoutLayer(incoming=network)
-            if i % 3 == 1:
+                                                        num_filters=2 ** (2 + i), filter_size=filter_size,
+                                                        nonlinearity=lasagne.nonlinearities.leaky_rectify)
+            network = lasagne.layers.DropoutLayer(incoming=network)
+            if i % 3 == 2:
                 network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2), stride=2)
 
         network1 = network
         network2 = network
 
-        for i in range(0, 2):
-            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=128,
-                                                 nonlinearity=lasagne.nonlinearities.tanh)
-            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=128,
-                                                 nonlinearity=lasagne.nonlinearities.tanh)
+        for i in range(0, 6):
+            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=64,
+                                                 nonlinearity=lasagne.nonlinearities.leaky_rectify)
+            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=64,
+                                                 nonlinearity=lasagne.nonlinearities.leaky_rectify)
 
         output_layer1 = lasagne.layers.DenseLayer(incoming=network1, num_units=2,
                                                   nonlinearity=T.nnet.logsoftmax)
@@ -158,14 +157,14 @@ class ProteinPredictor(object):
             accs24 = []
             for indices in self._iter_minibatches_train():
                 y = self.data['y_train'][indices]
-                loss21, loss24, acc21, acc24 = self.train_function(indices, y[:, 0], y[:, 1])
+                loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
                 losses21.append(loss21)
                 losses24.append(loss24)
                 accs21.append(acc21)
                 accs24.append(acc24)
-                print("INFO: train: loss21: %f loss24 %f acc21: %f acc24: %f" %
-                      (loss21, loss24, acc21, acc24))
-                outputs = self._get_all_outputs(indices)
+                # print("INFO: train: loss21: %f loss24 %f acc21: %f acc24: %f" %
+                #       (loss21, loss24, acc21, acc24))
+                # outputs = self._get_all_outputs(indices)
                 continue
 
             mean_loss21 = np.mean(np.array(losses21))
@@ -177,25 +176,6 @@ class ProteinPredictor(object):
             if np.isnan(mean_loss21) or np.isnan(mean_loss24):
                 params = [np.array(param) for param in self._get_params()]
                 print(params)
-
-                # # validate
-                # losses21 = []
-                # losses24 = []
-                # accs = []
-                # for indices in self._iter_minibatches(self.val_data_size, shuffle=False):
-                #     y = self.data['y_val'][indices]
-                #     loss21, loss24, acc = self.validation_function(indices, y)
-                #     losses21.append(loss21)
-                #     losses24.append(loss24)
-                #     accs.append(acc)
-                #
-                # mean_loss21 = np.mean(np.array(losses21))
-                # mean_loss24 = np.mean(np.array(losses24))
-                # mean_accuracy = np.mean(np.array(accs))
-                # print("INFO: epoch %d val loss21: %f val loss24 %f val accuracy: %f" %
-                #       (e, mean_loss21, mean_loss24, mean_accuracy))
-                # self.history['val_loss'].append((mean_loss21, mean_loss24))
-                # self.history['val_accuracy'].append(mean_accuracy)
 
     def test(self):
         print("INFO: Testing...")
@@ -210,9 +190,6 @@ class ProteinPredictor(object):
             losses24.append(loss24)
             accs21.append(acc21)
             accs24.append(acc24)
-
-            outputs = self._get_all_outputs(indices)
-            continue
 
         mean_loss21 = np.mean(np.array(losses21))
         mean_loss24 = np.mean(np.array(losses24))
