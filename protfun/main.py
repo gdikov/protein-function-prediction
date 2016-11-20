@@ -10,7 +10,7 @@ grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/c
 
 
 def visualize():
-    for i in range(0, 182):
+    for i in range(108, 182):
         dummy = lasagne.layers.InputLayer(shape=(None,))
         preprocess = MoleculeMapLayer(incoming=dummy, minibatch_size=1)
         grids = preprocess.get_output_for(molecule_ids=[i]).eval()
@@ -33,8 +33,8 @@ def train_enzymes():
     enzymes = collect_proteins()
 
     data = DataSetup(prot_codes=enzymes,
-                     download_again=True,
-                     process_again=True)
+                     download_again=False,
+                     process_again=False)
 
     train_test_data = data.load_dataset()
 

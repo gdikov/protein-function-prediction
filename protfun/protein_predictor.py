@@ -81,7 +81,7 @@ class ProteinPredictor(object):
         self._get_params = theano.function(inputs=[], outputs=train_params)
 
         self._get_all_outputs = theano.function(inputs=[mol_indices], outputs=lasagne.layers.get_output(
-            lasagne.layers.get_all_layers(self.out1)))
+            lasagne.layers.get_all_layers([self.out1, self.out2])))
 
         # save training history data
         self.history = {'val_loss': list(),
@@ -94,23 +94,24 @@ class ProteinPredictor(object):
         data_gen = MoleculeMapLayer(incoming=indices_input,
                                     minibatch_size=self.minibatch_size)
 
-        network = data_gen
-        for i in range(0, 7):
+        network = lasagne.layers.BatchNormLayer(incoming=data_gen)
+        for i in range(0, 3):
             filter_size = (3, 3, 3)
             network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
                                                         num_filters=2 ** (3 + i), filter_size=filter_size,
                                                         nonlinearity=lasagne.nonlinearities.rectify)
-            # network = lasagne.layers.BatchNormLayer(incoming=network)
             # network = lasagne.layers.DropoutLayer(incoming=network)
-            if i % 3 == 2:
+            if i % 3 == 1:
                 network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2), stride=2)
 
         network1 = network
         network2 = network
 
-        for i in range(0, 10):
-            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=128)
-            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=128)
+        for i in range(0, 2):
+            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=128,
+                                                 nonlinearity=lasagne.nonlinearities.tanh)
+            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=128,
+                                                 nonlinearity=lasagne.nonlinearities.tanh)
 
         output_layer1 = lasagne.layers.DenseLayer(incoming=network1, num_units=2,
                                                   nonlinearity=T.nnet.logsoftmax)
@@ -118,6 +119,21 @@ class ProteinPredictor(object):
                                                   nonlinearity=T.nnet.logsoftmax)
 
         return output_layer1, output_layer2
+
+    def _iter_minibatches_train(self):
+        minibatch_count = self.train_data_size / self.minibatch_size
+        y = self.data["y_train"]
+        unique_labels = np.vstack({tuple(row) for row in y})
+
+        for minibatch_index in xrange(0, minibatch_count):
+            # the following collects the indices in the `y_train` array
+            # which correspond to different labels
+            label_buckets = [np.nonzero(np.all(y == unique_label, axis=1)) for unique_label in unique_labels]
+            next_indices = []
+            for i in xrange(0, self.minibatch_size):
+                random_bucket = label_buckets[np.random.randint(0, len(unique_labels))][0]
+                next_indices.append(np.random.choice(random_bucket))
+            yield np.array(next_indices, dtype=np.int32)
 
     def _iter_minibatches(self, data_size, shuffle=True):
         minibatch_count = data_size / self.minibatch_size
@@ -140,15 +156,15 @@ class ProteinPredictor(object):
             losses24 = []
             accs21 = []
             accs24 = []
-            for indices in self._iter_minibatches(self.train_data_size):
+            for indices in self._iter_minibatches_train():
                 y = self.data['y_train'][indices]
                 loss21, loss24, acc21, acc24 = self.train_function(indices, y[:, 0], y[:, 1])
                 losses21.append(loss21)
                 losses24.append(loss24)
                 accs21.append(acc21)
                 accs24.append(acc24)
-                # print("INFO: train: loss21: %f loss24 %f acc21: %f acc24: %f" %
-                #       (loss21, loss24, acc21, acc24))
+                print("INFO: train: loss21: %f loss24 %f acc21: %f acc24: %f" %
+                      (loss21, loss24, acc21, acc24))
                 outputs = self._get_all_outputs(indices)
                 continue
 
@@ -194,6 +210,9 @@ class ProteinPredictor(object):
             losses24.append(loss24)
             accs21.append(acc21)
             accs24.append(acc24)
+
+            outputs = self._get_all_outputs(indices)
+            continue
 
         mean_loss21 = np.mean(np.array(losses21))
         mean_loss24 = np.mean(np.array(losses24))
