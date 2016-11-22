@@ -132,7 +132,8 @@ class ProteinPredictor(object):
             next_indices = []
             for i in xrange(0, self.minibatch_size):
                 random_bucket = label_buckets[np.random.randint(0, len(unique_labels))][0]
-                next_indices.append(np.random.choice(random_bucket))
+                next_indices.append(random_bucket[0])
+                next_indices.append(random_bucket[1])
             yield np.array(next_indices, dtype=np.int32)
 
     def _iter_minibatches(self, data_size, shuffle=True):
@@ -173,7 +174,7 @@ class ProteinPredictor(object):
             mean_acc21 = np.mean(np.array(accs21))
             mean_acc24 = np.mean(np.array(accs24))
             print("INFO: train: epoch %d loss21: %f loss24 %f acc21: %f acc24: %f" %
-                  (e, mean_loss21, mean_loss24, mean_acc21, mean_acc24))
+                  (e+1, mean_loss21, mean_loss24, mean_acc21, mean_acc24))
             if np.isnan(mean_loss21) or np.isnan(mean_loss24):
                 params = [np.array(param) for param in self._get_params()]
                 print(params)
