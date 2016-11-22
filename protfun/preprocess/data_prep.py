@@ -1,4 +1,5 @@
 import os
+import pickle
 import csv
 import StringIO
 import numpy as np
@@ -29,6 +30,7 @@ class DataSetup(object):
         self.data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", foldername)
         self.pdb_dir = os.path.join(self.data_dir, "pdb")
         self.go_dir = os.path.join(self.data_dir, "go")
+        self.enz_dir = os.path.join(self.data_dir, "enzymes")
         self.memmap_dir = os.path.join(self.data_dir, "moldata")
 
         if not os.path.exists(self.pdb_dir):
@@ -82,6 +84,10 @@ class DataSetup(object):
             print("INFO: Creating molecule data memmap files...")
             self._preprocess_dataset()
         else:
+            if os.path.exists(self.enz_dir + "/preprocessed_enzymes.pickle"):
+                with open(self.enz_dir + "/preprocessed_enzymes.pickle", "rb") as f:
+                    self.prot_codes = pickle.load(f)
+
             # checking for molecule data memmaps
             memmap_list = [f for f in os.listdir(self.memmap_dir) if f.endswith('.memmap')]
             if not memmap_list:
@@ -127,8 +133,9 @@ class DataSetup(object):
         # also create a list of all deleted files to be inspected manually later
         erroneous_pdb_files = []
 
-        # process all PDB files
-        for pc in self.prot_codes:
+        # process all PDB codes, use [:] trick to create a copy for the iteration,
+        # as removing is not allowed during iteration
+        for pc in self.prot_codes[:]:
             f_path = os.path.join(os.path.dirname(__file__),
                                                '../../data/pdb/pdb' + pc.lower() + '.ent')
             # process molecule from file
@@ -168,6 +175,10 @@ class DataSetup(object):
             for er in erroneous_pdb_files:
                 f.write(str(er) + "\n")
 
+        # save the preprocessed enzymes
+        with open(self.enz_dir + "/preprocessed_enzymes.pickle", "wb") as f:
+            pickle.dump(self.prot_codes, f)
+
         # after pre-processing, the PDB files should match the final molecules
         assert molecules_count == len(self.prot_codes)
 
@@ -200,7 +211,6 @@ class DataSetup(object):
         save_to_memmap(os.path.join(self.memmap_dir, 'vdwradii.memmap'), vdwradii, dtype=floatX)
         save_to_memmap(os.path.join(self.memmap_dir, 'n_atoms.memmap'), n_atoms, dtype=intX)
         save_to_memmap(os.path.join(self.memmap_dir, 'atom_mask.memmap'), atom_mask, dtype=floatX)
-
 
     def load_dataset(self):
 
@@ -255,7 +265,7 @@ class DataSetup(object):
 
         label_dict = {i:cls for i, cls in enumerate(self.enzyme_classes)}
 
-        labels = tuple(np.array([int(x in p) for x in self.prot_codes], dtype=np.int32) for p in prots)
+        labels = tuple(np.array([int(x.lower() in p) for x in self.prot_codes], dtype=np.int32) for p in prots)
 
         # the id2name dictionary here represents the column id-class mapping
         return np.vstack(labels).T, label_dict

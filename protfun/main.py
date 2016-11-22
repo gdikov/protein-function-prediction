@@ -26,7 +26,7 @@ def train_enzymes():
                      label_type='enzyme_classes',
                      max_prot_per_class=50,
                      force_download=False,
-                     force_process=True)
+                     force_process=False)
 
     train_test_data = data.load_dataset()
 
