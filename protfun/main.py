@@ -1,5 +1,5 @@
 import os
-
+# os.environ["THEANO_FLAGS"] = "device=gpu2,lib.cnmem=1"
 import lasagne
 
 from protfun.layers import MoleculeMapLayer
@@ -20,22 +20,13 @@ def visualize():
         viewer.potential3d()
 
 
-def collect_proteins():
-    path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3.4.21.labels")
-    with open(path_to_enz, 'r') as f:
-        enzymes = [e.strip() for e in f.readlines()[:500]]
-    path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/enzymes/3.4.24.labels")
-    with open(path_to_enz, 'r') as f:
-        enzymes += [e.strip() for e in f.readlines()[:500]]
-    return enzymes
-
-
 def train_enzymes():
-    enzymes = collect_proteins()
 
-    data = DataSetup(prot_codes=enzymes,
-                     download_again=False,
-                     process_again=False)
+    data = DataSetup(enzyme_classes=['3.4.21', '3.4.24'],
+                     label_type='enzyme_classes',
+                     max_prot_per_class=500,
+                     force_download=False,
+                     force_process=False)
 
     train_test_data = data.load_dataset()
 

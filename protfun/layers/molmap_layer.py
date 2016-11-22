@@ -46,7 +46,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         n_atoms = np.memmap(path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=intX)
         atom_mask = np.memmap(path.join(path_to_moldata, 'atom_mask.memmap'), mode='r', dtype=floatX).reshape(
             (-1, max_atoms))
-        print("INFO: Loaded %d molecules for pre-processing, max atoms: %d" % (coords.shape[0], max_atoms))
+        print("INFO: Loaded %d molecules in molmap, max atoms: %d" % (coords.shape[0], max_atoms))
         # DEBUG:
         # charge_ratios = [(np.sum(mol_charge[mol_charge < 0]), np.sum(mol_charge[mol_charge > 0]))
         #                  for mol_charge in charges]

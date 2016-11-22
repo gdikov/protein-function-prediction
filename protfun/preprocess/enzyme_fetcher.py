@@ -107,8 +107,8 @@ if __name__ == "__main__":
                 pdbs21 += value
             elif key.startswith('3.4.24'):
                 pdbs24 += value
-    file_21 = os.path.join(os.path.dirname(__file__), '../../data/enzymes/3.4.21.labels')
-    file_24 = os.path.join(os.path.dirname(__file__), '../../data/enzymes/3.4.24.labels')
+    file_21 = os.path.join(os.path.dirname(__file__), '../../data/enzymes/3.4.21.proteins')
+    file_24 = os.path.join(os.path.dirname(__file__), '../../data/enzymes/3.4.24.proteins')
     with open(file_21, mode='w') as f:
         f.writelines(["%s\n" % item for item in pdbs21])
     with open(file_24, mode='w') as f:

@@ -96,6 +96,7 @@ class ProteinPredictor(object):
         network = data_gen  # lasagne.layers.BatchNormLayer(incoming=data_gen)
         for i in range(0, 6):
             filter_size = (3, 3, 3)
+            # NOTE: we start with a very poor filter count.
             network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
                                                         num_filters=2 ** (2 + i), filter_size=filter_size,
                                                         nonlinearity=lasagne.nonlinearities.leaky_rectify)

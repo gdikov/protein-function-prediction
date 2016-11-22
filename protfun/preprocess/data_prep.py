@@ -13,7 +13,11 @@ class DataSetup(object):
     Sets up the data set by downloading PDB proteins and doing initial processing into memmaps.
     """
 
-    def __init__(self, foldername='data', download_again=False, process_again=True, prot_codes=None, split_test=0.1):
+    def __init__(self, foldername='data',
+                 force_download=False, force_process=True,
+                 prot_codes=[], label_type='enzyme_classes', enzyme_classes=None,
+                 max_prot_per_class=500,
+                 split_test=0.1):
         """
 
         :param foldername: the directory that will contain the data set
@@ -35,12 +39,36 @@ class DataSetup(object):
             os.makedirs(self.memmap_dir)
 
         self.prot_codes = prot_codes
+        self.enzyme_classes = enzyme_classes
+        self.max_prot_per_class = max_prot_per_class
         self.test_train_ratio = split_test
         self.pdb_files = []
-        self._setup(download_again, process_again)
+        self.label_type = label_type
+        self._setup(force_download, force_process)
 
-    def _setup(self, download_again, process_again):
-        if download_again:
+    def _setup(self, force_download, force_process):
+        if self.enzyme_classes is not None:
+            if force_download:
+                from protfun.preprocess import EnzymeFetcher
+                ef = EnzymeFetcher(self.enzyme_classes)
+                ef.fetch_enzymes()
+
+                for cl in self.enzyme_classes:
+                    if ef.pdb_files[cl] is not None:
+                        with open(os.path.join(os.path.dirname(__file__),
+                                               '../../data/enzymes/' + cl + '.proteins'),
+                                  mode='w') as f:
+                            f.writelines(["%s\n" % item for item in ef.pdb_files[cl]])
+                self.prot_codes = sum([ef.pdb_files[classes] for classes in self.enzyme_classes], [])
+
+            else:
+                for cl in self.enzyme_classes:
+                    with open(os.path.join(os.path.dirname(__file__),
+                                           '../../data/enzymes/' + cl + '.proteins'),
+                              mode='r') as f:
+                        self.prot_codes += [e.strip() for e in f.readlines()[:self.max_prot_per_class]]
+
+        if force_download:
             print("INFO: Proceeding to download the Protein Data Base...")
             self._download_pdb_dataset()
         else:
@@ -52,7 +80,7 @@ class DataSetup(object):
                       "Run the DataSetup with update=True to download them.")
             self.pdb_files = [os.path.join(self.pdb_dir, f) for f in pdb_list]
 
-        if process_again:
+        if force_process:
             print("INFO: Creating molecule data memmap files...")
             self._preprocess_dataset()
         else:
@@ -176,9 +204,9 @@ class DataSetup(object):
 
     def load_dataset(self):
 
-        print("INFO: Loading total of {0} pdb files.".format(len(self.pdb_files)))
+        print("INFO: Loading total of {0} proteins.".format(len(self.prot_codes)))
 
-        data_size = len(self.pdb_files)
+        data_size = len(self.prot_codes)
 
         # split into test and training data
         test_ids = np.random.randint(0, data_size, int(self.test_train_ratio * data_size))
@@ -190,7 +218,7 @@ class DataSetup(object):
         assert labels.shape[0] == data_size, "labels count %d != molecules count %d" % (labels.shape[0], data_size)
 
         # for the sake of completion, generate prot_id2name dictionary
-        prot_dict_id2name = {prot_id: prot_name[-8:-4] for prot_id, prot_name in enumerate(self.pdb_files)}
+        prot_dict_id2name = {prot_id: prot_name for prot_id, prot_name in enumerate(self.prot_codes)}
 
         validation_portion = train_ids.size / 5
         data_dict = {'x_id2name': prot_dict_id2name, 'y_id2name': go_dict_id2name,
@@ -202,13 +230,13 @@ class DataSetup(object):
 
         return data_dict
 
-    def _load_labels(self, label_type='enzyme_classes'):
+    def _load_labels(self):
         """ call the corresponding label generating function.
         :return: label matrix, id2name dictionary for label decoding
         """
-        if label_type == 'enzyme_classes':
+        if self.label_type == 'enzyme_classes':
             return self._load_enz_labels()
-        elif label_type == 'gene_onotlogies':
+        elif self.label_type == 'gene_onotlogies':
             return self._load_go_labels()
         else:
             print("ERROR: Unknown label_type argument value")
@@ -218,18 +246,19 @@ class DataSetup(object):
         """ find if each protein belongs to one of the classes
         :returns: binary matrix with samples as rows and class association as columns,
         dictionary which decodes the column id to class name."""
-        path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/enzymes/3.4.21.labels")
-        with open(path_to_enz, 'r') as f:
-            class21 = set([e.strip().lower() for e in f.readlines()[:500]])
-        path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/enzymes/3.4.24.labels")
-        with open(path_to_enz, 'r') as f:
-            class24 = set([e.strip().lower() for e in f.readlines()[:500]])
+        prots = []
+        for i, cls in enumerate(self.enzyme_classes):
+            path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                       "../../data/enzymes/" + cls + ".proteins")
+            with open(path_to_enz, 'r') as f:
+                prots.append(set([e.strip().lower() for e in f.readlines()[:self.max_prot_per_class]]))
 
-        label_dict21 = np.array([int(x[-8:-4] in class21) for x in self.pdb_files], dtype=np.int32)
-        label_dict24 = np.array([int(x[-8:-4] in class24) for x in self.pdb_files], dtype=np.int32)
+        label_dict = {i:cls for i, cls in enumerate(self.enzyme_classes)}
+
+        labels = tuple(np.array([int(x in p) for x in self.prot_codes], dtype=np.int32) for p in prots)
 
         # the id2name dictionary here represents the column id-class mapping
-        return np.vstack((label_dict21, label_dict24)).T, {0: "class_21", 1: "class_24"}
+        return np.vstack(labels).T, label_dict
 
     def _load_go_labels(self):
         """ find the number of different GO Ids and
