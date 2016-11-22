@@ -42,7 +42,6 @@ class DataSetup(object):
         self.enzyme_classes = enzyme_classes
         self.max_prot_per_class = max_prot_per_class
         self.test_train_ratio = split_test
-        self.pdb_files = []
         self.label_type = label_type
         self._setup(force_download, force_process)
 
@@ -78,7 +77,6 @@ class DataSetup(object):
             if not pdb_list:
                 print("WARNING: %s does not contain any PDB files. " % self.pdb_dir +
                       "Run the DataSetup with update=True to download them.")
-            self.pdb_files = [os.path.join(self.pdb_dir, f) for f in pdb_list]
 
         if force_process:
             print("INFO: Creating molecule data memmap files...")
@@ -112,9 +110,6 @@ class DataSetup(object):
         else:
             pl.download_entire_pdb()
 
-        self.pdb_files = [os.path.join(self.pdb_dir, f) for f in os.listdir(self.pdb_dir)
-                          if f.endswith(".ent") or f.endswith(".pdb")]
-
     def _preprocess_dataset(self):
         """
         Does pre-processing of the downloaded PDB files.
@@ -133,28 +128,36 @@ class DataSetup(object):
         erroneous_pdb_files = []
 
         # process all PDB files
-        for f in self.pdb_files[:]:
+        for pc in self.prot_codes:
+            f_path = os.path.join(os.path.dirname(__file__),
+                                               '../../data/pdb/pdb' + pc.lower() + '.ent')
             # process molecule from file
-            mol = molecule_processor.process_molecule(f)
+            mol = molecule_processor.process_molecule(f_path)
             if mol is None:
-                print("INFO: removing PDB file %s for invalid molecule" % f)
+                print("INFO: removing PDB file %s for invalid molecule" % pc)
                 # remove from disk as it could be miscounted later if setup() is called with update=False
-                erroneous_pdb_files.append((f, "invalid molecule"))
-                os.remove(f)
-                self.pdb_files.remove(f)
+                erroneous_pdb_files.append((f_path, "invalid molecule"))
+                # os.remove(f.lower())
+                self.prot_codes.remove(pc)
                 continue
 
             # process gene ontology (GO) target label from file
-            go_ids = go_processor.process_gene_ontologies(f)
-            if go_ids is None or len(go_ids) == 0:
-                print("INFO: removing PDB file %s because it has no gene ontologies associated with it." % f)
-                erroneous_pdb_files.append((f, "no associated gene ontologies"))
-                os.remove(f)
-                self.pdb_files.remove(f)
-                continue
+            if self.label_type == 'gene_ontologies':
+                go_ids = go_processor.process_gene_ontologies(f_path)
+                if go_ids is None or len(go_ids) == 0:
+                    print("INFO: removing PDB file %s because it has no gene ontologies associated with it." % f)
+                    erroneous_pdb_files.append((pc, "no associated gene ontologies"))
+                    # os.remove(f.lower())
+                    self.prot_codes.remove(pc)
+                    continue
+                go_targets.append(go_ids)
 
             molecules.append(mol)
-            go_targets.append(go_ids)
+
+        if self.label_type == 'gene_onotologies':
+            # save the final GO targets into a .csv file
+            with open(os.path.join(self.go_dir, "go_ids.csv"), "wb") as f:
+                csv.writer(f).writerows(go_targets)
 
         n_atoms = np.array([mol["atoms_count"] for mol in molecules])
         max_atoms = n_atoms.max()
@@ -166,7 +169,7 @@ class DataSetup(object):
                 f.write(str(er) + "\n")
 
         # after pre-processing, the PDB files should match the final molecules
-        assert molecules_count == len(self.pdb_files)
+        assert molecules_count == len(self.prot_codes)
 
         # create numpy arrays for the final data
         coords = np.zeros(shape=(molecules_count, max_atoms, 3), dtype=floatX)
@@ -198,9 +201,6 @@ class DataSetup(object):
         save_to_memmap(os.path.join(self.memmap_dir, 'n_atoms.memmap'), n_atoms, dtype=intX)
         save_to_memmap(os.path.join(self.memmap_dir, 'atom_mask.memmap'), atom_mask, dtype=floatX)
 
-        # save the final GO targets into a .csv file
-        with open(os.path.join(self.go_dir, "go_ids.csv"), "wb") as f:
-            csv.writer(f).writerows(go_targets)
 
     def load_dataset(self):
 
@@ -272,7 +272,7 @@ class DataSetup(object):
                 go_ids.update(gos_per_mol)
 
         go_name2id = dict(zip(go_ids, np.arange(len(go_ids))))
-        prot_gos_matrix = np.zeros((len(self.pdb_files), len(go_ids)), dtype=np.int32)
+        prot_gos_matrix = np.zeros((len(self.prot_codes), len(go_ids)), dtype=np.int32)
 
         # csv.reader return a iterator so we need to call it again along with the file opening
         with open(os.path.join(self.go_dir, "go_ids.csv"), 'r') as gene_ontologies:

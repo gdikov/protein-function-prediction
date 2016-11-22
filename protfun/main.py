@@ -24,9 +24,9 @@ def train_enzymes():
 
     data = DataSetup(enzyme_classes=['3.4.21', '3.4.24'],
                      label_type='enzyme_classes',
-                     max_prot_per_class=500,
+                     max_prot_per_class=50,
                      force_download=False,
-                     force_process=False)
+                     force_process=True)
 
     train_test_data = data.load_dataset()
 
