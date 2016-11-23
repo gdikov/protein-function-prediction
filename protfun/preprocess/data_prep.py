@@ -55,19 +55,24 @@ class DataSetup(object):
                 ef.fetch_enzymes()
 
                 for cl in self.enzyme_classes:
-                    if ef.pdb_files[cl] is not None:
+                    pdb_ids = []
+                    for key, value in ef.pdb_files.items():
+                        if key.startswith(cl) and value is not None:
+                            pdb_ids += value
+                    if len(pdb_ids) is not 0:
                         with open(os.path.join(os.path.dirname(__file__),
                                                '../../data/enzymes/' + cl + '.proteins'),
                                   mode='w') as f:
-                            f.writelines(["%s\n" % item for item in ef.pdb_files[cl]])
-                self.prot_codes = sum([ef.pdb_files[classes] for classes in self.enzyme_classes], [])
+                            f.writelines(["%s\n" % item for item in pdb_ids])
+                    self.prot_codes += pdb_ids
 
             else:
                 for cl in self.enzyme_classes:
                     with open(os.path.join(os.path.dirname(__file__),
                                            '../../data/enzymes/' + cl + '.proteins'),
                               mode='r') as f:
-                        self.prot_codes += [e.strip() for e in f.readlines()[:self.max_prot_per_class]]
+                        self.prot_codes += [e.strip() for e in f.readlines()]
+        self.prot_codes = self.prot_codes[:min(len(self.prot_codes), self.max_prot_per_class)]
 
         if force_download:
             print("INFO: Proceeding to download the Protein Data Base...")
@@ -152,7 +157,7 @@ class DataSetup(object):
             if self.label_type == 'gene_ontologies':
                 go_ids = go_processor.process_gene_ontologies(f_path)
                 if go_ids is None or len(go_ids) == 0:
-                    print("INFO: removing PDB file %s because it has no gene ontologies associated with it." % f)
+                    print("INFO: removing PDB file %s because it has no gene ontologies associated with it." % pc)
                     erroneous_pdb_files.append((pc, "no associated gene ontologies"))
                     # os.remove(f.lower())
                     self.prot_codes.remove(pc)
