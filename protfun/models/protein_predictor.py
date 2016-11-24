@@ -49,7 +49,7 @@ class ProteinPredictor(object):
         train_params = lasagne.layers.get_all_params([self.out1, self.out2], trainable=True)
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss_21 + train_loss_24,
                                                     params=train_params,
-                                                    learning_rate=1e-3)
+                                                    learning_rate=1e-2)
 
         train_accuracy_21 = T.mean(T.eq(T.argmax(train_predictions_21, axis=-1), targets_ints_21),
                                    dtype=theano.config.floatX)
@@ -94,23 +94,24 @@ class ProteinPredictor(object):
         data_gen = MoleculeMapLayer(incoming=indices_input, minibatch_size=self.minibatch_size)
 
         network = data_gen  # lasagne.layers.BatchNormLayer(incoming=data_gen)
-        for i in range(0, 6):
+        for i in range(0, 1):
             filter_size = (3, 3, 3)
             # NOTE: we start with a very poor filter count.
             network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
                                                         num_filters=2 ** (2 + i), filter_size=filter_size,
                                                         nonlinearity=lasagne.nonlinearities.leaky_rectify)
-            network = lasagne.layers.DropoutLayer(incoming=network)
             if i % 3 == 2:
                 network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2), stride=2)
 
         network1 = network
         network2 = network
 
-        for i in range(0, 6):
-            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=64,
+        # NOTE: for just 2 molecules, having 1 deep layer speeds up the
+        # required training time from 20 epochs to 5 epochs
+        for i in range(0, 1):
+            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=8,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
-            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=64,
+            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=8,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
 
         output_layer1 = lasagne.layers.DenseLayer(incoming=network1, num_units=2,
@@ -132,7 +133,7 @@ class ProteinPredictor(object):
             next_indices = []
             for i in xrange(0, self.minibatch_size):
                 random_bucket = label_buckets[np.random.randint(0, len(unique_labels))][0]
-                next_indices.append(random_bucket[np.random.randint(0, 20)])
+                next_indices.append(random_bucket[np.random.randint(0, 1)])
             yield np.array(next_indices, dtype=np.int32)
 
     def _iter_minibatches(self, data_size, shuffle=True):

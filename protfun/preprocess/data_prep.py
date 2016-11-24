@@ -59,6 +59,7 @@ class DataSetup(object):
                     for key, value in ef.pdb_files.items():
                         if key.startswith(cl) and value is not None:
                             pdb_ids += value
+                    pdb_ids = pdb_ids[:self.max_prot_per_class]
                     if len(pdb_ids) is not 0:
                         with open(os.path.join(os.path.dirname(__file__),
                                                '../../data/enzymes/' + cl + '.proteins'),
@@ -72,7 +73,6 @@ class DataSetup(object):
                                            '../../data/enzymes/' + cl + '.proteins'),
                               mode='r') as f:
                         self.prot_codes += [e.strip() for e in f.readlines()]
-        self.prot_codes = self.prot_codes[:min(len(self.prot_codes), self.max_prot_per_class)]
 
         if force_download:
             print("INFO: Proceeding to download the Protein Data Base...")
