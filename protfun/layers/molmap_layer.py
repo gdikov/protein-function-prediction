@@ -18,7 +18,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=200.0, resolution=10.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=100.0, resolution=5.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
@@ -97,25 +97,14 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             current_coords = current_coords[:, T.arange(natoms), :]
 
         zeros = np.zeros(
-            (self.minibatch_size, 1, self.side_points_count ** 3))
+            (self.minibatch_size, 1, self.side_points_count ** 3), dtype=floatX)
         grid_density = self.add_param(zeros, zeros.shape, 'grid_density', trainable=False)
         grid_esp = self.add_param(zeros, zeros.shape, 'grid_esp', trainable=False)
 
-        import theano.sandbox.cuda.basic_ops as cuda
-        # free gpu memory in bytes
-        free_gpu_memory = cuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
-
-        # to determine the grid points, we need the bytes needed for the distance
-        # computation between grid points and atoms
-        # (3 coords x 4 bytes x n_atoms) per grid point
-        # add 100 % overhead
-        needed_per_grid_point = (self.minibatch_size * self.max_atoms * 3 * 4) * 3
-
-        step_size = free_gpu_memory // needed_per_grid_point
-
+        step_size = self.compute_step_size()
         niter = self.side_points_count ** 3 // step_size + 1
 
-        def partial_computation(i, grid_esp, grid_density, current_coords, cha, vdw):
+        def partial_computation(i, grid_esp, grid_density, current_coords, cha, vdw, ama):
             grid_idx_start = i * step_size
             grid_idx_end = (i + 1) * step_size
             distances_i = T.sqrt(
@@ -127,21 +116,22 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             capped_distances_i = T.maximum(distances_i, vdw)
 
             # if self.minibatch_size == 1:
-            esp_i = T.sum(cha / capped_distances_i, axis=1, keepdims=True)
-            density_i = T.sum(T.exp((-distances_i ** 2) / vdw ** 2), axis=1, keepdims=True)
+            # esp_i = T.sum(cha / capped_distances_i, axis=1, keepdims=True)
+            # density_i = T.sum(T.exp((-distances_i ** 2) / vdw ** 2), axis=1, keepdims=True)
             # else:
-            #     esp_i = T.sum((cha / capped_distances_i) * ama, axis=1, keepdims=True)
-            #     density_i = T.sum((T.exp((-distances_i ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
+            esp_i = T.sum((cha / capped_distances_i) * ama, axis=1, keepdims=True)
+            density_i = T.sum((T.exp((-distances_i ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
 
             grid_density = T.set_subtensor(grid_density[:, :, grid_idx_start:grid_idx_end], density_i)
             grid_esp = T.set_subtensor(grid_esp[:, :, grid_idx_start:grid_idx_end], esp_i)
             return grid_esp, grid_density
 
-        result, _ = theano.scan(fn=partial_computation,
-                                sequences=T.arange(niter),
-                                outputs_info=[grid_density, grid_esp],
-                                non_sequences=[current_coords, cha, vdw],
-                                n_steps=niter)
+        result, updates = theano.scan(fn=partial_computation,
+                                      sequences=T.arange(niter),
+                                      outputs_info=[grid_density, grid_esp],
+                                      non_sequences=[current_coords, cha, vdw, ama],
+                                      n_steps=niter,
+                                      allow_gc=True)
 
         grid_esp, grid_density = result[0][-1], result[1][-1]
 
@@ -152,6 +142,18 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
         grids = T.concatenate([grid_esp, grid_density], axis=1)
         return grids
+
+    def compute_step_size(self):
+        import theano.sandbox.cuda.basic_ops as cuda
+        # free gpu memory in bytes
+        free_gpu_memory = cuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
+
+        # to determine the grid points, we need the bytes needed for the distance
+        # computation between grid points and atoms
+        # (minibatch_size x n_atoms x 3 coords x 4 bytes) per grid point
+        # add 150 % overhead to make sure there's some free memory left
+        needed_per_grid_point = ((self.minibatch_size * self.max_atoms * 3 * 4) * 150) // 100
+        return free_gpu_memory // needed_per_grid_point
 
     def perturbate(self, coords):
         # generate a random rotation matrix Q
