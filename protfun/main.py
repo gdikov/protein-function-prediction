@@ -11,10 +11,13 @@ grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/c
 
 
 def visualize():
-    for i in range(108, 182):
+    # import time
+    for i in range(77, 78):
         dummy = lasagne.layers.InputLayer(shape=(None,))
         preprocess = MoleculeMapLayer(incoming=dummy, minibatch_size=1)
+        # start = time.time()
         grids = preprocess.get_output_for(molecule_ids=[i]).eval()
+        # print(time.time() - start)
         viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
         viewer.density3d()
         viewer.potential3d()
@@ -39,5 +42,5 @@ def train_enzymes():
 
 
 if __name__ == "__main__":
-    train_enzymes()
-    # visualize()
+    # train_enzymes()
+    visualize()

@@ -18,7 +18,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=100.0, resolution=5.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=150.0, resolution=3.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
