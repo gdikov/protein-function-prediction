@@ -91,3 +91,6 @@ ENV/
 # Intellij
 .idea/
 
+# simple tests
+test.py
+

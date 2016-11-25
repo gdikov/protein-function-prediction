@@ -16,16 +16,9 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     This is a Lasagne layer to calculate 3D maps (electrostatic potential, and
     electron density estimated from VdW radii) of molecules (using Theano,
     i.e. on the GPU if the user wishes so).
-    At initialization, the layer is told whether it should use the file
-    with active or inactive compounds. When called, the layer input is an array
-    of molecule indices (both for actives and inactives - the layer selects the
-    respective half depending on whether it was initialized for actives or
-    inactives), and the output are the 3D maps.
-    Currently works faster (runtime per sample) if `minibatch_size=1` because
-    otherwise `theano.tensor.switch` is slow.
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=80.0, resolution=10.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=200.0, resolution=10.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
@@ -47,22 +40,21 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         atom_mask = np.memmap(path.join(path_to_moldata, 'atom_mask.memmap'), mode='r', dtype=floatX).reshape(
             (-1, max_atoms))
         print("INFO: Loaded %d molecules in molmap, max atoms: %d" % (coords.shape[0], max_atoms))
-        # DEBUG:
-        # charge_ratios = [(np.sum(mol_charge[mol_charge < 0]), np.sum(mol_charge[mol_charge > 0]))
-        #                  for mol_charge in charges]
+        self.max_atoms = max_atoms
 
         # Set the grid side length and resolution in Angstroms.
         endx = grid_side / 2
 
         # +1 because N Angstroms "-" contain N+1 grid points "x": x-x-x-x-x-x-x
-        self.grid_points_count = int(grid_side / resolution) + 1
+        self.side_points_count = int(grid_side / resolution) + 1
+        self.min_dist_from_border = 5  # in Angstrom; for random translations
 
         # an ndarray of grid coordinates: cartesian coordinates of each voxel
         # this will be consistent across all molecules if the grid size doesn't change
         grid_coords = lasagne.utils.floatX(
-            np.mgrid[-endx:endx:self.grid_points_count * 1j, -endx:endx:self.grid_points_count * 1j,
-            -endx:endx:self.grid_points_count * 1j])
-        self.min_dist_from_border = 5  # in Angstrom; for random translations
+            np.mgrid[-endx:endx:self.side_points_count * 1j, -endx:endx:self.side_points_count * 1j,
+            -endx:endx:self.side_points_count * 1j])
+        grid_coords = np.reshape(grid_coords, newshape=(grid_coords.shape[0], -1))
 
         # share variables (on GPU)
         self.grid_coords = self.add_param(grid_coords, grid_coords.shape, 'grid_coords', trainable=False)
@@ -87,44 +79,78 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         self.atom_mask = self.add_param(atom_mask, atom_mask.shape, 'atom_mask', trainable=False)
 
     def get_output_shape_for(self, input_shape):
-        return self.minibatch_size, 2, self.grid_points_count, self.grid_points_count, self.grid_points_count
+        return self.minibatch_size, 2, self.side_points_count, self.side_points_count, self.side_points_count
 
     def get_output_for(self, molecule_ids, **kwargs):
         current_coords = self.perturbate(self.coords[molecule_ids])
 
         # select subarray for current molecule; extend to 5D using `None`
-        cha = self.charges[molecule_ids, :, None, None, None]
-        vdw = self.vdwradii[molecule_ids, :, None, None, None]
-        ama = self.atom_mask[molecule_ids, :, None, None, None]
+        cha = self.charges[molecule_ids, :, None]
+        vdw = self.vdwradii[molecule_ids, :, None]
+        ama = self.atom_mask[molecule_ids, :, None]
 
         if self.minibatch_size == 1:
             natoms = self.n_atoms[molecule_ids[0]]
-            cha = cha[:, T.arange(natoms), :, :, :]
-            vdw = vdw[:, T.arange(natoms), :, :, :]
-            ama = ama[:, T.arange(natoms), :, :, :]
+            cha = cha[:, T.arange(natoms), :]
+            vdw = vdw[:, T.arange(natoms), :]
+            ama = ama[:, T.arange(natoms), :]
             current_coords = current_coords[:, T.arange(natoms), :]
 
-        # pairwise distances from all atoms to all grid points
-        distances = T.sqrt(
-            T.sum((self.grid_coords[None, None, :, :, :, :] - current_coords[:, :, :, None, None, None]) ** 2, axis=2))
+        zeros = np.zeros(
+            (self.minibatch_size, 1, self.side_points_count ** 3))
+        grid_density = self.add_param(zeros, zeros.shape, 'grid_density', trainable=False)
+        grid_esp = self.add_param(zeros, zeros.shape, 'grid_esp', trainable=False)
 
-        # "distance" from atom to grid point should never be smaller than the vdw radius of the atom
-        # (otherwise infinite proximity possible)
-        distances_esp_cap = T.maximum(distances, vdw)
+        import theano.sandbox.cuda.basic_ops as cuda
+        # free gpu memory in bytes
+        free_gpu_memory = cuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
 
-        # grids_0: electrostatic potential in each of the 70x70x70 grid points
-        # grids_1: vdw value in each of the 70x70x70 grid points
-        if self.minibatch_size == 1:
-            grids_0 = T.sum(cha / distances_esp_cap, axis=1, keepdims=True)
-            grids_1 = T.sum(T.exp((-distances ** 2) / vdw ** 2), axis=1, keepdims=True)
-        else:
-            grids_0 = T.sum((cha / distances_esp_cap) * ama, axis=1,
-                            keepdims=True)
-            grids_1 = T.sum((T.exp((-distances ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
+        # to determine the grid points, we need the bytes needed for the distance
+        # computation between grid points and atoms
+        # (3 coords x 4 bytes x n_atoms) per grid point
+        # add 100 % overhead
+        needed_per_grid_point = (self.minibatch_size * self.max_atoms * 3 * 4) * 3
 
-        grids = T.concatenate([grids_0, grids_1], axis=1)
+        step_size = free_gpu_memory // needed_per_grid_point
 
-        # print "grids: ", grids.shape.eval()
+        niter = self.side_points_count ** 3 // step_size + 1
+
+        def partial_computation(i, grid_esp, grid_density, current_coords, cha, vdw):
+            grid_idx_start = i * step_size
+            grid_idx_end = (i + 1) * step_size
+            distances_i = T.sqrt(
+                T.sum(
+                    (self.grid_coords[None, None, :, grid_idx_start:grid_idx_end] - current_coords[:, :, :, None]) ** 2,
+                    axis=2))
+            # grid point distances should not be smaller then vwd radius
+            # when computing ESP
+            capped_distances_i = T.maximum(distances_i, vdw)
+
+            # if self.minibatch_size == 1:
+            esp_i = T.sum(cha / capped_distances_i, axis=1, keepdims=True)
+            density_i = T.sum(T.exp((-distances_i ** 2) / vdw ** 2), axis=1, keepdims=True)
+            # else:
+            #     esp_i = T.sum((cha / capped_distances_i) * ama, axis=1, keepdims=True)
+            #     density_i = T.sum((T.exp((-distances_i ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
+
+            grid_density = T.set_subtensor(grid_density[:, :, grid_idx_start:grid_idx_end], density_i)
+            grid_esp = T.set_subtensor(grid_esp[:, :, grid_idx_start:grid_idx_end], esp_i)
+            return grid_esp, grid_density
+
+        result, _ = theano.scan(fn=partial_computation,
+                                sequences=T.arange(niter),
+                                outputs_info=[grid_density, grid_esp],
+                                non_sequences=[current_coords, cha, vdw],
+                                n_steps=niter)
+
+        grid_esp, grid_density = result[0][-1], result[1][-1]
+
+        grid_esp = T.reshape(grid_esp, newshape=(
+            self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
+        grid_density = T.reshape(grid_density, newshape=(
+            self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
+
+        grids = T.concatenate([grid_esp, grid_density], axis=1)
         return grids
 
     def perturbate(self, coords):
