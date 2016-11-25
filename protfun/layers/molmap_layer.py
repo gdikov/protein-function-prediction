@@ -18,7 +18,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=150.0, resolution=3.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=189.0, resolution=3.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
@@ -82,58 +82,71 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         return self.minibatch_size, 2, self.side_points_count, self.side_points_count, self.side_points_count
 
     def get_output_for(self, molecule_ids, **kwargs):
-        current_coords = self.perturbate(self.coords[molecule_ids])
-
-        # select subarray for current molecule; extend to 5D using `None`
-        cha = self.charges[molecule_ids, :, None]
-        vdw = self.vdwradii[molecule_ids, :, None]
-        ama = self.atom_mask[molecule_ids, :, None]
-
-        if self.minibatch_size == 1:
-            natoms = self.n_atoms[molecule_ids[0]]
-            cha = cha[:, T.arange(natoms), :]
-            vdw = vdw[:, T.arange(natoms), :]
-            ama = ama[:, T.arange(natoms), :]
-            current_coords = current_coords[:, T.arange(natoms), :]
-
         zeros = np.zeros(
             (self.minibatch_size, 1, self.side_points_count ** 3), dtype=floatX)
         grid_density = self.add_param(zeros, zeros.shape, 'grid_density', trainable=False)
         grid_esp = self.add_param(zeros, zeros.shape, 'grid_esp', trainable=False)
 
-        step_size = self.compute_step_size()
-        niter = self.side_points_count ** 3 // step_size + 1
+        free_gpu_memory = self.get_free_gpu_memory()
+        pertubated_coords = self.perturbate(self.coords[molecule_ids])
+        points_count = self.side_points_count
 
-        def partial_computation(i, grid_esp, grid_density, current_coords, cha, vdw, ama):
-            grid_idx_start = i * step_size
-            grid_idx_end = (i + 1) * step_size
-            distances_i = T.sqrt(
-                T.sum(
-                    (self.grid_coords[None, None, :, grid_idx_start:grid_idx_end] - current_coords[:, :, :, None]) ** 2,
-                    axis=2))
-            # grid point distances should not be smaller then vwd radius
-            # when computing ESP
-            capped_distances_i = T.maximum(distances_i, vdw)
+        def preprocess_molecule(idx, grid_esp, grid_density, n_atoms, coords, charges, vdwradii,
+                                grid_coords):
+            atoms_count = n_atoms[idx]
+            current_coords = coords[idx, T.arange(atoms_count), :]
+            cha = charges[idx, T.arange(atoms_count), None]
+            vdw = vdwradii[idx, T.arange(atoms_count), None]
 
-            # if self.minibatch_size == 1:
-            # esp_i = T.sum(cha / capped_distances_i, axis=1, keepdims=True)
-            # density_i = T.sum(T.exp((-distances_i ** 2) / vdw ** 2), axis=1, keepdims=True)
-            # else:
-            esp_i = T.sum((cha / capped_distances_i) * ama, axis=1, keepdims=True)
-            density_i = T.sum((T.exp((-distances_i ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
+            # to determine the grid points, we need the bytes needed for the distance
+            # computation between grid points and atoms
+            # (n_atoms x 3 coords x 4 bytes) per (grid point, molecule)
+            # add 100 % overhead to make sure there's some free memory left
+            needed_per_grid_point = (atoms_count * 3 * 4) * 2
+            step_size = free_gpu_memory // needed_per_grid_point
+            niter = points_count ** 3 // step_size + 1
 
-            grid_density = T.set_subtensor(grid_density[:, :, grid_idx_start:grid_idx_end], density_i)
-            grid_esp = T.set_subtensor(grid_esp[:, :, grid_idx_start:grid_idx_end], esp_i)
+            def partial_computation(i, grid_esp, grid_density, current_coords, cha, vdw, grid_coords):
+                grid_idx_start = i * step_size
+                grid_idx_end = (i + 1) * step_size
+                distances_i = T.sqrt(T.sum(
+                    (grid_coords[None, :, grid_idx_start:grid_idx_end] - current_coords[:, :, None]) ** 2,
+                    axis=1))
+                # grid point distances should not be smaller then vwd radius
+                # when computing ESP
+                capped_distances_i = T.maximum(distances_i, vdw)
+
+                esp_i = T.sum(cha / capped_distances_i, axis=0, keepdims=True)
+                density_i = T.sum(T.exp((-distances_i ** 2) / vdw ** 2), axis=0, keepdims=True)
+
+                # esp_i = T.sum((cha / capped_distances_i) * ama, axis=1, keepdims=True)
+                # density_i = T.sum((T.exp((-distances_i ** 2) / vdw ** 2) * ama), axis=1, keepdims=True)
+
+                grid_density = T.set_subtensor(grid_density[idx, :, grid_idx_start:grid_idx_end], density_i)
+                grid_esp = T.set_subtensor(grid_esp[idx, :, grid_idx_start:grid_idx_end], esp_i)
+                return grid_esp, grid_density
+
+            result, _ = theano.scan(fn=partial_computation,
+                                    sequences=T.arange(niter),
+                                    outputs_info=[grid_esp, grid_density],
+                                    non_sequences=[current_coords, cha, vdw, grid_coords],
+                                    n_steps=niter,
+                                    allow_gc=True)
+
+            grid_esp, grid_density = result[0][-1], result[1][-1]
             return grid_esp, grid_density
 
-        result, updates = theano.scan(fn=partial_computation,
-                                      sequences=T.arange(niter),
-                                      outputs_info=[grid_density, grid_esp],
-                                      non_sequences=[current_coords, cha, vdw, ama],
-                                      n_steps=niter,
-                                      allow_gc=True)
+        result, _ = theano.scan(fn=preprocess_molecule,
+                                sequences=T.arange(self.minibatch_size),
+                                outputs_info=[grid_esp, grid_density],
+                                non_sequences=[self.n_atoms[molecule_ids], pertubated_coords,
+                                               self.charges[molecule_ids], self.vdwradii[molecule_ids],
+                                               self.grid_coords],
+                                n_steps=self.minibatch_size,
+                                allow_gc=True)
 
-        grid_esp, grid_density = result[0][-1], result[1][-1]
+        grid_esp = result[0]
+        grid_density = result[1]
 
         grid_esp = T.reshape(grid_esp, newshape=(
             self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
@@ -143,17 +156,12 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         grids = T.concatenate([grid_esp, grid_density], axis=1)
         return grids
 
-    def compute_step_size(self):
+    @staticmethod
+    def get_free_gpu_memory():
         import theano.sandbox.cuda.basic_ops as cuda
         # free gpu memory in bytes
         free_gpu_memory = cuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
-
-        # to determine the grid points, we need the bytes needed for the distance
-        # computation between grid points and atoms
-        # (minibatch_size x n_atoms x 3 coords x 4 bytes) per grid point
-        # add 150 % overhead to make sure there's some free memory left
-        needed_per_grid_point = ((self.minibatch_size * self.max_atoms * 3 * 4) * 150) // 100
-        return free_gpu_memory // needed_per_grid_point
+        return free_gpu_memory
 
     def perturbate(self, coords):
         # generate a random rotation matrix Q
