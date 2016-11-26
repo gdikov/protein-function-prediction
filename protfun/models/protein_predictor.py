@@ -5,10 +5,11 @@ import lasagne
 import lasagne.layers.dnn
 
 from protfun.layers.molmap_layer import MoleculeMapLayer
+from protfun.models.model_monitor import ModelMonitor
 
 
 class ProteinPredictor(object):
-    def __init__(self, data, minibatch_size=1):
+    def __init__(self, data, minibatch_size=1, model_name='model'):
 
         self.minibatch_size = minibatch_size
         # self.num_output_classes = data['y_id2name'].shape[0]
@@ -22,72 +23,77 @@ class ProteinPredictor(object):
 
         # define input and output symbolic variables of the computation graph
         mol_indices = T.ivector("molecule_indices")
-        targets_ints_21 = T.ivector('targets21')
-        targets_ints_24 = T.ivector('targets24')
+
+        # TODO: replace all lists with for loops
+
+        targets_ints = [T.ivector('targets21'), T.ivector('targets24')]
 
         # create a one-hot encoding if an integer vector
         # using a broadcast trick (targets is reshaped from (N) to (N, 1)
         # and then each entry is compared to [1, 2, ... K] in a broadcast
-        targets_21 = T.eq(targets_ints_21.reshape((-1, 1)), T.arange(2))
-        targets_24 = T.eq(targets_ints_24.reshape((-1, 1)), T.arange(2))
+        targets = [T.eq(targets_ints[0].reshape((-1, 1)), T.arange(2)),
+                   T.eq(targets_ints[1].reshape((-1, 1)), T.arange(2))]
 
         # build the network architecture
-        self.out1, self.out2 = self._build_network(mol_indices=mol_indices)
+        self.outs = self._build_network(mol_indices=mol_indices)
 
         # define objective and training parameters
-        train_predictions_21 = lasagne.layers.get_output(self.out1)
-        train_predictions_24 = lasagne.layers.get_output(self.out2)
+        train_predictions = [lasagne.layers.get_output(self.outs[0]),
+                             lasagne.layers.get_output(self.outs[1])]
 
         def categorical_crossentropy_logdomain(log_predictions, targets):
             return -T.sum(targets * log_predictions, axis=1)
 
-        train_loss_21 = categorical_crossentropy_logdomain(log_predictions=train_predictions_21,
-                                                           targets=targets_21).mean()
-        train_loss_24 = categorical_crossentropy_logdomain(log_predictions=train_predictions_24,
-                                                           targets=targets_24).mean()
+        train_losses = [categorical_crossentropy_logdomain(log_predictions=train_predictions[0],
+                                                           targets=targets[0]).mean(),
+                        categorical_crossentropy_logdomain(log_predictions=train_predictions[1],
+                                                           targets=targets[1]).mean()]
 
-        train_params = lasagne.layers.get_all_params([self.out1, self.out2], trainable=True)
-        train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss_21 + train_loss_24,
+        train_params = lasagne.layers.get_all_params([self.outs[0], self.outs[1]], trainable=True)
+        train_params_updates = lasagne.updates.adam(loss_or_grads=train_losses[0] + train_losses[1],
                                                     params=train_params,
                                                     learning_rate=1e-2)
 
-        train_accuracy_21 = T.mean(T.eq(T.argmax(train_predictions_21, axis=-1), targets_ints_21),
-                                   dtype=theano.config.floatX)
-        train_accuracy_24 = T.mean(T.eq(T.argmax(train_predictions_24, axis=-1), targets_ints_24),
-                                   dtype=theano.config.floatX)
+        train_accuracies = [T.mean(T.eq(T.argmax(train_predictions[0], axis=-1), targets_ints[0]),
+                                   dtype=theano.config.floatX),
+                            T.mean(T.eq(T.argmax(train_predictions[1], axis=-1), targets_ints[1]),
+                                   dtype=theano.config.floatX)]
 
-        val_predictions_21 = lasagne.layers.get_output(self.out1, deterministic=True)
-        val_predictions_24 = lasagne.layers.get_output(self.out2, deterministic=True)
+        val_predictions = [lasagne.layers.get_output(self.outs[0], deterministic=True),
+                           lasagne.layers.get_output(self.outs[1], deterministic=True)]
 
-        val_loss_21 = categorical_crossentropy_logdomain(log_predictions=val_predictions_21,
-                                                         targets=targets_21).mean()
-        val_loss_24 = categorical_crossentropy_logdomain(log_predictions=val_predictions_24,
-                                                         targets=targets_24).mean()
+        val_losses = [categorical_crossentropy_logdomain(log_predictions=val_predictions[0],
+                                                         targets=targets[0]).mean(),
+                      categorical_crossentropy_logdomain(log_predictions=val_predictions[1],
+                                                         targets=targets[1]).mean()]
 
-        val_accuracy_21 = T.mean(T.eq(T.argmax(val_predictions_21, axis=-1), targets_ints_21),
-                                 dtype=theano.config.floatX)
+        val_accuracies = [T.mean(T.eq(T.argmax(val_predictions[0], axis=-1), targets_ints[0]),
+                                 dtype=theano.config.floatX),
+                          T.mean(T.eq(T.argmax(val_predictions[1], axis=-1), targets_ints[1]),
+                                 dtype=theano.config.floatX)]
 
-        val_accuracy_24 = T.mean(T.eq(T.argmax(val_predictions_24, axis=-1), targets_ints_24),
-                                 dtype=theano.config.floatX)
-
-        self.train_function = theano.function(inputs=[mol_indices, targets_ints_21, targets_ints_24],
-                                              outputs=[train_loss_21, train_loss_24, train_accuracy_21,
-                                                       train_accuracy_24, train_predictions_21, targets_21],
+        self.train_function = theano.function(inputs=[mol_indices, targets_ints[0], targets_ints[1]],
+                                              outputs=[train_losses[0], train_losses[1], train_accuracies[0],
+                                                       train_accuracies[1], train_predictions[0], targets[0]],
                                               updates=train_params_updates)
 
-        self.validation_function = theano.function(inputs=[mol_indices, targets_ints_21, targets_ints_24],
-                                                   outputs=[val_loss_21, val_loss_24, val_accuracy_21, val_accuracy_24])
+        self.validation_function = theano.function(inputs=[mol_indices, targets_ints[0], targets_ints[1]],
+                                                   outputs=[val_losses[0], val_losses[1],
+                                                            val_accuracies[0], val_accuracies[1]])
 
         self._get_params = theano.function(inputs=[], outputs=train_params)
 
         self._get_all_outputs = theano.function(inputs=[mol_indices], outputs=lasagne.layers.get_output(
-            lasagne.layers.get_all_layers([self.out1])))
+            lasagne.layers.get_all_layers([self.outs[0]])))
 
         # save training history data
         self.history = {'val_loss': list(),
                         'val_accuracy': list(),
                         'time_epoche': list()}
         print("INFO: Computational graph compiled")
+
+        self.monitor = ModelMonitor(self.outs, name=model_name)
+
 
     def _build_network(self, mol_indices):
         indices_input = lasagne.layers.InputLayer(shape=(self.minibatch_size,), input_var=mol_indices)
@@ -122,7 +128,7 @@ class ProteinPredictor(object):
         return output_layer1, output_layer2
 
 
-    def _iter_minibatches(self, mode='train', shuffle=True):
+    def _iter_minibatches(self, mode='train'):
         data_size = self.data['y_'+mode].shape[0]
         minibatch_count = data_size / self.minibatch_size
         if data_size % self.minibatch_size != 0:
@@ -153,7 +159,7 @@ class ProteinPredictor(object):
         for e in xrange(epoch_count):
             losses = []
             accs = []
-            for indices in self._iter_minibatches():
+            for indices in self._iter_minibatches(mode='train'):
                 y = self.data['y_train'][indices]
                 import time
                 start = time.time()
@@ -163,38 +169,35 @@ class ProteinPredictor(object):
                 # print("INFO: train: loss21: %f loss24 %f acc21: %f acc24: %f" %
                 #       (loss21, loss24, acc21, acc24))
                 # outputs = self._get_all_outputs(indices)
-                continue
 
             mean_losses = np.mean(np.array(losses), axis=0)
             mean_accs = np.mean(np.array(accs), axis=0)
             print("INFO: train: epoch %d loss21: %f loss24 %f acc21: %f acc24: %f" %
                   (e+1, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
             if np.isnan(mean_losses[0]) or np.isnan(mean_losses[1]):
-                params = [np.array(param) for param in self._get_params()]
-                print(params)
+                print("WARNING: Something went wrong during trainig. Saving parameters...")
+                self.monitor.save_model(e, "nans_during_trainig")
+
+            # implement a better logic here
+            if e-1 % 10 == 0:
+                self.monitor.save_model(e)
 
     def test(self):
         print("INFO: Testing...")
-        losses21 = []
-        losses24 = []
-        accs21 = []
-        accs24 = []
-        for indices in self._iter_minibatches(self.test_data_size):
+        losses = []
+        accs = []
+        for indices in self._iter_minibatches(mode='test'):
             y = self.data['y_test'][indices]
             loss21, loss24, acc21, acc24 = self.validation_function(indices, y[:, 0], y[:, 1])
-            losses21.append(loss21)
-            losses24.append(loss24)
-            accs21.append(acc21)
-            accs24.append(acc24)
+            losses.append((loss21, loss24))
+            accs.append((acc21, acc24))
 
-        mean_loss21 = np.mean(np.array(losses21))
-        mean_loss24 = np.mean(np.array(losses24))
-        mean_acc21 = np.mean(np.array(accs21))
-        mean_acc24 = np.mean(np.array(accs24))
+        mean_losses = np.mean(np.array(losses), axis=0)
+        mean_accs = np.mean(np.array(accs), axis=0)
         print("INFO: test: loss21: %f loss24 %f acc21: %f acc24: %f" %
-              (mean_loss21, mean_loss24, mean_acc21, mean_acc24))
+              (mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
 
-        return mean_loss21, mean_loss24, mean_acc21, mean_acc24
+        return mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]
 
     def summarize(self):
         print("The network has been tremendously successful!")
