@@ -142,7 +142,7 @@ class DataSetup(object):
         # as removing is not allowed during iteration
         for pc in self.prot_codes[:]:
             f_path = os.path.join(os.path.dirname(__file__),
-                                               '../../data/pdb/pdb' + pc.lower() + '.ent')
+                                  '../../data/pdb/pdb' + pc.lower() + '.ent')
             # process molecule from file
             mol = molecule_processor.process_molecule(f_path)
             if mol is None:
@@ -227,19 +227,29 @@ class DataSetup(object):
         test_ids = np.random.randint(0, data_size, int(self.test_train_ratio * data_size))
         # get all but the indices of the test_data
         train_ids = np.setdiff1d(np.arange(data_size), test_ids, assume_unique=True)
+        validation_portion = train_ids.size / 5
 
-        labels, go_dict_id2name = self._load_labels()
+        labels, dict_id2name = self._load_labels()
+        labels_train = labels[train_ids[validation_portion:]]
+        labels_val = labels[train_ids[:validation_portion]]
+        labels_test = labels[test_ids]
+
+        label_distribution_train = np.mean(labels_train, axis=0)
+        label_distribution_val = np.mean(labels_val, axis=0)
+        label_distribution_test = np.mean(labels_test, axis=0)
 
         assert labels.shape[0] == data_size, "labels count %d != molecules count %d" % (labels.shape[0], data_size)
 
         # for the sake of completion, generate prot_id2name dictionary
         prot_dict_id2name = {prot_id: prot_name for prot_id, prot_name in enumerate(self.prot_codes)}
 
-        validation_portion = train_ids.size / 5
-        data_dict = {'x_id2name': prot_dict_id2name, 'y_id2name': go_dict_id2name,
-                     'x_train': train_ids[validation_portion:], 'y_train': labels[train_ids[validation_portion:]],
-                     'x_val': train_ids[:validation_portion], 'y_val': labels[train_ids[:validation_portion]],
-                     'x_test': test_ids, 'y_test': labels[test_ids]}
+        data_dict = {'x_id2name': prot_dict_id2name, 'y_id2name': dict_id2name,
+                     'class_distribution_train': label_distribution_train,
+                     'class_distribution_val': label_distribution_val,
+                     'class_distribution_test': label_distribution_test,
+                     'x_train': train_ids[validation_portion:], 'y_train': labels_train,
+                     'x_val': train_ids[:validation_portion], 'y_val': labels_val,
+                     'x_test': test_ids, 'y_test': labels_test}
 
         print("INFO: Train and test data loaded")
 
@@ -268,7 +278,7 @@ class DataSetup(object):
             with open(path_to_enz, 'r') as f:
                 prots.append(set([e.strip().lower() for e in f.readlines()[:self.max_prot_per_class]]))
 
-        label_dict = {i:cls for i, cls in enumerate(self.enzyme_classes)}
+        label_dict = {i: cls for i, cls in enumerate(self.enzyme_classes)}
 
         labels = tuple(np.array([int(x.lower() in p) for x in self.prot_codes], dtype=np.int32) for p in prots)
 
@@ -409,5 +419,3 @@ class GeneOntologyProcessor(object):
         except IndexError:
             # protein has no GO terms associated with it
             return ["unknown"]
-
-
