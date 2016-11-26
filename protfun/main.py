@@ -37,7 +37,7 @@ def train_enzymes():
     train_test_data = data.load_dataset()
 
     predictor = ProteinPredictor(data=train_test_data,
-                                 minibatch_size=1)
+                                 minibatch_size=32)
 
     predictor.train(epoch_count=100)
     predictor.test()
