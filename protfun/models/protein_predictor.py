@@ -159,10 +159,10 @@ class ProteinPredictor(object):
             accs24 = []
             for indices in self._iter_minibatches_train():
                 y = self.data['y_train'][indices]
-                # import time
-                # start = time.time()
+                import time
+                start = time.time()
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
-                # print(time.time() - start)
+                print(time.time() - start)
                 losses21.append(loss21)
                 losses24.append(loss24)
                 accs21.append(acc21)
