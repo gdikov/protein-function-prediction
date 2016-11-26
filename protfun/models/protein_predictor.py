@@ -132,6 +132,11 @@ class ProteinPredictor(object):
         # one hot encoding of labels which are present in the current set of samples
         num_classes = self.data['class_distribution_'+mode].shape[0]
         represented_classes = np.arange(num_classes)[self.data['class_distribution_'+mode] > 0.]
+
+        if represented_classes.shape[0] < num_classes:
+            print("WARRNING: Non-exhaustive {0}ing. Class (Classes) {1} is (are) not represented".
+                  format(mode, np.arange(num_classes)[self.data['class_distribution_'+mode] <= 0.]))
+
         unique_labels = np.eye(represented_classes.shape[0])
 
         for minibatch_index in xrange(0, minibatch_count):
@@ -146,32 +151,25 @@ class ProteinPredictor(object):
     def train(self, epoch_count=10):
         print("INFO: Training...")
         for e in xrange(epoch_count):
-            losses21 = []
-            losses24 = []
-            accs21 = []
-            accs24 = []
+            losses = []
+            accs = []
             for indices in self._iter_minibatches():
                 y = self.data['y_train'][indices]
                 import time
                 start = time.time()
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
-                print(time.time() - start)
-                losses21.append(loss21)
-                losses24.append(loss24)
-                accs21.append(acc21)
-                accs24.append(acc24)
+                losses.append((loss21, loss24))
+                accs.append((acc21, acc24))
                 # print("INFO: train: loss21: %f loss24 %f acc21: %f acc24: %f" %
                 #       (loss21, loss24, acc21, acc24))
                 # outputs = self._get_all_outputs(indices)
                 continue
 
-            mean_loss21 = np.mean(np.array(losses21))
-            mean_loss24 = np.mean(np.array(losses24))
-            mean_acc21 = np.mean(np.array(accs21))
-            mean_acc24 = np.mean(np.array(accs24))
+            mean_losses = np.mean(np.array(losses), axis=0)
+            mean_accs = np.mean(np.array(accs), axis=0)
             print("INFO: train: epoch %d loss21: %f loss24 %f acc21: %f acc24: %f" %
-                  (e+1, mean_loss21, mean_loss24, mean_acc21, mean_acc24))
-            if np.isnan(mean_loss21) or np.isnan(mean_loss24):
+                  (e+1, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
+            if np.isnan(mean_losses[0]) or np.isnan(mean_losses[1]):
                 params = [np.array(param) for param in self._get_params()]
                 print(params)
 

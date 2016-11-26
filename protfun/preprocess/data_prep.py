@@ -234,9 +234,9 @@ class DataSetup(object):
         labels_val = labels[train_ids[:validation_portion]]
         labels_test = labels[test_ids]
 
-        label_distribution_train = np.sum(labels_train.T, axis=1) / float(labels_train.shape[0])
-        label_distribution_val = np.sum(labels_val.T, axis=1) / float(labels_val.shape[0])
-        label_distribution_test = np.sum(labels_test.T, axis=1) / float(labels_test.shape[0])
+        label_distribution_train = np.mean(labels_train, axis=0)
+        label_distribution_val = np.mean(labels_val, axis=0)
+        label_distribution_test = np.mean(labels_test, axis=0)
 
         assert labels.shape[0] == data_size, "labels count %d != molecules count %d" % (labels.shape[0], data_size)
 
