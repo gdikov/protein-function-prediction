@@ -121,34 +121,27 @@ class ProteinPredictor(object):
 
         return output_layer1, output_layer2
 
-    def _iter_minibatches_train(self):
-        minibatch_count = self.train_data_size / self.minibatch_size
-        y = self.data["y_train"]
-        unique_labels = np.vstack({tuple(row) for row in y})
 
-        for minibatch_index in xrange(0, minibatch_count):
-            # the following collects the indices in the `y_train` array
-            # which correspond to different labels
-            label_buckets = [np.nonzero(np.all(y == unique_label, axis=1)) for unique_label in unique_labels]
-            next_indices = []
-            for i in xrange(0, self.minibatch_size):
-                random_bucket = label_buckets[np.random.randint(0, len(unique_labels))][0]
-                next_indices.append(random_bucket[np.random.randint(0, len(random_bucket))])
-            yield np.array(next_indices, dtype=np.int32)
-
-    def _iter_minibatches(self, data_size, shuffle=True):
+    def _iter_minibatches(self, mode='train', shuffle=True):
+        data_size = self.data['y_'+mode].shape[0]
         minibatch_count = data_size / self.minibatch_size
         if data_size % self.minibatch_size != 0:
             minibatch_count += 1
 
-        if shuffle:
-            order = np.random.permutation(data_size)
-        else:
-            order = np.array(xrange(0, data_size))
+        ys = self.data['y_'+mode]
+        # one hot encoding of labels which are present in the current set of samples
+        num_classes = self.data['class_distribution_'+mode].shape[0]
+        represented_classes = np.arange(num_classes)[self.data['class_distribution_'+mode] > 0.]
+        unique_labels = np.eye(represented_classes.shape[0])
 
         for minibatch_index in xrange(0, minibatch_count):
-            mask = order[minibatch_index:minibatch_index + self.minibatch_size]
-            yield np.asarray(mask, dtype=np.int32)
+            # the following collects the indices in the `y_train` array
+            # which correspond to different labels
+            label_buckets = [np.nonzero(np.all(ys == label, axis=1)) for label in unique_labels]
+            bucket_ids = np.random.choice(represented_classes, size=self.minibatch_size)
+            next_indices = [label_buckets[i][0][np.random.randint(0, len(label_buckets[i][0]))]
+                            for i in bucket_ids]
+            yield np.array(next_indices, dtype=np.int32)
 
     def train(self, epoch_count=10):
         print("INFO: Training...")
@@ -157,7 +150,7 @@ class ProteinPredictor(object):
             losses24 = []
             accs21 = []
             accs24 = []
-            for indices in self._iter_minibatches_train():
+            for indices in self._iter_minibatches():
                 y = self.data['y_train'][indices]
                 import time
                 start = time.time()
