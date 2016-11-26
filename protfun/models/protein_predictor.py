@@ -133,7 +133,7 @@ class ProteinPredictor(object):
             next_indices = []
             for i in xrange(0, self.minibatch_size):
                 random_bucket = label_buckets[np.random.randint(0, len(unique_labels))][0]
-                next_indices.append(random_bucket[np.random.randint(0, 1)])
+                next_indices.append(random_bucket[np.random.randint(0, len(random_bucket))])
             yield np.array(next_indices, dtype=np.int32)
 
     def _iter_minibatches(self, data_size, shuffle=True):
@@ -159,7 +159,10 @@ class ProteinPredictor(object):
             accs24 = []
             for indices in self._iter_minibatches_train():
                 y = self.data['y_train'][indices]
+                import time
+                start = time.time()
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
+                print(time.time() - start)
                 losses21.append(loss21)
                 losses24.append(loss24)
                 accs21.append(acc21)

@@ -47,9 +47,9 @@ class MoleculeView(object):
         mlab.axes()
 
         if export_figure:
-            if not os.path.exists("../data/figures"):
-                os.makedirs("../data/figures")
-            mlab.savefig(filename='../data/figures/{0}_elden3d.png'.format(self.molecule_name))
+            if not os.path.exists("../../data/figures"):
+                os.makedirs("../../data/figures")
+            mlab.savefig(filename='../../data/figures/{0}_elden3d.png'.format(self.molecule_name))
 
         mlab.show()
 
@@ -117,9 +117,9 @@ class MoleculeView(object):
         cbar.set_label('Electron Density', rotation=270)
 
         if export_figure:
-            if not os.path.exists("../data/figures"):
-                os.makedirs("../data/figures")
-            plt.savefig(filename='../data/figures/{0}_elden2d.png'.format(self.molecule_name))
+            if not os.path.exists("../../data/figures"):
+                os.makedirs("../../data/figures")
+            plt.savefig(filename='../../data/figures/{0}_elden2d.png'.format(self.molecule_name))
 
         plt.show()
 
@@ -184,9 +184,9 @@ class MoleculeView(object):
         mlab.axes()
 
         if export_figure:
-            if not os.path.exists("../data/figures"):
-                os.makedirs("../data/figures")
-            mlab.savefig(filename='../data/figures/{0}_elstpot3d.png'.format(self.molecule_name))
+            if not os.path.exists("../../data/figures"):
+                os.makedirs("../../data/figures")
+            mlab.savefig(filename='../../data/figures/{0}_elstpot3d.png'.format(self.molecule_name))
 
         mlab.show()
 

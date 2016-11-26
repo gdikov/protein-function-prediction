@@ -1,6 +1,8 @@
 import os
 # os.environ["THEANO_FLAGS"] = "device=gpu2,lib.cnmem=1"
 import lasagne
+import theano
+import numpy as np
 
 from protfun.layers import MoleculeMapLayer
 from protfun.models.protein_predictor import ProteinPredictor
@@ -11,10 +13,14 @@ grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/c
 
 
 def visualize():
-    for i in range(108, 182):
+    # import time
+    for i in range(12, 78):
         dummy = lasagne.layers.InputLayer(shape=(None,))
         preprocess = MoleculeMapLayer(incoming=dummy, minibatch_size=1)
-        grids = preprocess.get_output_for(molecule_ids=[i]).eval()
+        # start = time.time()
+        molecule_ids = theano.shared(np.array([i], dtype=np.int32))
+        grids = preprocess.get_output_for(molecule_ids=molecule_ids).eval()
+        # print(time.time() - start)
         viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
         viewer.density3d()
         viewer.potential3d()
@@ -31,7 +37,7 @@ def train_enzymes():
     train_test_data = data.load_dataset()
 
     predictor = ProteinPredictor(data=train_test_data,
-                                 minibatch_size=1)
+                                 minibatch_size=32)
 
     predictor.train(epoch_count=100)
     predictor.test()

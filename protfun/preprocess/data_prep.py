@@ -146,7 +146,7 @@ class DataSetup(object):
             # process molecule from file
             mol = molecule_processor.process_molecule(f_path)
             if mol is None:
-                print("INFO: removing PDB file %s for invalid molecule" % pc)
+                print("INFO: ignoring PDB file %s for invalid molecule" % pc)
                 # remove from disk as it could be miscounted later if setup() is called with update=False
                 erroneous_pdb_files.append((f_path, "invalid molecule"))
                 # os.remove(f.lower())
@@ -157,7 +157,7 @@ class DataSetup(object):
             if self.label_type == 'gene_ontologies':
                 go_ids = go_processor.process_gene_ontologies(f_path)
                 if go_ids is None or len(go_ids) == 0:
-                    print("INFO: removing PDB file %s because it has no gene ontologies associated with it." % pc)
+                    print("INFO: ignoring PDB file %s because it has no gene ontologies associated with it." % pc)
                     erroneous_pdb_files.append((pc, "no associated gene ontologies"))
                     # os.remove(f.lower())
                     self.prot_codes.remove(pc)
