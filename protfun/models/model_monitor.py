@@ -52,4 +52,5 @@ class ModelMonitor():
         lasagne.layers.set_all_param_values(network, param_values, trainable=True)
 
     def gather_train_history(self, history):
+
         pass

@@ -42,7 +42,6 @@ def train_enzymes():
                                  initial_per_class_datasize=100)
 
     predictor.train(epoch_count=100)
-    predictor.test()
 
 if __name__ == "__main__":
     train_enzymes()

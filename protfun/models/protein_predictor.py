@@ -160,7 +160,7 @@ class ProteinPredictor(object):
         label_buckets = [np.nonzero(np.all(ys == label, axis=1))[:per_class_datasize]
                          for label in unique_labels]
 
-        for minibatch_index in xrange(0, minibatch_count):
+        for _ in xrange(0, minibatch_count):
             bucket_ids = np.random.choice(represented_classes, size=self.minibatch_size)
             next_indices = [label_buckets[i][0][np.random.randint(0, len(label_buckets[i][0]))]
                             for i in bucket_ids]
@@ -216,13 +216,21 @@ class ProteinPredictor(object):
 
             # validate the model and save parameters if an improvement is observed
             if e % 5 == 0:
-                mloss21, mloss24, macc21, macc24 = self.test(mode='val')
+                mloss21, mloss24, macc21, macc24 = self._test(mode='val')
                 if np.alltrue(np.array([macc21, macc24]) > current_max_mean_val_acc):
                     current_max_mean_val_acc = np.array([macc21, macc24])
                     self.monitor.save_model(e, "meanvalacc{0}".format(np.mean(current_max_mean_val_acc)))
 
+    def test_final(self):
+        print("WARNING: You are testing a model with the secret test set! "
+              "You are not allowed to change the model after seeing the results!!! ")
+        responce = raw_input("Are you sure you want to proceed? (yes/[no]): ")
+        if responce != 'yes':
+            return
+        else:
+            return self._test(mode='test')
 
-    def test(self, mode='test'):
+    def _test(self, mode='test'):
         if mode == 'test':
             print("INFO: Final model testing...")
         elif mode == 'val':
