@@ -205,11 +205,11 @@ class ProteinPredictor(object):
                 print("WARNING: Something went wrong during trainig. Saving parameters...")
                 self.monitor.save_model(e, "nans_during_trainig")
 
-            if np.alltrue(mean_accs > current_max_mean_train_acc):
-                print("INFO: Augmenting dataset with another {0} samples per class".
-                      format(0.1 * self.initial_per_class_datasize))
+            if np.alltrue(mean_accs >= current_max_mean_train_acc):
+                print("INFO: Augmenting dataset: doubling the samples per class ({0})".
+                      format(2 * per_class_datasize))
                 current_max_mean_train_acc = mean_accs
-                per_class_datasize += ((10 * per_class_datasize) // 100)
+                per_class_datasize = 2 * per_class_datasize
 
                 # FIXME: this hangs, fix it
                 # validate the model and save parameters if an improvement is observed

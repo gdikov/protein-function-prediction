@@ -1,5 +1,5 @@
 import os
-# os.environ["THEANO_FLAGS"] = "device=gpu7,lib.cnmem=1"
+os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=1"
 import lasagne
 import theano
 import numpy as np
