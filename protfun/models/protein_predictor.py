@@ -166,13 +166,14 @@ class ProteinPredictor(object):
                             for i in bucket_ids]
             yield np.array(next_indices, dtype=np.int32)
 
-    def train(self, epoch_count=10, generate_progress_report=True):
+    def train(self, epoch_count=10, generate_progress_plot=True):
         try:
             print("INFO: Training...")
             self._train(epoch_count)
-            self.monitor.gather_train_history(self.history)
-            if generate_progress_report:
-                self.summarize()
+            self.monitor.save_train_history(self.history)
+            if generate_progress_plot:
+                self.plot_progress
+            self.summarize()
         except (KeyboardInterrupt, SystemExit):
             self.monitor.save_model(msg="interrupted")
             print("ERROR: Training is interrupted and weights have been saved")
@@ -194,8 +195,11 @@ class ProteinPredictor(object):
                 self.history['train_accuracy'].append((acc21, acc24))
                 epoch_duration += 1
                 # outputs = self._get_all_outputs(indices)
+            # these are hacks to be refactored later
+            self.history['val_loss'] += [(-1, -1)] * epoch_duration
+            self.history['val_accuracy'] += [(-1, -1)] * epoch_duration
             try:
-                self.history['time_epoch'] += np.arange(e, e+1, 1.0/epoch_duration)
+                self.history['time_epoch'] += list(np.arange(e, e+1, 1.0/epoch_duration))
             except ZeroDivisionError:
                 self.history['time_epoch'].append(e)
                 print("WARNING: An epoch has elapsed without training")
@@ -252,3 +256,8 @@ class ProteinPredictor(object):
 
     def summarize(self):
         print("The network has been tremendously successful!")
+
+    def plot_progress(self):
+        from protfun.visualizer.progressview import ProgressView
+        progress = ProgressView(self.history)
+

@@ -220,6 +220,11 @@ class DataSetup(object):
 
         data_size = len(self.prot_codes)
 
+        print("WARNING: Test data is being passed around. "
+              "This should be changed in the future when the final dataset is known.")
+        # TODO: don't store the test data in the data_dict when the final dataset is known.
+        # TODO: Keep it secret in files instead!
+
         # split into test and training data
         test_ids = np.random.randint(0, data_size, int(self.test_train_ratio * data_size))
         # get all but the indices of the test_data
@@ -248,7 +253,7 @@ class DataSetup(object):
                      'x_val': train_ids[:validation_portion], 'y_val': labels_val,
                      'x_test': test_ids, 'y_test': labels_test}
 
-        print("INFO: Train and test data loaded")
+        print("INFO: Train and validation data loaded")
 
         return data_dict
 
