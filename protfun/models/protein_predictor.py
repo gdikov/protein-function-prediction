@@ -172,7 +172,7 @@ class ProteinPredictor(object):
             self._train(epoch_count)
             self.monitor.save_train_history(self.history)
             if generate_progress_plot:
-                self.plot_progress
+                self.plot_progress()
             self.summarize()
         except (KeyboardInterrupt, SystemExit):
             self.monitor.save_model(msg="interrupted")
@@ -260,4 +260,5 @@ class ProteinPredictor(object):
     def plot_progress(self):
         from protfun.visualizer.progressview import ProgressView
         progress = ProgressView(self.history)
+        pass
 
