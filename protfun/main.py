@@ -1,5 +1,5 @@
 import os
-os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=1"
+# os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=1"
 import lasagne
 import theano
 import numpy as np
@@ -38,13 +38,11 @@ def train_enzymes():
     train_test_data = data.load_dataset()
 
     predictor = ProteinPredictor(data=train_test_data,
-                                 minibatch_size=8,
+                                 minibatch_size=1,
                                  initial_per_class_datasize=100)
 
     predictor.train(epoch_count=100)
     predictor.test()
-    predictor.summarize()
-
 
 if __name__ == "__main__":
     train_enzymes()

@@ -55,7 +55,7 @@ class ProteinPredictor(object):
         train_params = lasagne.layers.get_all_params([self.outs[0], self.outs[1]], trainable=True)
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_losses[0] + train_losses[1],
                                                     params=train_params,
-                                                    learning_rate=1e-2)
+                                                    learning_rate=1e-4)
 
         train_accuracies = [T.mean(T.eq(T.argmax(train_predictions[0], axis=-1), targets_ints[0]),
                                    dtype=theano.config.floatX),
@@ -90,9 +90,11 @@ class ProteinPredictor(object):
             lasagne.layers.get_all_layers([self.outs[0]])))
 
         # save training history data
-        self.history = {'val_loss': list(),
+        self.history = {'train_loss': list(),
+                        'train_accuracy': list(),
+                        'val_loss': list(),
                         'val_accuracy': list(),
-                        'time_epoche': list()}
+                        'time_epoch': list()}
         print("INFO: Computational graph compiled")
 
         self.monitor = ModelMonitor(self.outs, name=model_name)
@@ -164,52 +166,79 @@ class ProteinPredictor(object):
                             for i in bucket_ids]
             yield np.array(next_indices, dtype=np.int32)
 
-    def train(self, epoch_count=10):
-        print("INFO: Training...")
+    def train(self, epoch_count=10, generate_progress_report=True):
+        try:
+            print("INFO: Training...")
+            self._train(epoch_count)
+            self.monitor.gather_train_history(self.history)
+            if generate_progress_report:
+                self.summarize()
+        except (KeyboardInterrupt, SystemExit):
+            self.monitor.save_model(msg="interrupted")
+            print("ERROR: Training is interrupted and weights have been saved")
+            exit(0)
+
+    def _train(self, epoch_count=10):
         per_class_datasize = self.initial_per_class_datasize
-        current_max_mean_acc = np.array([0.65, 0.65])
+        current_max_mean_train_acc = np.array([0.85, 0.85])
+        current_max_mean_val_acc = np.array([0., 0.])
         for e in xrange(epoch_count):
-            losses = []
-            accs = []
+            losses = []; accs = []
+            epoch_duration = 0
             for indices in self._iter_minibatches(mode='train', per_class_datasize=per_class_datasize):
                 y = self.data['y_train'][indices]
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
                 losses.append((loss21, loss24))
                 accs.append((acc21, acc24))
-                # print("INFO: train: loss21: %f loss24 %f acc21: %f acc24: %f" %
-                #       (loss21, loss24, acc21, acc24))
+                self.history['train_loss'].append((loss21, loss24))
+                self.history['train_accuracy'].append((acc21, acc24))
+                epoch_duration += 1
                 # outputs = self._get_all_outputs(indices)
+            try:
+                self.history['time_epoch'] += np.arange(e, e+1, 1.0/epoch_duration)
+            except ZeroDivisionError:
+                self.history['time_epoch'].append(e)
+                print("WARNING: An epoch has elapsed without training")
 
             mean_losses = np.mean(np.array(losses), axis=0)
             mean_accs = np.mean(np.array(accs), axis=0)
             print("INFO: train: epoch %d loss21: %f loss24 %f acc21: %f acc24: %f" %
-                  (e+1, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
+                  (e, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
             if np.isnan(mean_losses[0]) or np.isnan(mean_losses[1]):
                 print("WARNING: Something went wrong during trainig. Saving parameters...")
                 self.monitor.save_model(e, "nans_during_trainig")
 
-            if np.alltrue(mean_accs > current_max_mean_acc):
-                current_max_mean_acc = mean_accs
+            if np.alltrue(mean_accs > current_max_mean_train_acc):
+                print("INFO: Augmenting dataset with another {0} samples per class".
+                      format(0.1 * self.initial_per_class_datasize))
+                current_max_mean_train_acc = mean_accs
                 per_class_datasize += 0.1 * self.initial_per_class_datasize
 
-            # implement a better logic here
-            if (e+1) % 5 == 0:
-                self.monitor.save_model(e)
+            # validate the model and save parameters if an improvement is observed
+            if e % 5 == 0:
+                mloss21, mloss24, macc21, macc24 = self.test(mode='val')
+                if np.alltrue(np.array([macc21, macc24]) > current_max_mean_val_acc):
+                    current_max_mean_val_acc = np.array([macc21, macc24])
+                    self.monitor.save_model(e, "meanvalacc{0}".format(np.mean(current_max_mean_val_acc)))
 
-    def test(self):
-        print("INFO: Testing...")
+
+    def test(self, mode='test'):
+        if mode == 'test':
+            print("INFO: Final model testing...")
+        elif mode == 'val':
+            print("INFO: Model validation...")
         losses = []
         accs = []
-        for indices in self._iter_minibatches(mode='test'):
-            y = self.data['y_test'][indices]
+        for indices in self._iter_minibatches(mode=mode):
+            y = self.data['y_'+mode][indices]
             loss21, loss24, acc21, acc24 = self.validation_function(indices, y[:, 0], y[:, 1])
             losses.append((loss21, loss24))
             accs.append((acc21, acc24))
 
         mean_losses = np.mean(np.array(losses), axis=0)
         mean_accs = np.mean(np.array(accs), axis=0)
-        print("INFO: test: loss21: %f loss24 %f acc21: %f acc24: %f" %
-              (mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
+        print("INFO: %s: loss21: %f loss24 %f acc21: %f acc24: %f" %
+              (mode, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
 
         return mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]
 

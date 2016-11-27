@@ -17,16 +17,21 @@ class ModelMonitor():
             os.makedirs(self.path_to_model_dir)
         pass
 
-    def save_model(self, epoch_count=0, msg=''):
+    def save_model(self, epoch_count=-1, msg=''):
         """
         Dumps the model weights into a file. The number of epochs on which it is trained is
         logged in the filename.
         :param epoch_count: the number of epochs that the model is trained
         :return:
         """
-        print("Saving {0} model parameters...".format(lasagne.layers.count_params(self.network_outputs,
-                                                                                  trainable=True)))
-        np.savez(os.path.join(self.path_to_model_dir, '{0}ep_{1}.npz'.format(epoch_count, msg)),
+        print("INFO: Saving {0} model parameters...".format(lasagne.layers.count_params(self.network_outputs,
+                                                                                        trainable=True)))
+        filename = 'params'
+        if epoch_count >= 0:
+            filename += '_{0}ep'.format(epoch_count)
+        if msg != '':
+            filename += '_'+msg
+        np.savez(os.path.join(self.path_to_model_dir, '{0}.npz'.format(filename)),
                  *lasagne.layers.get_all_param_values(self.network_outputs, trainable=True))
 
     def load_model(self, model_name, network):
@@ -46,5 +51,5 @@ class ModelMonitor():
 
         lasagne.layers.set_all_param_values(network, param_values, trainable=True)
 
-    def gather_train_history(self):
+    def gather_train_history(self, history):
         pass
