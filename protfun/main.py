@@ -1,5 +1,5 @@
 import os
-os.environ["THEANO_FLAGS"] = "device=gpu7,lib.cnmem=1"
+os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=1"
 import lasagne
 import theano
 import numpy as np
@@ -21,11 +21,11 @@ def visualize():
         # start = time.time()
         molecule_ids = theano.shared(np.array([i], dtype=np.int32))
         grids = preprocess.get_output_for(molecule_ids=molecule_ids).eval()
-        # np.save(grid_file+str(i), grids)
+        np.save(grid_file+str(i), grids)
         # print(time.time() - start)
-        viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
-        viewer.density3d()
-        viewer.potential3d()
+        # viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
+        # viewer.density3d()
+        # viewer.potential3d()
 
 
 def train_enzymes():
@@ -39,9 +39,9 @@ def train_enzymes():
 
     predictor = ProteinPredictor(data=train_test_data,
                                  minibatch_size=1,
-                                 initial_per_class_datasize=1)
+                                 initial_per_class_datasize=100)
 
-    predictor.train(epoch_count=100)
+    predictor.train(epoch_count=3)
 
 if __name__ == "__main__":
     train_enzymes()

@@ -212,7 +212,7 @@ class ProteinPredictor(object):
                 print("INFO: Augmenting dataset with another {0} samples per class".
                       format(0.1 * self.initial_per_class_datasize))
                 current_max_mean_train_acc = mean_accs
-                per_class_datasize += ((110 * self.initial_per_class_datasize) // 100)
+                per_class_datasize = (110 * per_class_datasize // 100)
 
             # validate the model and save parameters if an improvement is observed
             if e % 5 == 0:

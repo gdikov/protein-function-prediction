@@ -225,15 +225,19 @@ class DataSetup(object):
         # TODO: don't store the test data in the data_dict when the final dataset is known.
         # TODO: Keep it secret in files instead!
 
+        data_ids = np.arange(data_size)
+        np.random.shuffle(data_ids)
         # split into test and training data
-        test_ids = np.random.randint(0, data_size, int(self.test_train_ratio * data_size))
+        test_ids = np.random.choice(data_ids, size=int(self.test_train_ratio * data_size), replace=False)
         # get all but the indices of the test_data
-        train_ids = np.setdiff1d(np.arange(data_size), test_ids, assume_unique=True)
-        validation_portion = train_ids.size / 5
+        train_ids = np.setdiff1d(data_ids, test_ids, assume_unique=True)
+        validation_size = train_ids.size / 5
+        val_ids = np.random.choice(train_ids, size=validation_size, replace=False)
+        train_ids = np.setdiff1d(train_ids, val_ids, assume_unique=True)
 
         labels, dict_id2name = self._load_labels()
-        labels_train = labels[train_ids[validation_portion:]]
-        labels_val = labels[train_ids[:validation_portion]]
+        labels_train = labels[train_ids]
+        labels_val = labels[val_ids]
         labels_test = labels[test_ids]
 
         label_distribution_train = np.mean(labels_train, axis=0)
@@ -249,8 +253,8 @@ class DataSetup(object):
                      'class_distribution_train': label_distribution_train,
                      'class_distribution_val': label_distribution_val,
                      'class_distribution_test': label_distribution_test,
-                     'x_train': train_ids[validation_portion:], 'y_train': labels_train,
-                     'x_val': train_ids[:validation_portion], 'y_val': labels_val,
+                     'x_train': train_ids, 'y_train': labels_train,
+                     'x_val': val_ids, 'y_val': labels_val,
                      'x_test': test_ids, 'y_test': labels_test}
 
         print("INFO: Train and validation data loaded")
