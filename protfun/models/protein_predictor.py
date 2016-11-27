@@ -136,7 +136,7 @@ class ProteinPredictor(object):
         num_classes = self.data['class_distribution_' + mode].shape[0]
         represented_classes = np.arange(num_classes)[self.data['class_distribution_' + mode] > 0.]
         if represented_classes.shape[0] < num_classes:
-            print("WARRNING: Non-exhaustive {0}ing. Class (Classes) {1} is (are) not represented".
+            print("WARRNING: Non-exhaustive {0}-ing. Class (Classes) {1} is (are) not represented".
                   format(mode, np.arange(num_classes)[self.data['class_distribution_' + mode] <= 0.]))
 
         effective_datasize = per_class_datasize * represented_classes.shape[0]
@@ -151,7 +151,7 @@ class ProteinPredictor(object):
 
         ys = self.data['y_' + mode]
         # one hot encoding of labels which are present in the current set of samples
-        unique_labels = np.eye(represented_classes.shape[0])
+        unique_labels = np.eye(num_classes)[represented_classes]
         # the following collects the indices in the `y_train` array
         # which correspond to different labels
         label_buckets = [np.nonzero(np.all(ys == label, axis=1))[0][:per_class_datasize]
@@ -212,7 +212,7 @@ class ProteinPredictor(object):
                 print("INFO: Augmenting dataset with another {0} samples per class".
                       format(0.1 * self.initial_per_class_datasize))
                 current_max_mean_train_acc = mean_accs
-                per_class_datasize = (110 * per_class_datasize // 100)
+                per_class_datasize += ((10 * per_class_datasize) // 100)
 
             # validate the model and save parameters if an improvement is observed
             if e % 5 == 0:
