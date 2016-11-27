@@ -15,7 +15,6 @@ class ProteinPredictor(object):
 
         self.minibatch_size = minibatch_size
         self.initial_per_class_datasize = initial_per_class_datasize
-        # self.num_output_classes = data['y_id2name'].shape[0]
 
         self.data = data
 
@@ -26,9 +25,7 @@ class ProteinPredictor(object):
 
         # define input and output symbolic variables of the computation graph
         mol_indices = T.ivector("molecule_indices")
-
         # TODO: replace all lists with for loops
-
         targets_ints = [T.ivector('targets21'), T.ivector('targets24')]
 
         # create a one-hot encoding if an integer vector
@@ -116,8 +113,6 @@ class ProteinPredictor(object):
         network1 = network
         network2 = network
 
-        # NOTE: for just 2 molecules, having 1 deep layer speeds up the
-        # required training time from 20 epochs to 5 epochs
         for i in range(0, 4):
             network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=64,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
@@ -172,7 +167,7 @@ class ProteinPredictor(object):
             self.summarize()
         except (KeyboardInterrupt, SystemExit):
             self.monitor.save_model(msg="interrupted")
-            print("ERROR: Training is interrupted and weights have been saved")
+            print("INFO: Training is interrupted and weights have been saved")
             exit(0)
 
     def _train(self, epoch_count=10):
@@ -180,7 +175,8 @@ class ProteinPredictor(object):
         current_max_mean_train_acc = np.array([0.85, 0.85])
         current_max_mean_val_acc = np.array([0., 0.])
         for e in xrange(epoch_count):
-            losses = []; accs = []
+            losses = [];
+            accs = []
             epoch_duration = 0
             for indices in self._iter_minibatches(mode='train', per_class_datasize=per_class_datasize):
                 y = self.data['y_train'][indices]
@@ -190,12 +186,13 @@ class ProteinPredictor(object):
                 self.history['train_loss'].append((loss21, loss24))
                 self.history['train_accuracy'].append((acc21, acc24))
                 epoch_duration += 1
-                # outputs = self._get_all_outputs(indices)
-            # these are hacks to be refactored later
+
+            # TODO(georgi): these are hacks to be refactored later
+
             self.history['val_loss'] += [(-1, -1)] * epoch_duration
             self.history['val_accuracy'] += [(-1, -1)] * epoch_duration
             try:
-                self.history['time_epoch'] += list(np.arange(e, e+1, 1.0/epoch_duration))
+                self.history['time_epoch'] += list(np.arange(e, e + 1, 1.0 / epoch_duration))
             except ZeroDivisionError:
                 self.history['time_epoch'].append(e)
                 print("WARNING: An epoch has elapsed without training")
@@ -214,12 +211,13 @@ class ProteinPredictor(object):
                 current_max_mean_train_acc = mean_accs
                 per_class_datasize += ((10 * per_class_datasize) // 100)
 
-            # validate the model and save parameters if an improvement is observed
-            if e % 5 == 0:
-                mloss21, mloss24, macc21, macc24 = self._test(mode='val')
-                if np.alltrue(np.array([macc21, macc24]) > current_max_mean_val_acc):
-                    current_max_mean_val_acc = np.array([macc21, macc24])
-                    self.monitor.save_model(e, "meanvalacc{0}".format(np.mean(current_max_mean_val_acc)))
+                # FIXME: this hangs, fix it
+                # validate the model and save parameters if an improvement is observed
+                # if e % 5 == 0:
+                #     mloss21, mloss24, macc21, macc24 = self._test(mode='val')
+                #     if np.alltrue(np.array([macc21, macc24]) > current_max_mean_val_acc):
+                #         current_max_mean_val_acc = np.array([macc21, macc24])
+                #         self.monitor.save_model(e, "meanvalacc{0}".format(np.mean(current_max_mean_val_acc)))
 
     def test_final(self):
         print("WARNING: You are testing a model with the secret test set! "
@@ -238,7 +236,7 @@ class ProteinPredictor(object):
         losses = []
         accs = []
         for indices in self._iter_minibatches(mode=mode):
-            y = self.data['y_'+mode][indices]
+            y = self.data['y_' + mode][indices]
             loss21, loss24, acc21, acc24 = self.validation_function(indices, y[:, 0], y[:, 1])
             losses.append((loss21, loss24))
             accs.append((acc21, acc24))
@@ -257,5 +255,4 @@ class ProteinPredictor(object):
     def plot_progress(self):
         from protfun.visualizer.progressview import ProgressView
         progress = ProgressView(self.history)
-        pass
-
+        # TODO: finish implementing this

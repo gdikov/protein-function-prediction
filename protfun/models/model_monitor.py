@@ -2,12 +2,14 @@ import numpy as np
 import os
 import lasagne
 
-class ModelMonitor():
+
+class ModelMonitor(object):
     """
     Monitors the model during training and testing. Logs the error and accuracy values
     and creates checkpoints whenever the mean validation error is being improved.
     Optionally dumps the model status on KeyInterrupt.
     """
+
     def __init__(self, outputs, name='dummy_model'):
         self.network_outputs = outputs
         self.name = name
@@ -30,7 +32,7 @@ class ModelMonitor():
         if epoch_count >= 0:
             filename += '_{0}ep'.format(epoch_count)
         if msg != '':
-            filename += '_'+msg
+            filename += '_' + msg
         np.savez(os.path.join(self.path_to_model_dir, '{0}.npz'.format(filename)),
                  *lasagne.layers.get_all_param_values(self.network_outputs, trainable=True))
 
@@ -62,4 +64,3 @@ class ModelMonitor():
                                          history['time_epoch']):
                 f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\n".
                         format(tl[0], tl[1], ta[0], ta[1], vl[0], vl[1], va[0], va[1], t))
-

@@ -100,8 +100,6 @@ class DataSetup(object):
         """
         Downloads the PDB database (or a part of it) as PDB files.
         """
-        # TODO: control the number of molecules to download if the entire DB is too large
-        # download the Protein Data Base
         from Bio.PDB import PDBList
         pl = PDBList(pdb=self.pdb_dir)
         pl.flat_tree = 1
@@ -144,9 +142,7 @@ class DataSetup(object):
             mol = molecule_processor.process_molecule(f_path)
             if mol is None:
                 print("INFO: ignoring PDB file %s for invalid molecule" % pc)
-                # remove from disk as it could be miscounted later if setup() is called with update=False
                 erroneous_pdb_files.append((f_path, "invalid molecule"))
-                # os.remove(f.lower())
                 self.prot_codes.remove(pc)
                 continue
 
@@ -156,7 +152,6 @@ class DataSetup(object):
                 if go_ids is None or len(go_ids) == 0:
                     print("INFO: ignoring PDB file %s because it has no gene ontologies associated with it." % pc)
                     erroneous_pdb_files.append((pc, "no associated gene ontologies"))
-                    # os.remove(f.lower())
                     self.prot_codes.remove(pc)
                     continue
                 go_targets.append(go_ids)
@@ -227,6 +222,7 @@ class DataSetup(object):
 
         data_ids = np.arange(data_size)
         np.random.shuffle(data_ids)
+
         # split into test and training data
         test_ids = np.random.choice(data_ids, size=int(self.test_train_ratio * data_size), replace=False)
         # get all but the indices of the test_data
@@ -246,7 +242,7 @@ class DataSetup(object):
 
         assert labels.shape[0] == data_size, "labels count %d != molecules count %d" % (labels.shape[0], data_size)
 
-        # for the sake of completion, generate prot_id2name dictionary
+        # for the sake of completeness, generate prot_id2name dictionary
         prot_dict_id2name = {prot_id: prot_name for prot_id, prot_name in enumerate(self.prot_codes)}
 
         data_dict = {'x_id2name': prot_dict_id2name, 'y_id2name': dict_id2name,
