@@ -9,9 +9,12 @@ from protfun.models.model_monitor import ModelMonitor
 
 
 class ProteinPredictor(object):
-    def __init__(self, data, minibatch_size=1, model_name='model'):
+    def __init__(self, data,
+                 minibatch_size=1, initial_per_class_datasize=100,
+                 model_name='model'):
 
         self.minibatch_size = minibatch_size
+        self.initial_per_class_datasize = initial_per_class_datasize
         # self.num_output_classes = data['y_id2name'].shape[0]
 
         self.data = data
@@ -100,13 +103,13 @@ class ProteinPredictor(object):
         data_gen = MoleculeMapLayer(incoming=indices_input, minibatch_size=self.minibatch_size)
 
         network = data_gen  # lasagne.layers.BatchNormLayer(incoming=data_gen)
-        for i in range(0, 1):
+        for i in range(0, 6):
             filter_size = (3, 3, 3)
             # NOTE: we start with a very poor filter count.
             network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
-                                                        num_filters=2 ** (2 + i), filter_size=filter_size,
+                                                        num_filters=2 ** (5 + i // 2), filter_size=filter_size,
                                                         nonlinearity=lasagne.nonlinearities.leaky_rectify)
-            if i % 3 == 2:
+            if i % 2 == 1:
                 network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2), stride=2)
 
         network1 = network
@@ -115,9 +118,9 @@ class ProteinPredictor(object):
         # NOTE: for just 2 molecules, having 1 deep layer speeds up the
         # required training time from 20 epochs to 5 epochs
         for i in range(0, 1):
-            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=8,
+            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=64,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
-            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=8,
+            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=64,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
 
         output_layer1 = lasagne.layers.DenseLayer(incoming=network1, num_units=2,
@@ -128,27 +131,34 @@ class ProteinPredictor(object):
         return output_layer1, output_layer2
 
 
-    def _iter_minibatches(self, mode='train'):
+    def _iter_minibatches(self, mode='train', per_class_datasize=100):
         data_size = self.data['y_'+mode].shape[0]
-        minibatch_count = data_size / self.minibatch_size
-        if data_size % self.minibatch_size != 0:
-            minibatch_count += 1
+        num_classes = self.data['class_distribution_' + mode].shape[0]
+        represented_classes = np.arange(num_classes)[self.data['class_distribution_' + mode] > 0.]
+        if represented_classes.shape[0] < num_classes:
+            print("WARRNING: Non-exhaustive {0}ing. Class (Classes) {1} is (are) not represented".
+                  format(mode, np.arange(num_classes)[self.data['class_distribution_' + mode] <= 0.]))
+
+        effective_datasize = per_class_datasize * represented_classes
+        if effective_datasize > data_size:
+            minibatch_count = data_size / self.minibatch_size
+            if data_size % self.minibatch_size != 0:
+                minibatch_count += 1
+        else:
+            minibatch_count = effective_datasize / self.minibatch_size
+            if effective_datasize % self.minibatch_size != 0:
+                minibatch_count += 1
+
 
         ys = self.data['y_'+mode]
         # one hot encoding of labels which are present in the current set of samples
-        num_classes = self.data['class_distribution_'+mode].shape[0]
-        represented_classes = np.arange(num_classes)[self.data['class_distribution_'+mode] > 0.]
-
-        if represented_classes.shape[0] < num_classes:
-            print("WARRNING: Non-exhaustive {0}ing. Class (Classes) {1} is (are) not represented".
-                  format(mode, np.arange(num_classes)[self.data['class_distribution_'+mode] <= 0.]))
-
         unique_labels = np.eye(represented_classes.shape[0])
+        # the following collects the indices in the `y_train` array
+        # which correspond to different labels
+        label_buckets = [np.nonzero(np.all(ys == label, axis=1))[:per_class_datasize]
+                         for label in unique_labels]
 
         for minibatch_index in xrange(0, minibatch_count):
-            # the following collects the indices in the `y_train` array
-            # which correspond to different labels
-            label_buckets = [np.nonzero(np.all(ys == label, axis=1)) for label in unique_labels]
             bucket_ids = np.random.choice(represented_classes, size=self.minibatch_size)
             next_indices = [label_buckets[i][0][np.random.randint(0, len(label_buckets[i][0]))]
                             for i in bucket_ids]
@@ -156,13 +166,13 @@ class ProteinPredictor(object):
 
     def train(self, epoch_count=10):
         print("INFO: Training...")
+        per_class_datasize = self.initial_per_class_datasize
+        current_max_mean_acc = np.array([0.65, 0.65])
         for e in xrange(epoch_count):
             losses = []
             accs = []
-            for indices in self._iter_minibatches(mode='train'):
+            for indices in self._iter_minibatches(mode='train', per_class_datasize=per_class_datasize):
                 y = self.data['y_train'][indices]
-                import time
-                start = time.time()
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
                 losses.append((loss21, loss24))
                 accs.append((acc21, acc24))
@@ -178,8 +188,12 @@ class ProteinPredictor(object):
                 print("WARNING: Something went wrong during trainig. Saving parameters...")
                 self.monitor.save_model(e, "nans_during_trainig")
 
+            if np.alltrue(mean_accs > current_max_mean_acc):
+                current_max_mean_acc = mean_accs
+                per_class_datasize += 0.1 * self.initial_per_class_datasize
+
             # implement a better logic here
-            if e-1 % 10 == 0:
+            if (e+1) % 5 == 0:
                 self.monitor.save_model(e)
 
     def test(self):

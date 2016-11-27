@@ -17,7 +17,6 @@ class DataSetup(object):
     def __init__(self, foldername='data',
                  force_download=False, force_process=True,
                  prot_codes=[], label_type='enzyme_classes', enzyme_classes=None,
-                 max_prot_per_class=500,
                  split_test=0.1):
         """
 
@@ -42,7 +41,6 @@ class DataSetup(object):
 
         self.prot_codes = prot_codes
         self.enzyme_classes = enzyme_classes
-        self.max_prot_per_class = max_prot_per_class
         self.test_train_ratio = split_test
         self.label_type = label_type
         self._setup(force_download, force_process)
@@ -59,7 +57,6 @@ class DataSetup(object):
                     for key, value in ef.pdb_files.items():
                         if key.startswith(cl) and value is not None:
                             pdb_ids += value
-                    pdb_ids = pdb_ids[:self.max_prot_per_class]
                     if len(pdb_ids) is not 0:
                         with open(os.path.join(os.path.dirname(__file__),
                                                '../../data/enzymes/' + cl + '.proteins'),
@@ -276,7 +273,7 @@ class DataSetup(object):
             path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                        "../../data/enzymes/" + cls + ".proteins")
             with open(path_to_enz, 'r') as f:
-                prots.append(set([e.strip().lower() for e in f.readlines()[:self.max_prot_per_class]]))
+                prots.append(set([e.strip().lower() for e in f.readlines()]))
 
         label_dict = {i: cls for i, cls in enumerate(self.enzyme_classes)}
 
