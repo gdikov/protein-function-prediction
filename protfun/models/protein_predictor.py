@@ -55,7 +55,7 @@ class ProteinPredictor(object):
         train_params = lasagne.layers.get_all_params([self.outs[0], self.outs[1]], trainable=True)
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_losses[0] + train_losses[1],
                                                     params=train_params,
-                                                    learning_rate=1e-4)
+                                                    learning_rate=1e-3)
 
         train_accuracies = [T.mean(T.eq(T.argmax(train_predictions[0], axis=-1), targets_ints[0]),
                                    dtype=theano.config.floatX),
@@ -99,7 +99,6 @@ class ProteinPredictor(object):
 
         self.monitor = ModelMonitor(self.outs, name=model_name)
 
-
     def _build_network(self, mol_indices):
         indices_input = lasagne.layers.InputLayer(shape=(self.minibatch_size,), input_var=mol_indices)
         data_gen = MoleculeMapLayer(incoming=indices_input, minibatch_size=self.minibatch_size)
@@ -119,7 +118,7 @@ class ProteinPredictor(object):
 
         # NOTE: for just 2 molecules, having 1 deep layer speeds up the
         # required training time from 20 epochs to 5 epochs
-        for i in range(0, 1):
+        for i in range(0, 4):
             network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=64,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
             network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=64,
@@ -132,9 +131,8 @@ class ProteinPredictor(object):
 
         return output_layer1, output_layer2
 
-
     def _iter_minibatches(self, mode='train', per_class_datasize=100):
-        data_size = self.data['y_'+mode].shape[0]
+        data_size = self.data['y_' + mode].shape[0]
         num_classes = self.data['class_distribution_' + mode].shape[0]
         represented_classes = np.arange(num_classes)[self.data['class_distribution_' + mode] > 0.]
         if represented_classes.shape[0] < num_classes:
@@ -151,19 +149,17 @@ class ProteinPredictor(object):
             if effective_datasize % self.minibatch_size != 0:
                 minibatch_count += 1
 
-
-        ys = self.data['y_'+mode]
+        ys = self.data['y_' + mode]
         # one hot encoding of labels which are present in the current set of samples
         unique_labels = np.eye(represented_classes.shape[0])
         # the following collects the indices in the `y_train` array
         # which correspond to different labels
-        label_buckets = [np.nonzero(np.all(ys == label, axis=1))[:per_class_datasize]
+        label_buckets = [np.nonzero(np.all(ys == label, axis=1))[0][:per_class_datasize]
                          for label in unique_labels]
 
         for _ in xrange(0, minibatch_count):
             bucket_ids = np.random.choice(represented_classes, size=self.minibatch_size)
-            next_indices = [label_buckets[i][0][np.random.randint(0, len(label_buckets[i][0]))]
-                            for i in bucket_ids]
+            next_indices = [np.random.choice(label_buckets[i]) for i in bucket_ids]
             yield np.array(next_indices, dtype=np.int32)
 
     def train(self, epoch_count=10, generate_progress_plot=True):
@@ -188,7 +184,10 @@ class ProteinPredictor(object):
             epoch_duration = 0
             for indices in self._iter_minibatches(mode='train', per_class_datasize=per_class_datasize):
                 y = self.data['y_train'][indices]
+                import time
+                start = time.time()
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
+                print(time.time() - start)
                 losses.append((loss21, loss24))
                 accs.append((acc21, acc24))
                 self.history['train_loss'].append((loss21, loss24))
@@ -216,7 +215,7 @@ class ProteinPredictor(object):
                 print("INFO: Augmenting dataset with another {0} samples per class".
                       format(0.1 * self.initial_per_class_datasize))
                 current_max_mean_train_acc = mean_accs
-                per_class_datasize += 0.1 * self.initial_per_class_datasize
+                per_class_datasize += ((110 * self.initial_per_class_datasize) // 100)
 
             # validate the model and save parameters if an improvement is observed
             if e % 5 == 0:
@@ -254,7 +253,8 @@ class ProteinPredictor(object):
 
         return mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]
 
-    def summarize(self):
+    @staticmethod
+    def summarize():
         print("The network has been tremendously successful!")
 
     def plot_progress(self):
