@@ -184,10 +184,7 @@ class ProteinPredictor(object):
             epoch_duration = 0
             for indices in self._iter_minibatches(mode='train', per_class_datasize=per_class_datasize):
                 y = self.data['y_train'][indices]
-                import time
-                start = time.time()
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
-                print(time.time() - start)
                 losses.append((loss21, loss24))
                 accs.append((acc21, acc24))
                 self.history['train_loss'].append((loss21, loss24))
