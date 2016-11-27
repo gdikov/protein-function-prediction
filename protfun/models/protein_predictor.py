@@ -141,7 +141,7 @@ class ProteinPredictor(object):
             print("WARRNING: Non-exhaustive {0}ing. Class (Classes) {1} is (are) not represented".
                   format(mode, np.arange(num_classes)[self.data['class_distribution_' + mode] <= 0.]))
 
-        effective_datasize = per_class_datasize * represented_classes
+        effective_datasize = per_class_datasize * represented_classes.shape[0]
         if effective_datasize > data_size:
             minibatch_count = data_size / self.minibatch_size
             if data_size % self.minibatch_size != 0:
