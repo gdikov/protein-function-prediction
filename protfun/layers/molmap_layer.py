@@ -18,7 +18,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=93.0, resolution=3.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=110.0, resolution=2.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
@@ -37,8 +37,8 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         vdwradii = np.memmap(path.join(path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape(
             (-1, max_atoms))
         n_atoms = np.memmap(path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=intX)
-        atom_mask = np.memmap(path.join(path_to_moldata, 'atom_mask.memmap'), mode='r', dtype=floatX).reshape(
-            (-1, max_atoms))
+        # atom_mask = np.memmap(path.join(path_to_moldata, 'atom_mask.memmap'), mode='r', dtype=floatX).reshape(
+        #     (-1, max_atoms))
         print("INFO: Loaded %d molecules in molmap, max atoms: %d" % (coords.shape[0], max_atoms))
         self.max_atoms = max_atoms
 
@@ -76,7 +76,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         self.charges = self.add_param(charges, charges.shape, 'charges', trainable=False)
         self.vdwradii = self.add_param(vdwradii, vdwradii.shape, 'vdwradii', trainable=False)
         self.n_atoms = self.add_param(n_atoms, n_atoms.shape, 'n_atoms', trainable=False)
-        self.atom_mask = self.add_param(atom_mask, atom_mask.shape, 'atom_mask', trainable=False)
+        # self.atom_mask = self.add_param(atom_mask, atom_mask.shape, 'atom_mask', trainable=False)
 
     def get_output_shape_for(self, input_shape):
         return self.minibatch_size, 2, self.side_points_count, self.side_points_count, self.side_points_count
