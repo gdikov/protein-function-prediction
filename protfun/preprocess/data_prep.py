@@ -4,6 +4,10 @@ import csv
 import StringIO
 import numpy as np
 import theano
+import colorlog as log
+import logging
+
+log.basicConfig(level=logging.DEBUG)
 
 floatX = theano.config.floatX
 intX = np.int32  # FIXME is this the best choice? (changing would require removing and recreating memmap files)
@@ -16,7 +20,7 @@ class DataSetup(object):
 
     def __init__(self, foldername='data',
                  force_download=False, force_process=True,
-                 prot_codes=[], label_type='enzyme_classes', enzyme_classes=None,
+                 prot_codes=list(), label_type='enzyme_classes', enzyme_classes=None,
                  split_test=0.1):
         """
 
@@ -63,6 +67,8 @@ class DataSetup(object):
                                   mode='w') as f:
                             f.writelines(["%s\n" % item for item in pdb_ids])
                     self.prot_codes += pdb_ids
+                log.info("Proceeding to download the Protein Data Base...")
+                self._download_pdb_dataset()
 
             else:
                 for cl in self.enzyme_classes:
@@ -71,19 +77,8 @@ class DataSetup(object):
                               mode='r') as f:
                         self.prot_codes += [e.strip() for e in f.readlines()]
 
-        if force_download:
-            print("INFO: Proceeding to download the Protein Data Base...")
-            self._download_pdb_dataset()
-        else:
-            # checking for pdb related files
-            pdb_list = [f for f in os.listdir(self.pdb_dir) if
-                        f.endswith('.gz') or f.endswith('.pdb') or f.endswith('.ent')]
-            if not pdb_list:
-                print("WARNING: %s does not contain any PDB files. " % self.pdb_dir +
-                      "Run the DataSetup with update=True to download them.")
-
         if force_process:
-            print("INFO: Creating molecule data memmap files...")
+            log.info("Creating molecule data memmap files...")
             self._preprocess_dataset()
         else:
             if os.path.exists(self.enz_dir + "/preprocessed_enzymes.pickle"):
@@ -93,8 +88,8 @@ class DataSetup(object):
             # checking for molecule data memmaps
             memmap_list = [f for f in os.listdir(self.memmap_dir) if f.endswith('.memmap')]
             if not memmap_list:
-                print("WARNING: %s does not contain any memmap files. " % self.pdb_dir +
-                      "Run the DataSetup with update=True to recreate them.")
+                log.warning("%s does not contain any memmap files. " % self.pdb_dir +
+                            "Run the DataSetup with force_process=True to recreate them.")
 
     def _download_pdb_dataset(self):
         """
@@ -110,9 +105,10 @@ class DataSetup(object):
                 try:
                     pl.retrieve_pdb_file(pdb_code=code)
                 except IOError:
+                    log.warning("Failed to download protein {}".format(code))
                     failed += 1
                     continue
-            print("INFO: Downloaded {0}/{1} molecules".format(attempted - failed, attempted))
+            log.info("Downloaded {0}/{1} molecules".format(attempted - failed, attempted))
         else:
             pl.download_entire_pdb()
 
@@ -120,8 +116,6 @@ class DataSetup(object):
         """
         Does pre-processing of the downloaded PDB files.
         numpy.memmap's are created for molecules (from the PDB files with no errors)
-        A .csv file is created with all GO (Gene Ontology) IDs for the processed molecules.
-        :return:
         """
 
         molecule_processor = MoleculeProcessor()
@@ -141,7 +135,7 @@ class DataSetup(object):
             # process molecule from file
             mol = molecule_processor.process_molecule(f_path)
             if mol is None:
-                print("INFO: ignoring PDB file %s for invalid molecule" % pc)
+                log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
                 erroneous_pdb_files.append((f_path, "invalid molecule"))
                 self.prot_codes.remove(pc)
                 continue
@@ -150,7 +144,7 @@ class DataSetup(object):
             if self.label_type == 'gene_ontologies':
                 go_ids = go_processor.process_gene_ontologies(f_path)
                 if go_ids is None or len(go_ids) == 0:
-                    print("INFO: ignoring PDB file %s because it has no gene ontologies associated with it." % pc)
+                    log.warning("Ignoring PDB file %s because it has no gene ontologies associated with it." % pc)
                     erroneous_pdb_files.append((pc, "no associated gene ontologies"))
                     self.prot_codes.remove(pc)
                     continue
@@ -172,12 +166,13 @@ class DataSetup(object):
             for er in erroneous_pdb_files:
                 f.write(str(er) + "\n")
 
-        # save the preprocessed enzymes
+        # save the correctly preprocessed enzymes
         with open(self.enz_dir + "/preprocessed_enzymes.pickle", "wb") as f:
             pickle.dump(self.prot_codes, f)
 
         # after pre-processing, the PDB files should match the final molecules
-        assert molecules_count == len(self.prot_codes)
+        assert molecules_count == len(self.prot_codes), "incorrect number of processed proteins: {} vs. {}".format(
+            molecules_count, len(self.prot_codes))
 
         # create numpy arrays for the final data
         coords = np.zeros(shape=(molecules_count, max_atoms, 3), dtype=floatX)
@@ -196,7 +191,7 @@ class DataSetup(object):
         # save the final molecules into memmap files
         def save_to_memmap(filename, data, dtype):
             tmp = np.memmap(filename, shape=data.shape, mode='w+', dtype=dtype)
-            print("INFO: Saving memmap. Shape of {0} is {1}".format(filename, data.shape))
+            log.info("Saving memmap. Shape of {0} is {1}".format(filename, data.shape))
             tmp[:] = data[:]
             tmp.flush()
             del tmp
@@ -210,15 +205,13 @@ class DataSetup(object):
         save_to_memmap(os.path.join(self.memmap_dir, 'atom_mask.memmap'), atom_mask, dtype=floatX)
 
     def load_dataset(self):
-
-        print("INFO: Loading total of {0} proteins.".format(len(self.prot_codes)))
-
+        log.info("Loading total of {0} proteins.".format(len(self.prot_codes)))
         data_size = len(self.prot_codes)
-
-        print("WARNING: Test data is being passed around. "
-              "This should be changed in the future when the final dataset is known.")
         # TODO: don't store the test data in the data_dict when the final dataset is known.
         # TODO: Keep it secret in files instead!
+        log.warning(
+            "Test data is being passed around. " +
+            "This should be changed in the future when the final dataset is known.")
 
         data_ids = np.arange(data_size)
         np.random.shuffle(data_ids)
@@ -253,7 +246,7 @@ class DataSetup(object):
                      'x_val': val_ids, 'y_val': labels_val,
                      'x_test': test_ids, 'y_test': labels_test}
 
-        print("INFO: Train and validation data loaded")
+        log.info("Train and validation data loaded")
 
         return data_dict
 
@@ -266,7 +259,7 @@ class DataSetup(object):
         elif self.label_type == 'gene_onotlogies':
             return self._load_go_labels()
         else:
-            print("ERROR: Unknown label_type argument value")
+            log.error("Unknown label_type argument value")
             raise ValueError
 
     def _load_enz_labels(self):
@@ -301,7 +294,7 @@ class DataSetup(object):
         go_name2id = dict(zip(go_ids, np.arange(len(go_ids))))
         prot_gos_matrix = np.zeros((len(self.prot_codes), len(go_ids)), dtype=np.int32)
 
-        # csv.reader return a iterator so we need to call it again along with the file opening
+        # csv.reader returns a iterator so we need to call it again along with the file opening
         with open(os.path.join(self.go_dir, "go_ids.csv"), 'r') as gene_ontologies:
             gos_all_mols = csv.reader(gene_ontologies)
             for prot_id, gos_per_mol in enumerate(gos_all_mols):
@@ -336,11 +329,11 @@ class MoleculeProcessor(object):
         try:
             mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
         except IOError:
-            print("WARNING: Could not read PDB file.")
+            log.warning("Could not read PDB file.")
             return None
 
         if mol is None:
-            print("WARNING: Bad pdb file found.")
+            log.warning("Bad pdb file found.")
             return None
 
         try:
@@ -350,7 +343,7 @@ class MoleculeProcessor(object):
             # compute partial charges
             rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
         except ValueError:
-            print("WARNING: Bad Gasteiger charge evaluation.")
+            log.warning("Bad Gasteiger charge evaluation.")
             return None
 
         # get the conformation of the molecule
@@ -367,17 +360,13 @@ class MoleculeProcessor(object):
             return np.asarray([coord.x, coord.y, coord.z])
 
         # set the coordinates, charges, VDW radii and atom count
-        res = {}
-        res["coords"] = np.asarray(
-            [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
-            [center.x, center.y, center.z])
-
-        res["charges"] = np.asarray(
-            [float(atom.GetProp("_GasteigerCharge")) for atom in atoms])
-
-        res["vdwradii"] = np.asarray([self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in atoms])
-
-        res["atoms_count"] = atoms_count
+        res = {
+            "coords": np.asarray([get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
+                [center.x, center.y, center.z]),
+            "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for atom in atoms]),
+            "vdwradii": np.asarray([self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in atoms]),
+            "atoms_count": atoms_count
+        }
         return res
 
 
