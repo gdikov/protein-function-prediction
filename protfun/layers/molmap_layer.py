@@ -5,6 +5,8 @@ import numpy as np
 
 import theano.tensor.nlinalg
 
+import time
+
 from os import path
 
 floatX = theano.config.floatX
@@ -18,7 +20,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=110.0, resolution=2.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=110.0, resolution=1.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
@@ -163,18 +165,33 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         free_gpu_memory = cuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
         return free_gpu_memory
 
-    def perturbate(self, coords):
+    def perturbate(self, coords, golkov=False, angle_std=0.392):    # pi/8 ~= 0.392
         # generate a random rotation matrix Q
         random_streams = theano.sandbox.rng_mrg.MRG_RandomStreams()
-        randn_matrix = random_streams.normal((3, 3), dtype=floatX)
-        # QR decomposition, Q is orthogonal, see Golkov MSc thesis, Lemma 1
-        Q, R = T.nlinalg.qr(randn_matrix)
-        # Mezzadri 2007 "How to generate random matrices from the classical compact groups"
-        Q = T.dot(Q, T.nlinalg.AllocDiag()(T.sgn(R.diagonal())))  # stackoverflow.com/questions/30692742
-        Q = Q * T.nlinalg.Det()(Q)  # stackoverflow.com/questions/30132036
+
+        if golkov:
+            randn_matrix = random_streams.normal((3, 3), dtype=floatX)
+            # QR decomposition, Q is orthogonal, see Golkov MSc thesis, Lemma 1
+            Q, R = T.nlinalg.qr(randn_matrix)
+            # Mezzadri 2007 "How to generate random matrices from the classical compact groups"
+            Q = T.dot(Q, T.nlinalg.AllocDiag()(T.sgn(R.diagonal())))  # stackoverflow.com/questions/30692742
+            Q = Q * T.nlinalg.Det()(Q)  # stackoverflow.com/questions/30132036
+            R = Q
+        else:
+            angle = random_streams.normal((3,), avg=0., std=angle_std, ndim=1, dtype=floatX)
+            R_X = T.as_tensor([1, 0, 0,
+                                0, T.cos(angle[0]), -T.sin(angle[0]),
+                                0, T.sin(angle[0]), T.cos(angle[0])]).reshape((3,3))
+            R_Y = T.as_tensor([T.cos(angle[1]), 0, -T.sin(angle[1]),
+                                0, 1, 0,
+                                T.sin(angle[1]), 0, T.cos(angle[1])]).reshape((3,3))
+            R_Z = T.as_tensor([T.cos(angle[2]), -T.sin(angle[2]), 0,
+                               T.sin(angle[2]), T.cos(angle[2]), 0,
+                               0, 0, 1]).reshape((3,3))
+            R = T.dot(T.dot(R_Z, R_Y), R_X)
 
         # apply rotation matrix to all molecules
-        perturbated_coords = T.dot(coords, Q)
+        perturbated_coords = T.dot(coords, R)
 
         coords_min = T.min(perturbated_coords, axis=1, keepdims=True)
         coords_max = T.max(perturbated_coords, axis=1, keepdims=True)
