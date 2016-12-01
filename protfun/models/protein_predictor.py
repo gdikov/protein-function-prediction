@@ -3,9 +3,13 @@ import theano
 import theano.tensor as T
 import lasagne
 import lasagne.layers.dnn
+import colorlog as log
+import logging
 
 from protfun.layers.molmap_layer import MoleculeMapLayer
 from protfun.models.model_monitor import ModelMonitor
+
+log.basicConfig(level=logging.DEBUG)
 
 
 class ProteinPredictor(object):
@@ -92,7 +96,7 @@ class ProteinPredictor(object):
                         'val_loss': list(),
                         'val_accuracy': list(),
                         'time_epoch': list()}
-        print("INFO: Computational graph compiled")
+        log.info("Computational graph compiled")
 
         self.monitor = ModelMonitor(self.outs, name=model_name)
 
@@ -101,10 +105,17 @@ class ProteinPredictor(object):
         data_gen = MoleculeMapLayer(incoming=indices_input, minibatch_size=self.minibatch_size)
 
         network = data_gen  # lasagne.layers.BatchNormLayer(incoming=data_gen)
+
+        filter_size = (3, 3, 3)
+
+        network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='valid',
+                                                    num_filters=32, filter_size=filter_size,
+                                                    nonlinearity=lasagne.nonlinearities.leaky_rectify)
+        network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2), stride=2)
+
         for i in range(0, 6):
-            filter_size = (3, 3, 3)
             # NOTE: we start with a very poor filter count.
-            network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
+            network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='valid',
                                                         num_filters=2 ** (5 + i // 2), filter_size=filter_size,
                                                         nonlinearity=lasagne.nonlinearities.leaky_rectify)
             if i % 2 == 1:
@@ -114,9 +125,9 @@ class ProteinPredictor(object):
         network2 = network
 
         for i in range(0, 4):
-            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=64,
+            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=512,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
-            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=64,
+            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=512,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
 
         output_layer1 = lasagne.layers.DenseLayer(incoming=network1, num_units=2,
@@ -131,8 +142,8 @@ class ProteinPredictor(object):
         num_classes = self.data['class_distribution_' + mode].shape[0]
         represented_classes = np.arange(num_classes)[self.data['class_distribution_' + mode] > 0.]
         if represented_classes.shape[0] < num_classes:
-            print("WARRNING: Non-exhaustive {0}-ing. Class (Classes) {1} is (are) not represented".
-                  format(mode, np.arange(num_classes)[self.data['class_distribution_' + mode] <= 0.]))
+            log.warning("Non-exhaustive {0}-ing. Class (Classes) {1} is (are) not represented".
+                        format(mode, np.arange(num_classes)[self.data['class_distribution_' + mode] <= 0.]))
 
         effective_datasize = per_class_datasize * represented_classes.shape[0]
         if effective_datasize > data_size:
@@ -159,7 +170,7 @@ class ProteinPredictor(object):
 
     def train(self, epoch_count=10, generate_progress_plot=True):
         try:
-            print("INFO: Training...")
+            log.info("Training...")
             self._train(epoch_count)
             self.monitor.save_train_history(self.history)
             if generate_progress_plot:
@@ -167,7 +178,7 @@ class ProteinPredictor(object):
             self.summarize()
         except (KeyboardInterrupt, SystemExit):
             self.monitor.save_model(msg="interrupted")
-            print("INFO: Training is interrupted and weights have been saved")
+            log.info("Training is interrupted and weights have been saved")
             exit(0)
 
     def _train(self, epoch_count=10):
@@ -195,19 +206,16 @@ class ProteinPredictor(object):
                 self.history['time_epoch'] += list(np.arange(e, e + 1, 1.0 / epoch_duration))
             except ZeroDivisionError:
                 self.history['time_epoch'].append(e)
-                print("WARNING: An epoch has elapsed without training")
+                log.warning("An epoch has elapsed without training")
 
             mean_losses = np.mean(np.array(losses), axis=0)
             mean_accs = np.mean(np.array(accs), axis=0)
-            print("INFO: train: epoch %d loss21: %f loss24 %f acc21: %f acc24: %f" %
-                  (e, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
-            if np.isnan(mean_losses[0]) or np.isnan(mean_losses[1]):
-                print("WARNING: Something went wrong during trainig. Saving parameters...")
-                self.monitor.save_model(e, "nans_during_trainig")
+            log.info("train: epoch %d loss21: %f loss24 %f acc21: %f acc24: %f" %
+                     (e, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
 
             if np.alltrue(mean_accs >= current_max_mean_train_acc):
-                print("INFO: Augmenting dataset: doubling the samples per class ({0})".
-                      format(2 * per_class_datasize))
+                log.info("Augmenting dataset: doubling the samples per class ({0})".
+                         format(2 * per_class_datasize))
                 current_max_mean_train_acc = mean_accs
                 per_class_datasize = 2 * per_class_datasize
 
@@ -220,8 +228,9 @@ class ProteinPredictor(object):
                 #         self.monitor.save_model(e, "meanvalacc{0}".format(np.mean(current_max_mean_val_acc)))
 
     def test_final(self):
-        print("WARNING: You are testing a model with the secret test set! "
-              "You are not allowed to change the model after seeing the results!!! ")
+        log.warning(
+            "You are testing a model with the secret test set! " +
+            "You are not allowed to change the model after seeing the results!!! ")
         responce = raw_input("Are you sure you want to proceed? (yes/[no]): ")
         if responce != 'yes':
             return
@@ -230,9 +239,9 @@ class ProteinPredictor(object):
 
     def _test(self, mode='test'):
         if mode == 'test':
-            print("INFO: Final model testing...")
+            log.info("Final model testing...")
         elif mode == 'val':
-            print("INFO: Model validation...")
+            log.info("Model validation...")
         losses = []
         accs = []
         for indices in self._iter_minibatches(mode=mode):
@@ -243,14 +252,14 @@ class ProteinPredictor(object):
 
         mean_losses = np.mean(np.array(losses), axis=0)
         mean_accs = np.mean(np.array(accs), axis=0)
-        print("INFO: %s: loss21: %f loss24 %f acc21: %f acc24: %f" %
-              (mode, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
+        log.info("%s: loss21: %f loss24 %f acc21: %f acc24: %f" %
+                 (mode, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
 
         return mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]
 
     @staticmethod
     def summarize():
-        print("The network has been tremendously successful!")
+        log.info("The network has been tremendously successful!")
 
     def plot_progress(self):
         from protfun.visualizer.progressview import ProgressView

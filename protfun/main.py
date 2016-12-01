@@ -1,5 +1,5 @@
 import os
-os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=1"
+os.environ["THEANO_FLAGS"] = "device=gpu7,lib.cnmem=1"
 import lasagne
 import theano
 import numpy as np
@@ -14,18 +14,18 @@ grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/c
 
 def visualize():
     # import time
-    for i in range(2, 5):
-        print(i)
+    for i in range(80, 100):
+        # print(i)
         dummy = lasagne.layers.InputLayer(shape=(None,))
         preprocess = MoleculeMapLayer(incoming=dummy, minibatch_size=1)
         # start = time.time()
         molecule_ids = theano.shared(np.array([i], dtype=np.int32))
         grids = preprocess.get_output_for(molecule_ids=molecule_ids).eval()
-        np.save(grid_file+str(i), grids)
+        # np.save(grid_file+str(i), grids)
         # print(time.time() - start)
-        # viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
-        # viewer.density3d()
-        # viewer.potential3d()
+        viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
+        viewer.density3d()
+        viewer.potential3d()
 
 
 def train_enzymes():
@@ -38,7 +38,7 @@ def train_enzymes():
     train_test_data = data.load_dataset()
 
     predictor = ProteinPredictor(data=train_test_data,
-                                 minibatch_size=1,
+                                 minibatch_size=8,
                                  initial_per_class_datasize=1)
 
     predictor.train(epoch_count=100)

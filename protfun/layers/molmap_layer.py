@@ -106,14 +106,15 @@ class MoleculeMapLayer(lasagne.layers.Layer):
 
             # (n_atoms x 3 coords x 4 bytes) memory per (grid point, molecule)
             # add 100 % overhead to make sure there's some free memory left
-            needed_per_grid_point = (atoms_count * 3 * 4) * 2
-            step_size = free_gpu_memory // needed_per_grid_point
-            niter = points_count ** 3 // step_size + 1
+            approx_extra_space_factor = 2
+            needed_bytes_per_grid_point = (atoms_count * 3 * 4) * approx_extra_space_factor
+            grid_points_per_step = free_gpu_memory // needed_bytes_per_grid_point
+            niter = points_count ** 3 // grid_points_per_step + 1
 
             def partial_computation(j, grid_esp, grid_density, current_coords, current_charges, current_vdwradii,
                                     grid_coords):
-                grid_idx_start = j * step_size
-                grid_idx_end = (j + 1) * step_size
+                grid_idx_start = j * grid_points_per_step
+                grid_idx_end = (j + 1) * grid_points_per_step
                 distances_i = T.sqrt(
                     T.sum((grid_coords[None, :, grid_idx_start:grid_idx_end] - current_coords) ** 2, axis=1))
 
@@ -165,7 +166,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         free_gpu_memory = cuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
         return free_gpu_memory
 
-    def perturbate(self, coords, golkov=False, angle_std=0.392):    # pi/8 ~= 0.392
+    def perturbate(self, coords, golkov=False, angle_std=0.392):  # pi/8 ~= 0.392
         # generate a random rotation matrix Q
         random_streams = theano.sandbox.rng_mrg.MRG_RandomStreams()
 
@@ -180,14 +181,14 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         else:
             angle = random_streams.normal((3,), avg=0., std=angle_std, ndim=1, dtype=floatX)
             R_X = T.as_tensor([1, 0, 0,
-                                0, T.cos(angle[0]), -T.sin(angle[0]),
-                                0, T.sin(angle[0]), T.cos(angle[0])]).reshape((3,3))
+                               0, T.cos(angle[0]), -T.sin(angle[0]),
+                               0, T.sin(angle[0]), T.cos(angle[0])]).reshape((3, 3))
             R_Y = T.as_tensor([T.cos(angle[1]), 0, -T.sin(angle[1]),
-                                0, 1, 0,
-                                T.sin(angle[1]), 0, T.cos(angle[1])]).reshape((3,3))
+                               0, 1, 0,
+                               T.sin(angle[1]), 0, T.cos(angle[1])]).reshape((3, 3))
             R_Z = T.as_tensor([T.cos(angle[2]), -T.sin(angle[2]), 0,
                                T.sin(angle[2]), T.cos(angle[2]), 0,
-                               0, 0, 1]).reshape((3,3))
+                               0, 0, 1]).reshape((3, 3))
             R = T.dot(T.dot(R_Z, R_Y), R_X)
 
         # apply rotation matrix to all molecules
