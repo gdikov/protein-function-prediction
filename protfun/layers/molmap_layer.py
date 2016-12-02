@@ -20,7 +20,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
     i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=110.0, resolution=1.0, **kwargs):
+    def __init__(self, incoming, minibatch_size=None, grid_side=128.0, resolution=2.0, **kwargs):
         # input to layer are indices of molecule
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
@@ -166,9 +166,9 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         free_gpu_memory = cuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
         return free_gpu_memory
 
-    def perturbate(self, coords, golkov=False, angle_std=0.392):  # pi/8 ~= 0.392
+    def perturbate(self, coords, golkov=False, angle_std=0.392):    # pi/8 ~= 0.392
         # generate a random rotation matrix Q
-        random_streams = theano.sandbox.rng_mrg.MRG_RandomStreams()
+        random_streams = T.shared_randomstreams.RandomStreams()
 
         if golkov:
             randn_matrix = random_streams.normal((3, 3), dtype=floatX)
