@@ -2,12 +2,12 @@ import theano
 import theano.tensor as T
 import lasagne
 import numpy as np
-
 import theano.tensor.nlinalg
-
-import time
-
+import colorlog as log
+import logging
 from os import path
+log.basicConfig(level=logging.DEBUG)
+
 
 floatX = theano.config.floatX
 intX = np.int32  # FIXME is this the best choice? (changing would require removing and recreating memmap files)
@@ -25,7 +25,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
         if minibatch_size is None:
             minibatch_size = 1
-            print("INFO: Minibatch size not provided - assuming {}.".format(minibatch_size))
+            log.info("Minibatch size not provided - assuming {}.".format(minibatch_size))
 
         self.minibatch_size = minibatch_size
 

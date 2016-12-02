@@ -79,7 +79,7 @@ class ProteinPredictor(object):
         self.train_function = theano.function(inputs=[mol_indices, targets_ints[0], targets_ints[1]],
                                               outputs=[train_losses[0], train_losses[1], train_accuracies[0],
                                                        train_accuracies[1], train_predictions[0], targets[0]],
-                                              updates=train_params_updates)
+                                              updates=train_params_updates)  # , profile=True)
 
         self.validation_function = theano.function(inputs=[mol_indices, targets_ints[0], targets_ints[1]],
                                                    outputs=[val_losses[0], val_losses[1],
@@ -192,6 +192,10 @@ class ProteinPredictor(object):
             for indices in self._iter_minibatches(mode='train', per_class_datasize=per_class_datasize):
                 y = self.data['y_train'][indices]
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
+
+                # this can be enabled to profile the forward pass
+                # self.train_function.profile.print_summary()
+
                 losses.append((loss21, loss24))
                 accs.append((acc21, acc24))
                 self.history['train_loss'].append((loss21, loss24))

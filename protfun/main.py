@@ -1,5 +1,7 @@
 import os
-os.environ["THEANO_FLAGS"] = "device=gpu7,lib.cnmem=1"
+# os.environ["THEANO_FLAGS"] = "device=gpu7,lib.cnmem=1"
+# enable if you want to profile the forward pass
+# os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import lasagne
 import theano
 import numpy as np
