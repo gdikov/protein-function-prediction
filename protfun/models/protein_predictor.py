@@ -5,6 +5,8 @@ import lasagne
 import lasagne.layers.dnn
 import colorlog as log
 import logging
+import threading
+from protfun.visualizer.progressview import ProgressView
 
 from protfun.layers.molmap_layer import MoleculeMapLayer
 from protfun.models.model_monitor import ModelMonitor
@@ -108,14 +110,14 @@ class ProteinPredictor(object):
 
         filter_size = (3, 3, 3)
 
-        network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='valid',
+        network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
                                                     num_filters=32, filter_size=filter_size,
                                                     nonlinearity=lasagne.nonlinearities.leaky_rectify)
         network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2), stride=2)
 
         for i in range(0, 6):
             # NOTE: we start with a very poor filter count.
-            network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='valid',
+            network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
                                                         num_filters=2 ** (5 + i // 2), filter_size=filter_size,
                                                         nonlinearity=lasagne.nonlinearities.leaky_rectify)
             if i % 2 == 1:
@@ -171,6 +173,7 @@ class ProteinPredictor(object):
     def train(self, epoch_count=10, generate_progress_plot=True):
         try:
             log.info("Training...")
+            self.plot_progress()
             self._train(epoch_count)
             self.monitor.save_train_history(self.history)
             if generate_progress_plot:
@@ -185,10 +188,10 @@ class ProteinPredictor(object):
         per_class_datasize = self.initial_per_class_datasize
         current_max_mean_train_acc = np.array([0.85, 0.85])
         current_max_mean_val_acc = np.array([0., 0.])
+        steps_until_validate = 0
         for e in xrange(epoch_count):
-            losses = [];
+            losses = []
             accs = []
-            epoch_duration = 0
             for indices in self._iter_minibatches(mode='train', per_class_datasize=per_class_datasize):
                 y = self.data['y_train'][indices]
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
@@ -200,17 +203,7 @@ class ProteinPredictor(object):
                 accs.append((acc21, acc24))
                 self.history['train_loss'].append((loss21, loss24))
                 self.history['train_accuracy'].append((acc21, acc24))
-                epoch_duration += 1
-
-            # TODO(georgi): these are hacks to be refactored later
-
-            self.history['val_loss'] += [(-1, -1)] * epoch_duration
-            self.history['val_accuracy'] += [(-1, -1)] * epoch_duration
-            try:
-                self.history['time_epoch'] += list(np.arange(e, e + 1, 1.0 / epoch_duration))
-            except ZeroDivisionError:
-                self.history['time_epoch'].append(e)
-                log.warning("An epoch has elapsed without training")
+                steps_until_validate += 1
 
             mean_losses = np.mean(np.array(losses), axis=0)
             mean_accs = np.mean(np.array(accs), axis=0)
@@ -221,22 +214,24 @@ class ProteinPredictor(object):
                 log.info("Augmenting dataset: doubling the samples per class ({0})".
                          format(2 * per_class_datasize))
                 current_max_mean_train_acc = mean_accs
-                per_class_datasize = 2 * per_class_datasize
+                per_class_datasize *= 2
 
-                # FIXME: this hangs, fix it
-                # validate the model and save parameters if an improvement is observed
-                # if e % 5 == 0:
-                #     mloss21, mloss24, macc21, macc24 = self._test(mode='val')
-                #     if np.alltrue(np.array([macc21, macc24]) > current_max_mean_val_acc):
-                #         current_max_mean_val_acc = np.array([macc21, macc24])
-                #         self.monitor.save_model(e, "meanvalacc{0}".format(np.mean(current_max_mean_val_acc)))
+            # validate the model and save parameters if an improvement is observed
+            if e % 9 == 0:
+                val_loss21, val_loss24, val_acc21, val_acc24 = self._test(mode='val')
+                self.history['val_loss'] += [(val_loss21, val_loss24)] * steps_until_validate
+                self.history['val_accuracy'] += [(val_acc21, val_acc24)] * steps_until_validate
+                steps_until_validate = 0
+                if np.alltrue(np.array([val_acc21, val_acc24]) > current_max_mean_val_acc):
+                    current_max_mean_val_acc = np.array([val_acc21, val_acc24])
+                    self.monitor.save_model(e, "meanvalacc{0}".format(np.mean(current_max_mean_val_acc)))
 
     def test_final(self):
         log.warning(
             "You are testing a model with the secret test set! " +
             "You are not allowed to change the model after seeing the results!!! ")
-        responce = raw_input("Are you sure you want to proceed? (yes/[no]): ")
-        if responce != 'yes':
+        response = raw_input("Are you sure you want to proceed? (yes/[no]): ")
+        if response != 'yes':
             return
         else:
             return self._test(mode='test')
@@ -245,10 +240,10 @@ class ProteinPredictor(object):
         if mode == 'test':
             log.info("Final model testing...")
         elif mode == 'val':
-            log.info("Model validation...")
+            log.info("Validating model...")
         losses = []
         accs = []
-        for indices in self._iter_minibatches(mode=mode):
+        for indices in self._iter_minibatches(mode=mode, per_class_datasize=10):
             y = self.data['y_' + mode][indices]
             loss21, loss24, acc21, acc24 = self.validation_function(indices, y[:, 0], y[:, 1])
             losses.append((loss21, loss24))
@@ -266,6 +261,8 @@ class ProteinPredictor(object):
         log.info("The network has been tremendously successful!")
 
     def plot_progress(self):
-        from protfun.visualizer.progressview import ProgressView
-        progress = ProgressView(self.history)
-        # TODO: finish implementing this
+        t = threading.Timer(5.0, self.plot_progress)
+        t.daemon = True
+        t.start()
+        progress = ProgressView(model_name="prot_predictor", history_dict=self.history)
+        progress.save()

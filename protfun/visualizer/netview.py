@@ -1,5 +1,4 @@
-
-class NetworkView():
+class NetworkView(object):
     """
     Visualize network filters and activations
     """
