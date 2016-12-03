@@ -26,25 +26,30 @@ class ProgressView(object):
             raise ValueError
 
     def save(self):
+        self._save(artifacts=['train_loss', 'val_loss'], y_range=[-1, 1], filename='loss_history.png')
+        self._save(artifacts=['train_accuracy', 'val_accuracy'], y_range=[0, 1], filename='accuracy_history.png')
+
+    def _save(self, artifacts=list(['train_loss', 'val_loss']), y_range=list([-1, 1]), filename='loss_history.png'):
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
-        train_losses = np.asarray(self.data['train_loss'])
-        valid_losses = np.asarray(self.data['val_loss'])
         fig = plt.figure()
         ax = fig.gca()
-        ax.set_autoscale_on(False)
-        if train_losses.size != 0 and valid_losses.size != 0:
-            for i in range(train_losses.shape[1]):
-                ax.plot(train_losses[:, i], label='train loss {0}'.format(i))
-                ax.plot(valid_losses[:, i], label='valid loss {0}'.format(i))
-            ax.axis([0, len(train_losses[:, 0]), -1.0, 2.0])
-            plt.xlabel('epoch')
-            plt.ylabel('loss')
-            plt.legend(loc='best')
+        empty = True
+        for artifact in artifacts:
+            values = np.asarray(self.data[artifact])
+            ax.set_autoscale_on(False)
+            if values.size != 0:
+                empty = False
+                for i in range(values.shape[1]):
+                    ax.plot(values[:, i], label='{} {}'.format(artifact, i))
+            else:
+                log.warning("No history for {}".format(artifact))
+                continue
+        if not empty:
+            ax.set_ylim(y_range)
+            ax.legend()
             if not os.path.exists(self.model_figures_path):
                 os.makedirs(self.model_figures_path)
-            fig.savefig(os.path.join(self.model_figures_path, 'loss_history.png'))
-            plt.close(fig)
-        else:
-            log.warning("No loss history to visualize")
+            fig.savefig(os.path.join(self.model_figures_path, filename))
+        plt.close(fig)
