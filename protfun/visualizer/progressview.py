@@ -38,7 +38,6 @@ class ProgressView(object):
         empty = True
         for artifact in artifacts:
             values = np.asarray(self.data[artifact])
-            ax.set_autoscale_on(False)
             if values.size != 0:
                 empty = False
                 for i in range(values.shape[1]):

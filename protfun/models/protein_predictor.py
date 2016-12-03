@@ -208,11 +208,10 @@ class ProteinPredictor(object):
     def train(self, epoch_count=10, generate_progress_plot=True):
         try:
             log.info("Training...")
-            self.plot_progress()
-            self._train(epoch_count)
-            self.monitor.save_train_history(self.history)
             if generate_progress_plot:
                 self.plot_progress()
+            self._train(epoch_count)
+            self.monitor.save_train_history(self.history)
             self.summarize()
         except (KeyboardInterrupt, SystemExit):
             self.monitor.save_model(msg="interrupted")
