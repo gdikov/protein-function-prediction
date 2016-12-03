@@ -20,7 +20,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
     i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incomings, minibatch_size=None, grid_side=128.0, resolution=2.0, **kwargs):
+    def __init__(self, incomings, minibatch_size=None, grid_side=126.0, resolution=2.0, rotate=True, **kwargs):
         # input to layer are memmaps of proteins
         super(MoleculeMapLayer, self).__init__(incomings, **kwargs)
         if minibatch_size is None:
@@ -28,6 +28,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
             log.info("Minibatch size not provided - assuming {}.".format(minibatch_size))
 
         self.minibatch_size = minibatch_size
+        self.rotate = rotate
 
         # Set the grid side length and resolution in Angstroms.
         endx = grid_side / 2
@@ -69,7 +70,8 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         grid_esp = self.add_param(zeros, zeros.shape, 'grid_esp', trainable=False)
 
         free_gpu_memory = self.get_free_gpu_memory()
-        pertubated_coords = self.perturbate(mol_coords)
+        if self.rotate:
+            mol_coords = self.perturbate(mol_coords)
         points_count = self.side_points_count
 
         # TODO: keep in mind the declarative implementation (regular for loop) is faster
@@ -125,7 +127,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
                                 sequences=T.arange(self.minibatch_size),
                                 outputs_info=[grid_esp, grid_density],
                                 non_sequences=[mol_natoms,
-                                               pertubated_coords,
+                                               mol_coords,
                                                mol_charges,
                                                mol_vdwradii,
                                                self.grid_coords],
