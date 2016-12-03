@@ -13,10 +13,10 @@ floatX = theano.config.floatX
 class GridRotationLayer(lasagne.layers.Layer):
     min_dist_from_border = 5
 
-    def __init__(self, incoming, grid_size=64, interpolation='linear', avg_rotation_angle=0.392,
+    def __init__(self, incoming, grid_side=64, interpolation='linear', avg_rotation_angle=0.392,
                  **kwargs):  # 0.392 = pi/8
         super(GridRotationLayer, self).__init__(incoming, **kwargs)
-        self.grid_size = grid_size
+        self.grid_size = grid_side
         self.interpolation = interpolation
         self.angle = avg_rotation_angle
 
@@ -132,8 +132,8 @@ if __name__ == "__main__":
     from protfun.visualizer.molview import MoleculeView
 
     grid_dir = os.path.join(os.path.dirname(__file__), "../../data/train_grids")
-    grid_file = os.path.join(grid_dir, "grid3.memmap")
-    test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 2, 128, 128, 128))
+    grid_file = os.path.join(grid_dir, "grid2.memmap")
+    test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64))
     log.debug(test_grid.shape)
     viewer = MoleculeView(data={"potential": test_grid[0, 0], "density": test_grid[0, 1]}, info={"name": "test"})
     viewer.density3d()
@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
     input_grid = T.TensorType(floatX, (False,) * 5)()
     input_layer = lasagne.layers.InputLayer(shape=(1, 2, grid_side, grid_side, grid_side), input_var=input_grid)
-    rotate_layer = GridRotationLayer(incoming=input_layer, grid_size=grid_side)
+    rotate_layer = GridRotationLayer(incoming=input_layer, grid_side=grid_side)
 
     func = theano.function(inputs=[input_grid], outputs=lasagne.layers.get_output(rotate_layer))
 

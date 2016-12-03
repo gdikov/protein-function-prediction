@@ -15,15 +15,28 @@ class GridProcessor(object):
         if not os.path.exists(self.grid_dir):
             os.makedirs(self.grid_dir)
         dummy = lasagne.layers.InputLayer(shape=(None,))
-        self.processor = MoleculeMapLayer(incoming=dummy, minibatch_size=1)
+        self.processor = MoleculeMapLayer(incomings=[dummy, dummy], minibatch_size=1, rotate=False)
+
+        path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/moldata")
+        max_atoms = np.memmap(os.path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=np.int32)[0]
+        self.coords = np.memmap(os.path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=np.float32).reshape(
+            (-1, max_atoms, 3))
+        self.charges = np.memmap(os.path.join(path_to_moldata, 'charges.memmap'), mode='r', dtype=np.float32).reshape(
+            (-1, max_atoms))
+        self.vdwradii = np.memmap(os.path.join(path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=np.float32).reshape(
+            (-1, max_atoms))
+        self.n_atoms = np.memmap(os.path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=np.int32)
 
     def process(self, mol_index):
         grid = self._process(mol_index)
         self._persist(grid, mol_index)
 
     def _process(self, mol_index):
-        mol_index = theano.shared(np.array([mol_index], dtype=np.int32))
-        grid = self.processor.get_output_for(molecule_ids=mol_index).eval()
+        mol_info = [theano.shared(np.array(self.coords[[mol_index]], dtype=np.float32)),
+                    theano.shared(np.array(self.charges[[mol_index]], dtype=np.float32)),
+                    theano.shared(np.array(self.vdwradii[[mol_index]], dtype=np.float32)),
+                    theano.shared(np.array(self.n_atoms[[mol_index]], dtype=np.int32))]
+        grid = self.processor.get_output_for(mol_info=mol_info).eval()
         return grid
 
     def _persist(self, grid, mol_index):

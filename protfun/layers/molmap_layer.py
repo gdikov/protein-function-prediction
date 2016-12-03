@@ -20,7 +20,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
     i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incomings, minibatch_size=None, grid_side=128.0, resolution=2.0, **kwargs):
+    def __init__(self, incomings, minibatch_size=None, grid_side=126.0, resolution=2.0, rotate=True, **kwargs):
         # input to layer are memmaps of proteins
         super(MoleculeMapLayer, self).__init__(incomings, **kwargs)
         if minibatch_size is None:
@@ -28,6 +28,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
             log.info("Minibatch size not provided - assuming {}.".format(minibatch_size))
 
         self.minibatch_size = minibatch_size
+        self.rotate = rotate
 
         # Set the grid side length and resolution in Angstroms.
         endx = grid_side / 2
@@ -69,7 +70,8 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         grid_esp = self.add_param(zeros, zeros.shape, 'grid_esp', trainable=False)
 
         free_gpu_memory = self.get_free_gpu_memory()
-        pertubated_coords = self.perturbate(mol_coords)
+        if self.rotate:
+            mol_coords = self.perturbate(mol_coords)
         points_count = self.side_points_count
 
         # TODO: keep in mind the declarative implementation (regular for loop) is faster
@@ -125,7 +127,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
                                 sequences=T.arange(self.minibatch_size),
                                 outputs_info=[grid_esp, grid_density],
                                 non_sequences=[mol_natoms,
-                                               pertubated_coords,
+                                               mol_coords,
                                                mol_charges,
                                                mol_vdwradii,
                                                self.grid_coords],
@@ -151,42 +153,41 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         return free_gpu_memory
 
     def perturbate(self, coords, golkov=False, angle_std=0.392):    # pi/8 ~= 0.392
-        # # generate a random rotation matrix Q
-        # random_streams = T.shared_randomstreams.RandomStreams()
-        #
-        # if golkov:
-        #     randn_matrix = random_streams.normal((3, 3), dtype=floatX)
-        #     # QR decomposition, Q is orthogonal, see Golkov MSc thesis, Lemma 1
-        #     Q, R = T.nlinalg.qr(randn_matrix)
-        #     # Mezzadri 2007 "How to generate random matrices from the classical compact groups"
-        #     Q = T.dot(Q, T.nlinalg.AllocDiag()(T.sgn(R.diagonal())))  # stackoverflow.com/questions/30692742
-        #     Q = Q * T.nlinalg.Det()(Q)  # stackoverflow.com/questions/30132036
-        #     R = Q
-        # else:
-        #     angle = random_streams.normal((3,), avg=0., std=angle_std, ndim=1, dtype=floatX)
-        #     R_X = T.as_tensor([1, 0, 0,
-        #                        0, T.cos(angle[0]), -T.sin(angle[0]),
-        #                        0, T.sin(angle[0]), T.cos(angle[0])]).reshape((3, 3))
-        #     R_Y = T.as_tensor([T.cos(angle[1]), 0, -T.sin(angle[1]),
-        #                        0, 1, 0,
-        #                        T.sin(angle[1]), 0, T.cos(angle[1])]).reshape((3, 3))
-        #     R_Z = T.as_tensor([T.cos(angle[2]), -T.sin(angle[2]), 0,
-        #                        T.sin(angle[2]), T.cos(angle[2]), 0,
-        #                        0, 0, 1]).reshape((3, 3))
-        #     R = T.dot(T.dot(R_Z, R_Y), R_X)
-        #
-        # # apply rotation matrix to all molecules
-        # perturbated_coords = T.dot(coords, R)
-        #
-        # coords_min = T.min(perturbated_coords, axis=1, keepdims=True)
-        # coords_max = T.max(perturbated_coords, axis=1, keepdims=True)
-        # # order of summands important, otherwise error (maybe due to broadcastable properties)
-        # transl_min = (-self.endx + self.min_dist_from_border) - coords_min
-        # transl_max = (self.endx - self.min_dist_from_border) - coords_max
-        # rand01 = random_streams.uniform((self.minibatch_size, 1, 3),
-        #                                 dtype=floatX)  # unifom random in open interval ]0;1[
-        # rand01 = T.Rebroadcast((1, True), )(rand01)
-        # rand_translation = rand01 * (transl_max - transl_min) + transl_min
-        # perturbated_coords += rand_translation
-        # return perturbated_coords
-        return coords
+        # generate a random rotation matrix Q
+        random_streams = T.shared_randomstreams.RandomStreams()
+
+        if golkov:
+            randn_matrix = random_streams.normal((3, 3), dtype=floatX)
+            # QR decomposition, Q is orthogonal, see Golkov MSc thesis, Lemma 1
+            Q, R = T.nlinalg.qr(randn_matrix)
+            # Mezzadri 2007 "How to generate random matrices from the classical compact groups"
+            Q = T.dot(Q, T.nlinalg.AllocDiag()(T.sgn(R.diagonal())))  # stackoverflow.com/questions/30692742
+            Q = Q * T.nlinalg.Det()(Q)  # stackoverflow.com/questions/30132036
+            R = Q
+        else:
+            angle = random_streams.normal((3,), avg=0., std=angle_std, ndim=1, dtype=floatX)
+            R_X = T.as_tensor([1, 0, 0,
+                               0, T.cos(angle[0]), -T.sin(angle[0]),
+                               0, T.sin(angle[0]), T.cos(angle[0])]).reshape((3, 3))
+            R_Y = T.as_tensor([T.cos(angle[1]), 0, -T.sin(angle[1]),
+                               0, 1, 0,
+                               T.sin(angle[1]), 0, T.cos(angle[1])]).reshape((3, 3))
+            R_Z = T.as_tensor([T.cos(angle[2]), -T.sin(angle[2]), 0,
+                               T.sin(angle[2]), T.cos(angle[2]), 0,
+                               0, 0, 1]).reshape((3, 3))
+            R = T.dot(T.dot(R_Z, R_Y), R_X)
+
+        # apply rotation matrix to all molecules
+        perturbated_coords = T.dot(coords, R)
+
+        coords_min = T.min(perturbated_coords, axis=1, keepdims=True)
+        coords_max = T.max(perturbated_coords, axis=1, keepdims=True)
+        # order of summands important, otherwise error (maybe due to broadcastable properties)
+        transl_min = (-self.endx + self.min_dist_from_border) - coords_min
+        transl_max = (self.endx - self.min_dist_from_border) - coords_max
+        rand01 = random_streams.uniform((self.minibatch_size, 1, 3),
+                                        dtype=floatX)  # unifom random in open interval ]0;1[
+        rand01 = T.Rebroadcast((1, True), )(rand01)
+        rand_translation = rand01 * (transl_max - transl_min) + transl_min
+        perturbated_coords += rand_translation
+        return perturbated_coords

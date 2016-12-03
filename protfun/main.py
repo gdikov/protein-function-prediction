@@ -16,11 +16,24 @@ grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/c
 
 
 def visualize():
-    for i in range(21, 100):
+    path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/moldata")
+    max_atoms = np.memmap(os.path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=np.int32)[0]
+    coords = np.memmap(os.path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=np.float32).reshape(
+        (-1, max_atoms, 3))
+    charges = np.memmap(os.path.join(path_to_moldata, 'charges.memmap'), mode='r', dtype=np.float32).reshape(
+        (-1, max_atoms))
+    vdwradii = np.memmap(os.path.join(path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=np.float32).reshape(
+        (-1, max_atoms))
+    n_atoms = np.memmap(os.path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=np.int32)
+    for i in range(3, 100):
         dummy = lasagne.layers.InputLayer(shape=(None,))
-        preprocess = MoleculeMapLayer(incoming=dummy, minibatch_size=1)
-        molecule_ids = theano.shared(np.array([i], dtype=np.int32))
-        grids = preprocess.get_output_for(molecule_ids=molecule_ids).eval()
+        preprocess = MoleculeMapLayer(incomings=[dummy, dummy], minibatch_size=1)
+        mol_info = [theano.shared(np.array(coords[[i]], dtype=np.float32)),
+                   theano.shared(np.array(charges[[i]], dtype=np.float32)),
+                   theano.shared(np.array(vdwradii[[i]], dtype=np.float32)),
+                   theano.shared(np.array(n_atoms[[i]], dtype=np.int32))]
+
+        grids = preprocess.get_output_for(mol_info=mol_info).eval()
         # np.save(grid_file+str(i), grids)
         viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
         viewer.density3d()
@@ -46,15 +59,15 @@ def preprocess_grids():
                      force_process=False)
     data = data.load_dataset()
     gridder = GridProcessor()
-    for i in range(0, data['x_train'].shape[0]):
-        gridder.process(data['x_train'][i])
+    for i in data['x_train']:
+        gridder.process(i)
 
     gridder = GridProcessor(folder_name="test_grids")
-    for i in range(0, data['x_test'].shape[0]):
-        gridder.process(data['x_test'][i])
+    for i in data['x_test']:
+        gridder.process(i)
 
 
 if __name__ == "__main__":
     # train_enzymes()
-    # visualize()]
+    # visualize()
     preprocess_grids()
