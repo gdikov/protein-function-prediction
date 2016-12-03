@@ -36,8 +36,10 @@ class ProteinPredictor(object):
         # define input and output symbolic variables of the computation graph
         self.path_to_moldata = path.join(path.dirname(path.realpath(__file__)), "../../data/moldata")
         self.max_atoms = np.memmap(path.join(self.path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
-        mol_info = [T.itensor4('coords'), T.ftensor3('charges'),
-                    T.ftensor3('vdwradii'), T.ivector('n_atoms')]
+        coords = T.tensor3('coords')
+        charges = T.matrix('charges')
+        vdwradii = T.matrix('vdwradii')
+        n_atoms = T.ivector('n_atoms')
 
         # TODO: replace all lists with for loops
         targets_ints = [T.ivector('targets21'), T.ivector('targets24')]
@@ -49,7 +51,7 @@ class ProteinPredictor(object):
                    T.eq(targets_ints[1].reshape((-1, 1)), T.arange(2))]
 
         # build the network architecture
-        self.outs = self._build_network(mol_info)
+        self.outs = self._build_network(coords, charges, vdwradii, n_atoms)
 
         # define objective and training parameters
         train_predictions = [lasagne.layers.get_output(self.outs[0]),
@@ -86,19 +88,18 @@ class ProteinPredictor(object):
                           T.mean(T.eq(T.argmax(val_predictions[1], axis=-1), targets_ints[1]),
                                  dtype=theano.config.floatX)]
 
-        self.train_function = theano.function(inputs=[mol_info, targets_ints[0], targets_ints[1]],
+        self.train_function = theano.function(inputs=[coords, charges, vdwradii, n_atoms, targets_ints[0], targets_ints[1]],
                                               outputs=[train_losses[0], train_losses[1], train_accuracies[0],
                                                        train_accuracies[1], train_predictions[0], targets[0]],
                                               updates=train_params_updates)  # , profile=True)
 
-        self.validation_function = theano.function(inputs=[mol_info, targets_ints[0], targets_ints[1]],
+        self.validation_function = theano.function(inputs=[coords, charges, vdwradii, n_atoms, targets_ints[0], targets_ints[1]],
                                                    outputs=[val_losses[0], val_losses[1],
                                                             val_accuracies[0], val_accuracies[1]])
 
-        self._get_params = theano.function(inputs=[], outputs=train_params)
-
-        self._get_all_outputs = theano.function(inputs=mol_info, outputs=lasagne.layers.get_output(
-            lasagne.layers.get_all_layers([self.outs[0]])))
+        self._get_all_outputs = theano.function(inputs=[coords, charges, vdwradii, n_atoms],
+                                                outputs=lasagne.layers.get_output(
+                                                    lasagne.layers.get_all_layers([self.outs[0]])))
 
         # save training history data
         self.history = {'train_loss': list(),
@@ -110,15 +111,15 @@ class ProteinPredictor(object):
 
         self.monitor = ModelMonitor(self.outs, name=model_name)
 
-    def _build_network(self, mol_info):
-        coords_input = lasagne.layers.InputLayer(shape=(self.minibatch_size, None, None, None),
-                                                 input_var=mol_info[0])
-        charges_input = lasagne.layers.InputLayer(shape=(self.minibatch_size, None, None),
-                                                  input_var=mol_info[1])
-        vdwradii_input = lasagne.layers.InputLayer(shape=(self.minibatch_size, None, None),
-                                                   input_var=mol_info[2])
+    def _build_network(self, coords, charges, vdwradii, n_atoms):
+        coords_input = lasagne.layers.InputLayer(shape=(self.minibatch_size, None, None),
+                                                 input_var=coords)
+        charges_input = lasagne.layers.InputLayer(shape=(self.minibatch_size, None),
+                                                  input_var=charges)
+        vdwradii_input = lasagne.layers.InputLayer(shape=(self.minibatch_size, None),
+                                                   input_var=vdwradii)
         natoms_input = lasagne.layers.InputLayer(shape=(self.minibatch_size,),
-                                                 input_var=mol_info[3])
+                                                 input_var=n_atoms)
 
         data_gen = MoleculeMapLayer(incomings=[coords_input, charges_input, vdwradii_input, natoms_input],
                                     minibatch_size=self.minibatch_size)
@@ -199,10 +200,10 @@ class ProteinPredictor(object):
 
         for _ in xrange(0, minibatch_count):
             bucket_ids = np.random.choice(represented_classes, size=self.minibatch_size)
-            indices = [np.random.choice(label_buckets[i]) for i in bucket_ids]
-            next_indices = self.data['x_' + mode][indices]
-            yield next_indices, [coords[next_indices], charges[next_indices],
-                                 vdwradii[next_indices], n_atoms[next_indices]]
+            data_indices = [np.random.choice(label_buckets[i]) for i in bucket_ids]
+            memmap_indices = self.data['x_' + mode][data_indices]
+            yield data_indices, (coords[memmap_indices], charges[memmap_indices],
+                                 vdwradii[memmap_indices], n_atoms[memmap_indices])
 
     def train(self, epoch_count=10, generate_progress_plot=True):
         try:
@@ -226,9 +227,11 @@ class ProteinPredictor(object):
         for e in xrange(epoch_count):
             losses = []
             accs = []
-            for indices, molecules in self._iter_minibatches(mode='train', num_per_class=per_class_datasize):
+            for indices, mol_info in self._iter_minibatches(mode='train', num_per_class=per_class_datasize):
                 y = self.data['y_train'][indices]
-                loss21, loss24, acc21, acc24, pred, tgt = self.train_function(molecules, y[:, 0], y[:, 1])
+                coords, charges, vdwradii, n_atoms = mol_info
+                loss21, loss24, acc21, acc24, pred, tgt = self.train_function(coords, charges, vdwradii, n_atoms,
+                                                                              y[:, 0], y[:, 1])
 
                 # this can be enabled to profile the forward pass
                 # self.train_function.profile.print_summary()

@@ -22,7 +22,6 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
 
     def __init__(self, incomings, minibatch_size=None, grid_side=128.0, resolution=2.0, **kwargs):
         # input to layer are memmaps of proteins
-        concatenation_axis = 1
         super(MoleculeMapLayer, self).__init__(incomings, **kwargs)
         if minibatch_size is None:
             minibatch_size = 1
@@ -62,12 +61,8 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
     def get_output_shape_for(self, input_shape):
         return self.minibatch_size, 2, self.side_points_count, self.side_points_count, self.side_points_count
 
-    def get_output_for(self, molecule_info, **kwargs):
-        mol_coords = molecule_info[0]
-        mol_charges = molecule_info[1]
-        mol_vdwradii = molecule_info[2]
-        mol_natoms = molecule_info[3]
-
+    def get_output_for(self, mol_info, **kwargs):
+        mol_coords, mol_charges, mol_vdwradii, mol_natoms = mol_info
         zeros = np.zeros(
             (self.minibatch_size, 1, self.side_points_count ** 3), dtype=floatX)
         grid_density = self.add_param(zeros, zeros.shape, 'grid_density', trainable=False)
@@ -133,7 +128,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
                                                pertubated_coords,
                                                mol_charges,
                                                mol_vdwradii,
-                                               mol_coords],
+                                               self.grid_coords],
                                 n_steps=self.minibatch_size,
                                 allow_gc=True)
 
