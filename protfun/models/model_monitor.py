@@ -1,6 +1,9 @@
 import numpy as np
 import os
 import lasagne
+import colorlog as log
+import logging
+log.basicConfig(level=logging.DEBUG)
 
 
 class ModelMonitor(object):
@@ -26,7 +29,7 @@ class ModelMonitor(object):
         :param epoch_count: the number of epochs that the model is trained
         :return:
         """
-        print("INFO: Saving {0} model parameters...".format(lasagne.layers.count_params(self.network_outputs,
+        log.info("Saving {0} model parameters...".format(lasagne.layers.count_params(self.network_outputs,
                                                                                         trainable=True)))
         filename = 'params'
         if epoch_count >= 0:
@@ -45,7 +48,7 @@ class ModelMonitor(object):
         :return:
         """
         if model_name[-4:] != '.npz':
-            print("ERROR: Model not found")
+            log.error("Model not found")
             raise ValueError
 
         with np.load(os.path.join(self.path_to_model_dir, model_name)) as f:

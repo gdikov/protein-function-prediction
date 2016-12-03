@@ -31,17 +31,20 @@ class ProgressView(object):
         import matplotlib.pyplot as plt
         train_losses = np.asarray(self.data['train_loss'])
         valid_losses = np.asarray(self.data['val_loss'])
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.set_autoscale_on(False)
         if train_losses.size != 0 and valid_losses.size != 0:
             for i in range(train_losses.shape[1]):
-                plt.plot(train_losses[:, i], label='train loss {0}'.format(i))
-                plt.plot(valid_losses[:, i], label='valid loss {0}'.format(i))
-            # TODO: make x ticks to be synced with self.data['time_epoch']
+                ax.plot(train_losses[:, i], label='train loss {0}'.format(i))
+                ax.plot(valid_losses[:, i], label='valid loss {0}'.format(i))
+            ax.axis([0, len(train_losses[:, 0]), -1.0, 2.0])
             plt.xlabel('epoch')
             plt.ylabel('loss')
             plt.legend(loc='best')
             if not os.path.exists(self.model_figures_path):
                 os.makedirs(self.model_figures_path)
-            plt.savefig(os.path.join(self.model_figures_path, 'loss_history.png'))
-            plt.clf()
+            fig.savefig(os.path.join(self.model_figures_path, 'loss_history.png'))
+            plt.close(fig)
         else:
             log.warning("No loss history to visualize")

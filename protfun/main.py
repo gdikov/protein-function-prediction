@@ -1,5 +1,5 @@
 import os
-# os.environ["THEANO_FLAGS"] = "device=gpu7,lib.cnmem=1"
+os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=1"
 # enable if you want to profile the forward pass
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import lasagne
@@ -15,7 +15,7 @@ grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/c
 
 
 def visualize():
-    for i in range(80, 100):
+    for i in range(21, 100):
         dummy = lasagne.layers.InputLayer(shape=(None,))
         preprocess = MoleculeMapLayer(incoming=dummy, minibatch_size=1)
         molecule_ids = theano.shared(np.array([i], dtype=np.int32))
@@ -27,19 +27,15 @@ def visualize():
 
 
 def train_enzymes():
-
     data = DataSetup(enzyme_classes=['3.4.21', '3.4.24'],
                      label_type='enzyme_classes',
                      force_download=False,
                      force_process=False)
-
     train_test_data = data.load_dataset()
-
     predictor = ProteinPredictor(data=train_test_data,
                                  minibatch_size=8,
                                  initial_per_class_datasize=1)
-
-    predictor.train(epoch_count=100)
+    predictor.train(epoch_count=10000)
 
 if __name__ == "__main__":
     train_enzymes()

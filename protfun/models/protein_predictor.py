@@ -139,7 +139,7 @@ class ProteinPredictor(object):
 
         return output_layer1, output_layer2
 
-    def _iter_minibatches(self, mode='train', per_class_datasize=100):
+    def _iter_minibatches(self, mode='train', num_per_class=100):
         data_size = self.data['y_' + mode].shape[0]
         num_classes = self.data['class_distribution_' + mode].shape[0]
         represented_classes = np.arange(num_classes)[self.data['class_distribution_' + mode] > 0.]
@@ -147,7 +147,7 @@ class ProteinPredictor(object):
             log.warning("Non-exhaustive {0}-ing. Class (Classes) {1} is (are) not represented".
                         format(mode, np.arange(num_classes)[self.data['class_distribution_' + mode] <= 0.]))
 
-        effective_datasize = per_class_datasize * represented_classes.shape[0]
+        effective_datasize = num_per_class * represented_classes.shape[0]
         if effective_datasize > data_size:
             minibatch_count = data_size / self.minibatch_size
             if data_size % self.minibatch_size != 0:
@@ -162,7 +162,7 @@ class ProteinPredictor(object):
         unique_labels = np.eye(num_classes)[represented_classes]
         # the following collects the indices in the `y_train` array
         # which correspond to different labels
-        label_buckets = [np.nonzero(np.all(ys == label, axis=1))[0][:per_class_datasize]
+        label_buckets = [np.nonzero(np.all(ys == label, axis=1))[0][:num_per_class]
                          for label in unique_labels]
 
         for _ in xrange(0, minibatch_count):
@@ -192,7 +192,7 @@ class ProteinPredictor(object):
         for e in xrange(epoch_count):
             losses = []
             accs = []
-            for indices in self._iter_minibatches(mode='train', per_class_datasize=per_class_datasize):
+            for indices in self._iter_minibatches(mode='train', num_per_class=per_class_datasize):
                 y = self.data['y_train'][indices]
                 loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
 
@@ -218,7 +218,9 @@ class ProteinPredictor(object):
 
             # validate the model and save parameters if an improvement is observed
             if e % 9 == 0:
-                val_loss21, val_loss24, val_acc21, val_acc24 = self._test(mode='val')
+                val_samples_per_class = max(1, (10 * per_class_datasize) // 100)
+                val_loss21, val_loss24, val_acc21, val_acc24 = self._test(mode='val',
+                                                                          num_per_class=val_samples_per_class)
                 self.history['val_loss'] += [(val_loss21, val_loss24)] * steps_until_validate
                 self.history['val_accuracy'] += [(val_acc21, val_acc24)] * steps_until_validate
                 steps_until_validate = 0
@@ -236,14 +238,14 @@ class ProteinPredictor(object):
         else:
             return self._test(mode='test')
 
-    def _test(self, mode='test'):
+    def _test(self, mode='test', num_per_class=100):
         if mode == 'test':
             log.info("Final model testing...")
         elif mode == 'val':
             log.info("Validating model...")
         losses = []
         accs = []
-        for indices in self._iter_minibatches(mode=mode, per_class_datasize=10):
+        for indices in self._iter_minibatches(mode=mode, num_per_class=num_per_class):
             y = self.data['y_' + mode][indices]
             loss21, loss24, acc21, acc24 = self.validation_function(indices, y[:, 0], y[:, 1])
             losses.append((loss21, loss24))
