@@ -13,36 +13,22 @@ floatX = theano.config.floatX
 intX = np.int32  # FIXME is this the best choice? (changing would require removing and recreating memmap files)
 
 
-class MoleculeMapLayer(lasagne.layers.Layer):
+class MoleculeMapLayer(lasagne.layers.MergeLayer):
     """
     This is a Lasagne layer to calculate 3D maps (electrostatic potential, and
     electron density estimated from VdW radii) of molecules (using Theano,
     i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incoming, minibatch_size=None, grid_side=126.0, resolution=2.0, **kwargs):
-        # input to layer are indices of molecule
-        super(MoleculeMapLayer, self).__init__(incoming, **kwargs)
+    def __init__(self, incomings, minibatch_size=None, grid_side=128.0, resolution=2.0, **kwargs):
+        # input to layer are memmaps of proteins
+        concatenation_axis = 1
+        super(MoleculeMapLayer, self).__init__(incomings, **kwargs)
         if minibatch_size is None:
             minibatch_size = 1
             log.info("Minibatch size not provided - assuming {}.".format(minibatch_size))
 
         self.minibatch_size = minibatch_size
-
-        # load saved state from memmaps
-        path_to_moldata = path.join(path.dirname(path.realpath(__file__)), "../../data/moldata")
-        max_atoms = np.memmap(path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
-        coords = np.memmap(path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=floatX).reshape(
-            (-1, max_atoms, 3))
-        charges = np.memmap(path.join(path_to_moldata, 'charges.memmap'), mode='r', dtype=floatX).reshape(
-            (-1, max_atoms))
-        vdwradii = np.memmap(path.join(path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape(
-            (-1, max_atoms))
-        n_atoms = np.memmap(path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=intX)
-        # atom_mask = np.memmap(path.join(path_to_moldata, 'atom_mask.memmap'), mode='r', dtype=floatX).reshape(
-        #     (-1, max_atoms))
-        log.info("Loaded %d molecules in molmap, max atoms: %d" % (coords.shape[0], max_atoms))
-        self.max_atoms = max_atoms
 
         # Set the grid side length and resolution in Angstroms.
         endx = grid_side / 2
@@ -73,35 +59,33 @@ class MoleculeMapLayer(lasagne.layers.Layer):
         else:
             self.endx = endx  # TODO ok to have it on CPU?
 
-        # molecule data (tensors)
-        self.coords = self.add_param(coords, coords.shape, 'coords', trainable=False)
-        self.charges = self.add_param(charges, charges.shape, 'charges', trainable=False)
-        self.vdwradii = self.add_param(vdwradii, vdwradii.shape, 'vdwradii', trainable=False)
-        self.n_atoms = self.add_param(n_atoms, n_atoms.shape, 'n_atoms', trainable=False)
-        # self.atom_mask = self.add_param(atom_mask, atom_mask.shape, 'atom_mask', trainable=False)
-
     def get_output_shape_for(self, input_shape):
         return self.minibatch_size, 2, self.side_points_count, self.side_points_count, self.side_points_count
 
-    def get_output_for(self, molecule_ids, **kwargs):
+    def get_output_for(self, molecule_info, **kwargs):
+        mol_coords = molecule_info[0]
+        mol_charges = molecule_info[1]
+        mol_vdwradii = molecule_info[2]
+        mol_natoms = molecule_info[3]
+
         zeros = np.zeros(
             (self.minibatch_size, 1, self.side_points_count ** 3), dtype=floatX)
         grid_density = self.add_param(zeros, zeros.shape, 'grid_density', trainable=False)
         grid_esp = self.add_param(zeros, zeros.shape, 'grid_esp', trainable=False)
 
         free_gpu_memory = self.get_free_gpu_memory()
-        pertubated_coords = self.perturbate(self.coords[molecule_ids])
+        pertubated_coords = self.perturbate(mol_coords)
         points_count = self.side_points_count
 
         # TODO: keep in mind the declarative implementation (regular for loop) is faster
         # but it takes exponentially more time to compile as the batch_size increases
         # for i in range(0, self.minibatch_size):
         #     mol_idx = molecule_ids[i]
-        def preprocess_molecule(i, mol_idx, grid_esp, grid_density, n_atoms, coords, charges, vdwradii,
+        def preprocess_molecule(i, grid_esp, grid_density, n_atoms, coords, charges, vdwradii,
                                 grid_coords):
-            atoms_count = n_atoms[mol_idx]
-            current_charges = charges[mol_idx, T.arange(atoms_count), None]
-            current_vdwradii = vdwradii[mol_idx, T.arange(atoms_count), None]
+            atoms_count = n_atoms[i]
+            current_charges = charges[i, T.arange(atoms_count), None]
+            current_vdwradii = vdwradii[i, T.arange(atoms_count), None]
             current_coords = coords[i, T.arange(atoms_count), :, None]
 
             # (n_atoms x 3 coords x 4 bytes) memory per (grid point, molecule)
@@ -115,6 +99,7 @@ class MoleculeMapLayer(lasagne.layers.Layer):
                                     grid_coords):
                 grid_idx_start = j * grid_points_per_step
                 grid_idx_end = (j + 1) * grid_points_per_step
+
                 distances_i = T.sqrt(
                     T.sum((grid_coords[None, :, grid_idx_start:grid_idx_end] - current_coords) ** 2, axis=1))
 
@@ -131,7 +116,9 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             partial_result, _ = theano.scan(fn=partial_computation,
                                             sequences=T.arange(niter),
                                             outputs_info=[grid_esp, grid_density],
-                                            non_sequences=[current_coords, current_charges, current_vdwradii,
+                                            non_sequences=[current_coords,
+                                                           current_charges,
+                                                           current_vdwradii,
                                                            grid_coords],
                                             n_steps=niter,
                                             allow_gc=True)
@@ -140,11 +127,13 @@ class MoleculeMapLayer(lasagne.layers.Layer):
             return grid_esp, grid_density
 
         result, _ = theano.scan(fn=preprocess_molecule,
-                                sequences=[T.arange(self.minibatch_size), molecule_ids],
+                                sequences=T.arange(self.minibatch_size),
                                 outputs_info=[grid_esp, grid_density],
-                                non_sequences=[self.n_atoms, pertubated_coords,
-                                               self.charges, self.vdwradii,
-                                               self.grid_coords],
+                                non_sequences=[mol_natoms,
+                                               pertubated_coords,
+                                               mol_charges,
+                                               mol_vdwradii,
+                                               mol_coords],
                                 n_steps=self.minibatch_size,
                                 allow_gc=True)
 

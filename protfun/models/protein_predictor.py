@@ -6,12 +6,16 @@ import lasagne.layers.dnn
 import colorlog as log
 import logging
 import threading
+from os import path
 from protfun.visualizer.progressview import ProgressView
 
 from protfun.layers.molmap_layer import MoleculeMapLayer
 from protfun.models.model_monitor import ModelMonitor
 
 log.basicConfig(level=logging.DEBUG)
+
+floatX = theano.config.floatX
+intX = np.int32  # FIXME is this the best choice? (changing would require removing and recreating memmap files)
 
 
 class ProteinPredictor(object):
@@ -30,7 +34,11 @@ class ProteinPredictor(object):
         self.test_data_size = self.data['y_test'].shape[0]
 
         # define input and output symbolic variables of the computation graph
-        mol_indices = T.ivector("molecule_indices")
+        self.path_to_moldata = path.join(path.dirname(path.realpath(__file__)), "../../data/moldata")
+        self.max_atoms = np.memmap(path.join(self.path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
+        mol_info = [T.itensor4('coords'), T.ftensor3('charges'),
+                    T.ftensor3('vdwradii'), T.ivector('n_atoms')]
+
         # TODO: replace all lists with for loops
         targets_ints = [T.ivector('targets21'), T.ivector('targets24')]
 
@@ -41,7 +49,7 @@ class ProteinPredictor(object):
                    T.eq(targets_ints[1].reshape((-1, 1)), T.arange(2))]
 
         # build the network architecture
-        self.outs = self._build_network(mol_indices=mol_indices)
+        self.outs = self._build_network(mol_info)
 
         # define objective and training parameters
         train_predictions = [lasagne.layers.get_output(self.outs[0]),
@@ -58,7 +66,7 @@ class ProteinPredictor(object):
         train_params = lasagne.layers.get_all_params([self.outs[0], self.outs[1]], trainable=True)
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_losses[0] + train_losses[1],
                                                     params=train_params,
-                                                    learning_rate=1e-3)
+                                                    learning_rate=1e-4)
 
         train_accuracies = [T.mean(T.eq(T.argmax(train_predictions[0], axis=-1), targets_ints[0]),
                                    dtype=theano.config.floatX),
@@ -78,18 +86,18 @@ class ProteinPredictor(object):
                           T.mean(T.eq(T.argmax(val_predictions[1], axis=-1), targets_ints[1]),
                                  dtype=theano.config.floatX)]
 
-        self.train_function = theano.function(inputs=[mol_indices, targets_ints[0], targets_ints[1]],
+        self.train_function = theano.function(inputs=[mol_info, targets_ints[0], targets_ints[1]],
                                               outputs=[train_losses[0], train_losses[1], train_accuracies[0],
                                                        train_accuracies[1], train_predictions[0], targets[0]],
                                               updates=train_params_updates)  # , profile=True)
 
-        self.validation_function = theano.function(inputs=[mol_indices, targets_ints[0], targets_ints[1]],
+        self.validation_function = theano.function(inputs=[mol_info, targets_ints[0], targets_ints[1]],
                                                    outputs=[val_losses[0], val_losses[1],
                                                             val_accuracies[0], val_accuracies[1]])
 
         self._get_params = theano.function(inputs=[], outputs=train_params)
 
-        self._get_all_outputs = theano.function(inputs=[mol_indices], outputs=lasagne.layers.get_output(
+        self._get_all_outputs = theano.function(inputs=mol_info, outputs=lasagne.layers.get_output(
             lasagne.layers.get_all_layers([self.outs[0]])))
 
         # save training history data
@@ -102,34 +110,49 @@ class ProteinPredictor(object):
 
         self.monitor = ModelMonitor(self.outs, name=model_name)
 
-    def _build_network(self, mol_indices):
-        indices_input = lasagne.layers.InputLayer(shape=(self.minibatch_size,), input_var=mol_indices)
-        data_gen = MoleculeMapLayer(incoming=indices_input, minibatch_size=self.minibatch_size)
+    def _build_network(self, mol_info):
+        coords_input = lasagne.layers.InputLayer(shape=(self.minibatch_size, None, None, None),
+                                                 input_var=mol_info[0])
+        charges_input = lasagne.layers.InputLayer(shape=(self.minibatch_size, None, None),
+                                                  input_var=mol_info[1])
+        vdwradii_input = lasagne.layers.InputLayer(shape=(self.minibatch_size, None, None),
+                                                   input_var=mol_info[2])
+        natoms_input = lasagne.layers.InputLayer(shape=(self.minibatch_size,),
+                                                 input_var=mol_info[3])
 
-        network = data_gen  # lasagne.layers.BatchNormLayer(incoming=data_gen)
+        data_gen = MoleculeMapLayer(incomings=[coords_input, charges_input, vdwradii_input, natoms_input],
+                                    minibatch_size=self.minibatch_size)
+
+        network = data_gen  # lasagne.layers.dnn.BatchNormLayer(incoming=data_gen)
 
         filter_size = (3, 3, 3)
 
         network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
-                                                    num_filters=32, filter_size=filter_size,
+                                                    num_filters=32,
+                                                    filter_size=filter_size,
                                                     nonlinearity=lasagne.nonlinearities.leaky_rectify)
-        network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2), stride=2)
+        network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network,
+                                                       pool_size=(2, 2, 2),
+                                                       stride=2)
 
         for i in range(0, 6):
             # NOTE: we start with a very poor filter count.
             network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
-                                                        num_filters=2 ** (5 + i // 2), filter_size=filter_size,
+                                                        num_filters=2 ** (5 + i // 2),
+                                                        filter_size=filter_size,
                                                         nonlinearity=lasagne.nonlinearities.leaky_rectify)
             if i % 2 == 1:
-                network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network, pool_size=(2, 2, 2), stride=2)
+                network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network,
+                                                               pool_size=(2, 2, 2),
+                                                               stride=2)
 
         network1 = network
         network2 = network
 
-        for i in range(0, 4):
-            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=512,
+        for i in range(0, 2):
+            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=256,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
-            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=512,
+            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=256,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
 
         output_layer1 = lasagne.layers.DenseLayer(incoming=network1, num_units=2,
@@ -140,6 +163,15 @@ class ProteinPredictor(object):
         return output_layer1, output_layer2
 
     def _iter_minibatches(self, mode='train', num_per_class=100):
+        # load molecula data from memmaps
+        coords = np.memmap(path.join(self.path_to_moldata, 'coords.memmap'), mode='r', dtype=floatX).reshape(
+            (-1, self.max_atoms, 3))
+        charges = np.memmap(path.join(self.path_to_moldata, 'charges.memmap'), mode='r', dtype=floatX).reshape(
+            (-1, self.max_atoms))
+        vdwradii = np.memmap(path.join(self.path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape(
+            (-1, self.max_atoms))
+        n_atoms = np.memmap(path.join(self.path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=intX)
+
         data_size = self.data['y_' + mode].shape[0]
         num_classes = self.data['class_distribution_' + mode].shape[0]
         represented_classes = np.arange(num_classes)[self.data['class_distribution_' + mode] > 0.]
@@ -168,7 +200,8 @@ class ProteinPredictor(object):
         for _ in xrange(0, minibatch_count):
             bucket_ids = np.random.choice(represented_classes, size=self.minibatch_size)
             next_indices = [np.random.choice(label_buckets[i]) for i in bucket_ids]
-            yield np.array(next_indices, dtype=np.int32)
+            yield next_indices, [coords[next_indices], charges[next_indices],
+                                 vdwradii[next_indices], n_atoms[next_indices]]
 
     def train(self, epoch_count=10, generate_progress_plot=True):
         try:
@@ -192,9 +225,9 @@ class ProteinPredictor(object):
         for e in xrange(epoch_count):
             losses = []
             accs = []
-            for indices in self._iter_minibatches(mode='train', num_per_class=per_class_datasize):
+            for indices, molecules in self._iter_minibatches(mode='train', num_per_class=per_class_datasize):
                 y = self.data['y_train'][indices]
-                loss21, loss24, acc21, acc24, pred, tgt = self.train_function(indices, y[:, 0], y[:, 1])
+                loss21, loss24, acc21, acc24, pred, tgt = self.train_function(molecules, y[:, 0], y[:, 1])
 
                 # this can be enabled to profile the forward pass
                 # self.train_function.profile.print_summary()
@@ -238,16 +271,16 @@ class ProteinPredictor(object):
         else:
             return self._test(mode='test')
 
-    def _test(self, mode='test', num_per_class=100):
+    def _test(self, mode='val', num_per_class=100):
         if mode == 'test':
             log.info("Final model testing...")
         elif mode == 'val':
             log.info("Validating model...")
         losses = []
         accs = []
-        for indices in self._iter_minibatches(mode=mode, num_per_class=num_per_class):
+        for indices, molecules in self._iter_minibatches(mode=mode, num_per_class=num_per_class):
             y = self.data['y_' + mode][indices]
-            loss21, loss24, acc21, acc24 = self.validation_function(indices, y[:, 0], y[:, 1])
+            loss21, loss24, acc21, acc24 = self.validation_function(molecules, y[:, 0], y[:, 1])
             losses.append((loss21, loss24))
             accs.append((acc21, acc24))
 
