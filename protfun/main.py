@@ -10,6 +10,7 @@ from protfun.layers import MoleculeMapLayer
 from protfun.models.protein_predictor import ProteinPredictor
 from protfun.preprocess.data_prep import DataSetup
 from protfun.visualizer.molview import MoleculeView
+from protfun.preprocess.grid_processor import GridProcessor
 
 grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/computed_grid")
 
@@ -37,6 +38,23 @@ def train_enzymes():
                                  initial_per_class_datasize=1)
     predictor.train(epoch_count=10000)
 
+
+def preprocess_grids():
+    data = DataSetup(enzyme_classes=['3.4.21', '3.4.24'],
+                     label_type='enzyme_classes',
+                     force_download=False,
+                     force_process=False)
+    data = data.load_dataset()
+    gridder = GridProcessor()
+    for i in range(0, data['x_train'].shape[0]):
+        gridder.process(data['x_train'][i])
+
+    gridder = GridProcessor(folder_name="test_grids")
+    for i in range(0, data['x_test'].shape[0]):
+        gridder.process(data['x_test'][i])
+
+
 if __name__ == "__main__":
-    train_enzymes()
-    # visualize()
+    # train_enzymes()
+    # visualize()]
+    preprocess_grids()
