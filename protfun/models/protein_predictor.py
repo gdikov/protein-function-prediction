@@ -282,9 +282,11 @@ class ProteinPredictor(object):
             log.info("Validating model...")
         losses = []
         accs = []
-        for indices, molecules in self._iter_minibatches(mode=mode, num_per_class=num_per_class):
+        for indices, mol_info in self._iter_minibatches(mode=mode, num_per_class=num_per_class):
             y = self.data['y_' + mode][indices]
-            loss21, loss24, acc21, acc24 = self.validation_function(molecules, y[:, 0], y[:, 1])
+            coords, charges, vdwradii, n_atoms = mol_info
+            loss21, loss24, acc21, acc24 = self.validation_function(coords, charges, vdwradii, n_atoms,
+                                                                    y[:, 0], y[:, 1])
             losses.append((loss21, loss24))
             accs.append((acc21, acc24))
 
