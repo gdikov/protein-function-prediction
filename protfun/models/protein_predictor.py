@@ -199,7 +199,8 @@ class ProteinPredictor(object):
 
         for _ in xrange(0, minibatch_count):
             bucket_ids = np.random.choice(represented_classes, size=self.minibatch_size)
-            next_indices = [np.random.choice(label_buckets[i]) for i in bucket_ids]
+            indices = [np.random.choice(label_buckets[i]) for i in bucket_ids]
+            next_indices = self.data['x_' + mode][indices]
             yield next_indices, [coords[next_indices], charges[next_indices],
                                  vdwradii[next_indices], n_atoms[next_indices]]
 
