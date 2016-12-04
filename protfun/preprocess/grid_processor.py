@@ -10,10 +10,12 @@ log.basicConfig(level=logging.DEBUG)
 
 
 class GridProcessor(object):
-    def __init__(self, folder_name='train_grids'):
+    def __init__(self, folder_name='grids', force_process=False):
         self.grid_dir = os.path.join(os.path.dirname(__file__), '../../data', folder_name)
         if not os.path.exists(self.grid_dir):
             os.makedirs(self.grid_dir)
+        self.force_process = force_process
+
         dummy = lasagne.layers.InputLayer(shape=(None,))
         self.processor = MoleculeMapLayer(incomings=[dummy, dummy], minibatch_size=1, rotate=False)
 
@@ -28,8 +30,9 @@ class GridProcessor(object):
         self.n_atoms = np.memmap(os.path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=np.int32)
 
     def process(self, mol_index):
-        grid = self._process(mol_index)
-        self._persist(grid, mol_index)
+        if not os.path.isfile(os.path.join(self.grid_dir, "grid" + str(mol_index) + ".memmap")) or self.force_process:
+            grid = self._process(mol_index)
+            self._persist(grid, mol_index)
 
     def _process(self, mol_index):
         mol_info = [theano.shared(np.array(self.coords[[mol_index]], dtype=np.float32)),

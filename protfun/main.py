@@ -58,12 +58,12 @@ def preprocess_grids():
                      force_download=False,
                      force_process=False)
     data = data.load_dataset()
-    gridder = GridProcessor()
+    gridder = GridProcessor(force_process=False)
     for i in data['x_train']:
         gridder.process(i)
-
-    gridder = GridProcessor(folder_name="test_grids")
     for i in data['x_test']:
+        gridder.process(i)
+    for i in data['x_val']:
         gridder.process(i)
 
 
