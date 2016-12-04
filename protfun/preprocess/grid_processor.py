@@ -39,7 +39,7 @@ class GridProcessor(object):
                     theano.shared(np.array(self.charges[[mol_index]], dtype=np.float32)),
                     theano.shared(np.array(self.vdwradii[[mol_index]], dtype=np.float32)),
                     theano.shared(np.array(self.n_atoms[[mol_index]], dtype=np.int32))]
-        grid = self.processor.get_output_for(mol_info=mol_info).eval()
+        grid = self.processor.get_output_for(mols_info=mol_info).eval()
         return grid
 
     def _persist(self, grid, mol_index):

@@ -33,7 +33,7 @@ def visualize():
                    theano.shared(np.array(vdwradii[[i]], dtype=np.float32)),
                    theano.shared(np.array(n_atoms[[i]], dtype=np.int32))]
 
-        grids = preprocess.get_output_for(mol_info=mol_info).eval()
+        grids = preprocess.get_output_for(mols_info=mol_info).eval()
         # np.save(grid_file+str(i), grids)
         viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
         viewer.density3d()
