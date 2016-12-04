@@ -3,6 +3,7 @@ import os
 import lasagne
 import colorlog as log
 import logging
+
 log.basicConfig(level=logging.DEBUG)
 
 
@@ -30,7 +31,7 @@ class ModelMonitor(object):
         :return:
         """
         log.info("Saving {0} model parameters...".format(lasagne.layers.count_params(self.network_outputs,
-                                                                                        trainable=True)))
+                                                                                     trainable=True)))
         filename = 'params'
         if epoch_count >= 0:
             filename += '_{0}ep'.format(epoch_count)
@@ -57,7 +58,7 @@ class ModelMonitor(object):
         lasagne.layers.set_all_param_values(network, param_values, trainable=True)
 
     def save_train_history(self, history):
-        with open(os.path.join(self.path_to_model_dir, "train_history.tsv", 'w')) as f:
+        with open(os.path.join(self.path_to_model_dir, "train_history.tsv"), mode='w') as f:
             f.write("# train_loss21 train_loss24 train_acc21 train_acc24 "
                     "val_loss21 val_loss24 val_acc21 val_acc24 time_in_epochs")
             for tl, ta, vl, va, t in zip(history['train_loss'],
