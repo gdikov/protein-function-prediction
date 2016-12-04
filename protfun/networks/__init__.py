@@ -1,0 +1,1 @@
+from protfun.networks.basic_convnet import *
