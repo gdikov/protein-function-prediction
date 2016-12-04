@@ -33,17 +33,19 @@ class DisjointClassModel(object):
 
         # define objective and training parameters
         train_predictions = [lasagne.layers.get_output(output) for output in output_layers]
-        train_losses = [categorical_crossentropy_logdomain(log_predictions=train_predictions[i],
-                                                           targets=targets[i]).mean() for i in range(0, self.n_classes)]
-        train_accuracies = [T.mean(T.eq(T.argmax(train_predictions[i], axis=-1), targets_ints[i]),
-                                   dtype=theano.config.floatX) for i in range(0, self.n_classes)]
+        train_losses = T.stack([categorical_crossentropy_logdomain(log_predictions=train_predictions[i],
+                                                                   targets=targets[i]).mean() for i in
+                                range(0, self.n_classes)])
+        train_accuracies = T.stack([T.mean(T.eq(T.argmax(train_predictions[i], axis=-1), targets_ints[i]),
+                                           dtype=theano.config.floatX) for i in range(0, self.n_classes)])
 
         val_predictions = [lasagne.layers.get_output(output_layers[i], deterministic=True) for i in
                            range(0, self.n_classes)]
-        val_losses = [categorical_crossentropy_logdomain(log_predictions=val_predictions[i],
-                                                         targets=targets[i]).mean() for i in range(0, self.n_classes)]
-        val_accuracies = [T.mean(T.eq(T.argmax(val_predictions[i], axis=-1), targets_ints[i]),
-                                 dtype=theano.config.floatX) for i in range(0, self.n_classes)]
+        val_losses = T.stack([categorical_crossentropy_logdomain(log_predictions=val_predictions[i],
+                                                                 targets=targets[i]).mean() for i in
+                              range(0, self.n_classes)])
+        val_accuracies = T.stack([T.mean(T.eq(T.argmax(val_predictions[i], axis=-1), targets_ints[i]),
+                                         dtype=theano.config.floatX) for i in range(0, self.n_classes)])
 
         total_loss = sum(train_losses)
         train_params_updates = lasagne.updates.adam(loss_or_grads=total_loss,
@@ -52,7 +54,7 @@ class DisjointClassModel(object):
 
         self.train_function = theano.function(inputs=input_vars + targets_ints,
                                               outputs={"losses": train_losses, "accs": train_accuracies},
-                                              updates=train_params_updates, profile=True)
+                                              updates=train_params_updates)  # , profile=True)
 
         self.validation_function = theano.function(inputs=input_vars + targets_ints,
                                                    outputs={"losses": val_losses, "accs": val_accuracies})
@@ -66,7 +68,7 @@ class DisjointClassModel(object):
 
 
 class MemmapsDisjointClassifier(DisjointClassModel):
-    def __init__(self, n_classes, network, minibatch_size=1):
+    def __init__(self, n_classes, network, minibatch_size):
         super(MemmapsDisjointClassifier, self).__init__(n_classes)
         self.minibatch_size = minibatch_size
         self.path_to_moldata = path.join(path.dirname(path.realpath(__file__)), "../../data/moldata")
@@ -96,7 +98,7 @@ class MemmapsDisjointClassifier(DisjointClassModel):
 
 
 class GridsDisjointClassifier(DisjointClassModel):
-    def __init__(self, n_classes, network, grid_size, minibatch_size=1):
+    def __init__(self, n_classes, network, grid_size, minibatch_size):
         super(GridsDisjointClassifier, self).__init__(n_classes)
 
         self.minibatch_size = minibatch_size

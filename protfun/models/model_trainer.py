@@ -10,11 +10,10 @@ log.basicConfig(level=logging.DEBUG)
 
 
 class ModelTrainer(object):
-    def __init__(self, model, data_feeder, init_samples_per_class=100):
+    def __init__(self, model, data_feeder):
         self.model = model
         self.data_feeder = data_feeder
         self.monitor = ModelMonitor(model.get_output_layers(), name=model.get_name())
-        self.samples_per_class = init_samples_per_class
         self.current_max_train_acc = np.array(0.85)
         self.current_max_val_acc = np.array(0.0)
         # save training history data
@@ -42,9 +41,10 @@ class ModelTrainer(object):
             epoch_losses = []
             epoch_accs = []
             for inputs in self.data_feeder.iterate_train_data():
-                output = self.model.train_function(inputs)
+                output = self.model.train_function(*inputs)
                 losses = output['losses']
                 accuracies = output['accs']
+
                 # this can be enabled to profile the forward pass
                 # self.model.train_function.profile.print_summary()
 
@@ -59,10 +59,11 @@ class ModelTrainer(object):
             log.info("train: epoch {0} loss means: {1} acc means: {2}".format(e, epoch_loss_means, epoch_acc_means))
 
             if np.alltrue(epoch_acc_means >= self.current_max_train_acc):
-                log.info("Augmenting dataset: doubling the samples per class ({0})".format(2 * self.samples_per_class))
+                samples_per_class = self.data_feeder.get_samples_per_class()
+                log.info("Augmenting dataset: doubling the samples per class ({0})".format(2 * self.data_feeder.get_samples_per_class()))
                 self.current_max_train_acc = epoch_acc_means
-                self.samples_per_class *= 2
-                self.data_feeder.set_samples_per_class(self.samples_per_class)
+                samples_per_class *= 2
+                self.data_feeder.set_samples_per_class(samples_per_class)
 
             # validate the model
             if e % 9 == 0:
@@ -101,7 +102,7 @@ class ModelTrainer(object):
         epoch_losses = []
         epoch_accs = []
         for inputs in data_iter_function():
-            output = self.model.validation_function(inputs)
+            output = self.model.validation_function(*inputs)
             losses = output['losses']
             accuracies = output['accs']
             epoch_losses.append(losses)
