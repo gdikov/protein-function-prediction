@@ -16,18 +16,21 @@ class GridRotationLayer(lasagne.layers.Layer):
     def __init__(self, incoming, grid_side=64, interpolation='linear', avg_rotation_angle=0.392,
                  **kwargs):  # 0.392 = pi/8
         super(GridRotationLayer, self).__init__(incoming, **kwargs)
-        self.grid_size = grid_side
+        self.grid_side = grid_side
         self.interpolation = interpolation
         self.angle = avg_rotation_angle
 
+    def get_output_shape_for(self, input_shape):
+        return None, 2, self.grid_side, self.grid_side, self.grid_side
+
     def get_output_for(self, grids, **kwargs):
-        height = width = depth = self.grid_size
+        height = width = depth = self.grid_side
 
         # np.indices() returns 3 train_grids exactly as big as the original one.
         # The first grid contains the X coordinate of each point at the location of the point.
         # The second grid contains the Y coordinate of each point at the location of the point.
         # The third grid contains the Z coordinate of each point at the location of the point.
-        indices_grids = T.as_tensor_variable(np.indices((width, height, depth)))
+        indices_grids = T.as_tensor_variable(np.indices((width, height, depth), dtype=floatX), name="grid_indices")
 
         # Translate
         # the translation vector will be broad-casted:
@@ -39,7 +42,7 @@ class GridRotationLayer(lasagne.layers.Layer):
 
         # Rotate
         # the origin is just the center point in the grid
-        origin = np.array((width // 2, height // 2, depth // 2)).reshape((3, 1, 1, 1))
+        origin = np.array((width // 2, height // 2, depth // 2), dtype=floatX).reshape((3, 1, 1, 1))
         # We first center all indices, just as in the translation above
         indices_grids -= origin
 
@@ -123,7 +126,7 @@ class GridRotationLayer(lasagne.layers.Layer):
         max = 2.5
         random_streams = T.shared_randomstreams.RandomStreams()
         rand01 = random_streams.uniform((3, 1, 1, 1), dtype=floatX)  # unifom random in open interval ]0;1[
-        rand_translation = rand01 * (0) + min
+        rand_translation = rand01 * (max - min) + min
         return rand_translation
 
 
