@@ -1,10 +1,11 @@
+import logging
+
+import colorlog as log
 import numpy as np
 import theano
-import colorlog as log
-import logging
 from os import path
 
-from protfun.preprocess.data_prep import DataSetup
+from protfun.data_management.preprocess import DataSetup
 
 log.basicConfig(level=logging.DEBUG)
 floatX = theano.config.floatX

@@ -1,6 +1,5 @@
 import os
-
-os.environ["THEANO_FLAGS"] = "device=gpu7,lib.cnmem=0"
+os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=1"
 # enable if you want to profile the forward pass
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import lasagne
@@ -8,9 +7,9 @@ import theano
 import numpy as np
 
 from protfun.layers import MoleculeMapLayer
-from protfun.preprocess.data_prep import DataSetup
+from protfun.data_management.preprocess import DataSetup
 from protfun.visualizer.molview import MoleculeView
-from protfun.preprocess.grid_processor import GridProcessor
+from protfun.data_management.preprocess import GridProcessor
 from protfun.models import EnzymesMolDataFeeder, EnzymesGridFeeder
 from protfun.models import ModelTrainer
 from protfun.models import MemmapsDisjointClassifier, GridsDisjointClassifier
@@ -60,7 +59,7 @@ def train_enz_from_grids():
     data_feeder = EnzymesGridFeeder(grids_dir=grids_dir,
                                     grid_size=64,
                                     enzyme_classes=['3.4.21', '3.4.24'],
-                                    minibatch_size=8,
+                                    minibatch_size=1,
                                     init_samples_per_class=1)
     model = GridsDisjointClassifier(n_classes=2, network=basic_convnet, grid_size=64, minibatch_size=8)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
