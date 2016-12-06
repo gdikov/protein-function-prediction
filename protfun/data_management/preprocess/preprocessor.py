@@ -244,8 +244,8 @@ def create_memmaps_for_enzymes(enzyme_dir, moldata_dir, pdb_dir):
         tmp.flush()
         del tmp
 
-    import theano
-    floatX = theano.config.floatX
+    # import theano
+    floatX = np.float32 #theano.config.floatX
 
     # For each enzyme in enzymes dir, create a memmap file in moldata taking the info from the pdb_dir
     leaf_classes = [x for x in os.listdir(enzyme_dir) if x.endswith('.proteins')]

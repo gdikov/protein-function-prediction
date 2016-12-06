@@ -115,13 +115,13 @@ class DataManager():
             ds = _DataSplitter(data_dir=self.dirs,
                                percentage_test=self.p_test, percentage_val=self.p_val)
 
-            resp = raw_input("Do you want to store a secret test data? y/[n]")
+            resp = raw_input("Do you want to store a secret test data? y/[n]\n")
             if resp.startswith('y'):
                 self._test_dir = ds.store_test_data()
                 self.checker.check_splitting(test_dir=self._test_dir)
-                prep.create_memmaps_for_enzymes(enzyme_dir=self._test_dir['enzymes'],
-                                                moldata_dir=self._test_dir['moldata'],
-                                                pdb_dir=self.dirs['pdb_proc'])
+                # prep.create_memmaps_for_enzymes(enzyme_dir=self._test_dir['enzymes'],
+                #                                 moldata_dir=self._test_dir['moldata'],
+                #                                 pdb_dir=self.dirs['pdb_proc'])
             train_dict, val_dict = ds.split_trainval()
         else:
             log.info("Skipping splitting step")
@@ -205,12 +205,12 @@ class DataManager():
 if __name__ == "__main__":
     dm = DataManager(data_dirname='experimental',
                      data_type='enzyme_categorical',
-                     force_download=False,
-                     force_process=False,
-                     force_split=False,
-                     force_memmap=False,
+                     force_download=True,
+                     force_process=True,
+                     force_split=True,
+                     force_memmap=True,
                      p_test=50,
-                     p_val=20,
+                     p_val=50,
                      hierarchical_depth=4,
                      constraint_on=['3.4.21.21', '3.4.21.34'])
     # NOTES: force_download works for enzymes
