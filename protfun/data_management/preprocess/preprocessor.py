@@ -235,3 +235,27 @@ class Preprocessor():
         # save_to_memmap(os.path.join(self.memmap_dir, 'vdwradii.memmap'), vdwradii, dtype=floatX)
         # save_to_memmap(os.path.join(self.memmap_dir, 'n_atoms.memmap'), n_atoms, dtype=intX)
         # save_to_memmap(os.path.join(self.memmap_dir, 'atom_mask.memmap'), atom_mask, dtype=floatX)
+
+def create_memmaps_for_enzymes(enzyme_dir, moldata_dir, pdb_dir):
+    def save_to_memmap(filename, data, dtype):
+        tmp = np.memmap(filename, shape=data.shape, mode='w+', dtype=dtype)
+        log.info("Saving memmap. Shape of {0} is {1}".format(filename, data.shape))
+        tmp[:] = data[:]
+        tmp.flush()
+        del tmp
+
+    import theano
+    floatX = theano.config.floatX
+
+    # For each enzyme in enzymes dir, create a memmap file in moldata taking the info from the pdb_dir
+    leaf_classes = [x for x in os.listdir(enzyme_dir) if x.endswith('.proteins')]
+    for cls in leaf_classes:
+        path_to_cls = os.path.join(enzyme_dir, cls)
+        with open(path_to_cls, 'r') as f:
+            prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
+            for pc in prot_codes_in_cls:
+                path_to_pdb = os.path.join(pdb_dir, 'pdb' + pc.lower() + '.ent')
+                enzyme_memmap_filename = os.path.join(moldata_dir, pc.upper() + '.memmap')
+                # TODO: memmap the pdb
+                data = np.array([])
+                save_to_memmap(enzyme_memmap_filename, data=data, dtype=floatX)
