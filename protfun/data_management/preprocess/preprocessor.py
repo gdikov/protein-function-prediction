@@ -27,6 +27,7 @@ class MoleculeProcessor(object):
         import rdkit.Chem.rdmolops as rdMO
 
         # read a molecule from the PDB file
+
         try:
             mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
         except IOError:
@@ -114,9 +115,12 @@ class GeneOntologyProcessor(object):
 
 
 class Preprocessor():
-    def __init__(self, protein_codes, data_type, data_path):
+    def __init__(self, protein_codes, data_path):
+        if isinstance(protein_codes, dict):
+            self.label_type = 'enzyme_categorical'
+        else:
+            self.label_type = 'gene_ontological'
         self.prot_codes = protein_codes
-        self.label_type = data_type
         self.data_dir = data_path
 
     def process(self):
@@ -136,29 +140,49 @@ class Preprocessor():
 
         # process all PDB codes, use [:] trick to create a copy for the iteration,
         # as removing is not allowed during iteration
-        for pc in self.prot_codes[:]:
-            f_path = os.path.join(self.data_dir, 'pdb' + pc.lower() + '.ent')
-            # process molecule from file
-            mol = molecule_processor.process_molecule(f_path)
-            if mol is None:
-                log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
-                erroneous_pdb_files.append((f_path, "invalid molecule"))
-                self.prot_codes.remove(pc)
-                continue
+        if isinstance(self.prot_codes, dict):
+            valid_codes = dict()
+        else:
+            valid_codes = []
+            raise NotImplementedError
 
-            # process gene ontology (GO) target label from file
-            if self.label_type == 'protein_geneontological':
-                go_ids = go_processor.process_gene_ontologies(f_path)
-                if go_ids is None or len(go_ids) == 0:
-                    log.warning("Ignoring PDB file %s because it has no gene ontologies associated with it." % pc)
-                    erroneous_pdb_files.append((pc, "no associated gene ontologies"))
-                    self.prot_codes.remove(pc)
+        if self.label_type == 'enzyme_categorical':
+            for cls in self.prot_codes.keys():
+                valid_codes[cls] = []
+                for pc in self.prot_codes[cls]:
+                    f_path = os.path.join(self.data_dir, 'pdb' + pc.lower() + '.ent')
+                    # process molecule from file
+                    mol = molecule_processor.process_molecule(f_path)
+                    if mol is None:
+                        log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
+                        erroneous_pdb_files.append((f_path, "invalid molecule"))
+                        # self.prot_codes.remove(pc)
+                        continue
+                    molecules.append(mol)
+                    valid_codes[cls].append(pc)
+        else:
+            valid_codes = []
+            for pc in self.prot_codes:
+                f_path = os.path.join(self.data_dir, 'pdb' + pc.lower() + '.ent')
+                # process molecule from file
+                mol = molecule_processor.process_molecule(f_path)
+                if mol is None:
+                    log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
+                    erroneous_pdb_files.append((f_path, "invalid molecule"))
                     continue
-                go_targets.append(go_ids)
 
-            molecules.append(mol)
+                # process gene ontology (GO) target label from file
+                if self.label_type == 'gene_ontological':
+                    go_ids = go_processor.process_gene_ontologies(f_path)
+                    if go_ids is None or len(go_ids) == 0:
+                        log.warning("Ignoring PDB file %s because it has no gene ontologies associated with it." % pc)
+                        erroneous_pdb_files.append((pc, "no associated gene ontologies"))
+                        continue
+                    go_targets.append(go_ids)
+                molecules.append(mol)
+                valid_codes.append(pc)
 
-        return molecules
+        return valid_codes
 
         # if self.label_type == 'protein_geneontological':
         #     # save the final GO targets into a .csv file
