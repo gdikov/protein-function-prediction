@@ -237,6 +237,7 @@ class Preprocessor():
         # save_to_memmap(os.path.join(self.memmap_dir, 'atom_mask.memmap'), atom_mask, dtype=floatX)
 
 def create_memmaps_for_enzymes(enzyme_dir, moldata_dir, pdb_dir):
+    raise NotImplementedError
     def save_to_memmap(filename, data, dtype):
         tmp = np.memmap(filename, shape=data.shape, mode='w+', dtype=dtype)
         log.info("Saving memmap. Shape of {0} is {1}".format(filename, data.shape))

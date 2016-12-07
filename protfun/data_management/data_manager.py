@@ -1,6 +1,6 @@
 import os
 import colorlog as log
-
+import cPickle
 import protfun.data_management.preprocess as prep
 from protfun.data_management.sanity_checker import _SanityChecker
 from protfun.data_management.splitter import _DataSplitter
@@ -117,14 +117,17 @@ class DataManager():
 
             resp = raw_input("Do you want to store a secret test data? y/[n]\n")
             if resp.startswith('y'):
-                self._test_dir = ds.store_test_data()
+                _, self._test_dir = ds.store_test_data()
                 self.checker.check_splitting(test_dir=self._test_dir)
                 # prep.create_memmaps_for_enzymes(enzyme_dir=self._test_dir['enzymes'],
                 #                                 moldata_dir=self._test_dir['moldata'],
                 #                                 pdb_dir=self.dirs['pdb_proc'])
-            train_dict, val_dict = ds.split_trainval()
+            ds.split_trainval()
         else:
             log.info("Skipping splitting step")
+
+        train_dict, val_dict, test_dict = self._load_train_val_test_pickles()
+        # TODO call some label generation stuff here or move it downwards
 
         if force_memmap:
             prep.create_memmaps_for_enzymes(enzyme_dir=self.dirs['enzymes_proc'],
@@ -160,6 +163,38 @@ class DataManager():
         else:
             protein_codes = []
             raise NotImplementedError
+
+
+    def _load_train_val_test_pickles(self):
+        path_to_train = os.path.join(self.dirs['enzymes_proc'], 'train_data.pickle')
+        path_to_val = os.path.join(self.dirs['enzymes_proc'], 'val_data.pickle')
+        path_to_test = os.path.join(self._test_dir['enzymes'], 'test_data.pickle')
+
+        if not os.path.exists(path_to_train):
+            log.error("No previously saved train data found. "
+                      "Re-run with force_split=True")
+            raise IOError
+        else:
+            with open(path_to_train, 'r') as tr:
+                train_dict = cPickle.load(tr)
+
+        if not os.path.exists(path_to_val):
+            log.error("No previously saved validation data found. "
+                      "Re-run with force_split=True")
+            raise IOError
+        else:
+            with open(path_to_val, 'r') as val:
+                val_dict = cPickle.load(val)
+
+        if not os.path.exists(path_to_test):
+            log.error("No previously saved validation data found. "
+                      "Re-run with force_split=True")
+            raise IOError
+        else:
+            with open(path_to_test, 'r') as tst:
+                test_dict = cPickle.load(tst)
+
+        return train_dict, val_dict, test_dict
 
 
     def _store_valid(self):
