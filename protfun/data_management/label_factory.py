@@ -9,30 +9,29 @@ class _LabelFactory():
         self.h_depth = hierarchical_depth
 
     def generate_hierarchical_labels(self):
-        raise NotImplementedError
         all_classes = list(set(self.train_dict.keys() + self.val_dict.keys() + self.test_dict.keys()))
 
         train_labels = dict()
         val_labels = dict()
         test_labels = dict()
+
         for h in range(self.h_depth):
             unique_labels_at_depth_h = list(set(['.'.join(x.split('.')[:h + 1]) for x in all_classes]))
             onehot_labels_at_depth_h = np.eye(len(unique_labels_at_depth_h))
             label_dict_at_depth_h = {k: v for k, v in
                                      zip(unique_labels_at_depth_h, onehot_labels_at_depth_h)}
-            for cls in self.train_dict.keys():
-                for enz in self.train_dict[cls]:
-                    if train_labels[enz] is None:
-                        train_labels[enz] = [[] for _ in range(self.h_depth)]
-                    else:
-                        train_labels[enz].append(label_dict_at_depth_h['.'.join(cls.split('.')[:h + 1])])
-                        # TODO: finish along this lines (or not, it looks already fishy)
-
+            for data_dict, label_dict in zip([self.train_dict, self.val_dict, self.test_dict],
+                                             [train_labels, val_labels, test_labels]):
+                for cls in data_dict.keys():
+                    for enz in data_dict[cls]:
+                        if enz not in label_dict.keys():
+                            label_dict[enz] = [[] for _ in range(self.h_depth)]
+                        label_dict[enz][h].append(label_dict_at_depth_h['.'.join(cls.split('.')[:h + 1])])
 
 if __name__ == "__main__":
     tr = {'3.1.1': ['ab', 'ac'], '2.1.2': ['de', 'ef']}
     va = {'2.1.2': ['ab', 'ac'], '3.1.1': ['ab', 'ac']}
     te = {'3.1.1': ['ab', 'ac'], '3.1.2': ['ab', 'ac']}
-    lf = LabelFactory(tr, va, te, 3)
+    lf = _LabelFactory(tr, va, te, 3)
     lf.generate_hierarchical_labels()
 
