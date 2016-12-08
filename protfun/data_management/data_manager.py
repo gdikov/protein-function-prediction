@@ -107,8 +107,8 @@ class DataManager():
         if force_process:
             pp = prep.Preprocessor(protein_codes=self.all_protein_codes,
                                    data_path=self.dirs['pdb_raw'])
-            self.valid_protein_codes = pp.process()
-            self._store_valid()
+            self.valid_protein_codes, valid_proteins_info_dict = pp.process()
+            self._store_valid(molecule_info=valid_proteins_info_dict)
         else:
             log.info("Skipping preprocessing step")
 
@@ -244,7 +244,7 @@ class DataManager():
             cPickle.dump(label_encoding, f)
 
 
-    def _store_valid(self):
+    def _store_valid(self, molecule_info):
         if self.data_type == 'enzyme_categorical':
             for cls in self.valid_protein_codes.keys():
                 with open(os.path.join(self.dirs['enzymes_proc'], cls + '.proteins'), mode='w') as f:
@@ -258,6 +258,8 @@ class DataManager():
                         if not os.path.isfile(pdb_filename_dst):
                             log.warning("Failed copying pdb file {0} from raw to proccessed".
                                         format(pdb_filename_src))
+            with open(os.path.join(self.dirs['pdb_proc'], 'mol_info.pickle'), 'wb') as f:
+                cPickle.dump(molecule_info, f)
         else:
             raise NotImplementedError
 

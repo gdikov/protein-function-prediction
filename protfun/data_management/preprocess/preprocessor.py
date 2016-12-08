@@ -2,8 +2,11 @@ import os
 import colorlog as log
 import numpy as np
 import csv
-import pickle
+import cPickle
 import StringIO
+
+# import theano
+floatX = np.float32 #theano.config.floatX
 
 
 class MoleculeProcessor(object):
@@ -147,6 +150,7 @@ class Preprocessor():
             raise NotImplementedError
 
         if self.label_type == 'enzyme_categorical':
+            mol_info = dict()
             for cls in self.prot_codes.keys():
                 valid_codes[cls] = []
                 for pc in self.prot_codes[cls]:
@@ -158,8 +162,11 @@ class Preprocessor():
                         erroneous_pdb_files.append((f_path, "invalid molecule"))
                         # self.prot_codes.remove(pc)
                         continue
-                    molecules.append(mol)
+                    mol_info[pc] = mol
                     valid_codes[cls].append(pc)
+            n_atoms = np.array([mol["atoms_count"] for mol in mol_info])
+            max_atoms = n_atoms.max()
+            mol_info['max_atoms'] = max_atoms
         else:
             valid_codes = []
             for pc in self.prot_codes:
@@ -182,7 +189,7 @@ class Preprocessor():
                 molecules.append(mol)
                 valid_codes.append(pc)
 
-        return valid_codes
+        return valid_codes, mol_info
 
         # if self.label_type == 'protein_geneontological':
         #     # save the final GO targets into a .csv file
@@ -245,8 +252,9 @@ def create_memmaps_for_enzymes(enzyme_dir, moldata_dir, pdb_dir):
         tmp.flush()
         del tmp
 
-    # import theano
-    floatX = np.float32 #theano.config.floatX
+    path_to_moldata = os.path.join(pdb_dir, 'mol_info.pickle')
+    with open(path_to_moldata, 'r') as f:
+        mol_data = cPickle.load(f)
 
     # For each enzyme in enzymes dir, create a memmap file in moldata taking the info from the pdb_dir
     leaf_classes = [x for x in os.listdir(enzyme_dir) if x.endswith('.proteins')]
@@ -257,6 +265,13 @@ def create_memmaps_for_enzymes(enzyme_dir, moldata_dir, pdb_dir):
             for pc in prot_codes_in_cls:
                 path_to_pdb = os.path.join(pdb_dir, 'pdb' + pc.lower() + '.ent')
                 enzyme_memmap_filename = os.path.join(moldata_dir, pc.upper() + '.memmap')
-                # TODO: memmap the pdb
-                data = np.array([])
-                save_to_memmap(enzyme_memmap_filename, data=data, dtype=floatX)
+                # generate and save the memmaps
+                coords = np.zeros(shape=(mol_data['max_atoms'], 3), dtype=floatX)
+                charges = np.zeros(shape=(mol_data['max_atoms'],), dtype=floatX)
+                vdwradii = np.ones(shape=(mol_data['max_atoms'],), dtype=floatX)
+                coords[0:mol_data[pc]["atoms_count"]] = mol_data[pc]["coords"]
+                charges[0:mol_data[pc]["atoms_count"]] = mol_data[pc]["charges"]
+                vdwradii[0:mol_data[pc]["atoms_count"]] = mol_data[pc]["vdwradii"]
+                save_to_memmap(enzyme_memmap_filename, coords, dtype=floatX)
+                save_to_memmap(enzyme_memmap_filename, charges, dtype=floatX)
+                save_to_memmap(enzyme_memmap_filename, vdwradii, dtype=floatX)
