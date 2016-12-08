@@ -29,9 +29,10 @@ class _LabelFactory():
                         label_dict[enz][h].append(label_dict_at_depth_h['.'.join(cls.split('.')[:h + 1])])
 
 if __name__ == "__main__":
-    tr = {'3.1.1': ['ab', 'ac'], '2.1.2': ['de', 'ef']}
-    va = {'2.1.2': ['ab', 'ac'], '3.1.1': ['ab', 'ac']}
-    te = {'3.1.1': ['ab', 'ac'], '3.1.2': ['ab', 'ac']}
+    tr = {'3.1.1': ['a'], '2.1.2': ['b', 'a', 'c'],
+          '2.1.3': ['d', 'e'], '2.1.4': ['f', 'g']}
+    va = {'3.1.2': ['h'], '2.1.2': ['i']}
+    te = {'3.1.1': ['j'], '2.1.8': ['k']}
     lf = _LabelFactory(tr, va, te, 3)
     lf.generate_hierarchical_labels()
 
