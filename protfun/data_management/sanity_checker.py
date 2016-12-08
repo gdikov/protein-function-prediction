@@ -62,3 +62,7 @@ class _SanityChecker():
             if len(set(prot_codes_trainval_in_cls)) + len(set(prot_codes_test_in_cls)) != \
                 len(set(prot_codes_trainval_in_cls + prot_codes_test_in_cls)):
                 log.error("Incomplete or inconsistent trainval/test splitting!")
+
+    def check_labels(self, train_labels=None, val_labels=None, test_lables=None):
+        log.warning("Label checking is not implemented yet")
+        pass

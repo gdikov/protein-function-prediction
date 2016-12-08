@@ -4,6 +4,7 @@ import cPickle
 import protfun.data_management.preprocess as prep
 from protfun.data_management.sanity_checker import _SanityChecker
 from protfun.data_management.splitter import _DataSplitter
+from protfun.data_management.label_factory import _LabelFactory
 
 
 class DataManager():
@@ -117,17 +118,20 @@ class DataManager():
 
             resp = raw_input("Do you want to store a secret test data? y/[n]\n")
             if resp.startswith('y'):
-                _, self._test_dir = ds.store_test_data()
+                self._test_dir, test_dict = ds.store_test_data()
                 self.checker.check_splitting(test_dir=self._test_dir)
                 # prep.create_memmaps_for_enzymes(enzyme_dir=self._test_dir['enzymes'],
                 #                                 moldata_dir=self._test_dir['moldata'],
                 #                                 pdb_dir=self.dirs['pdb_proc'])
             ds.split_trainval()
+            train_dict, val_dict, test_dict = self._load_train_val_test_data_pickles()
+            lf = _LabelFactory(train_dict, val_dict, test_dict,
+                               hierarchical_depth=self.max_hierarchical_depth)
+            train_lables, val_labels, test_labels, encoding = lf.generate_hierarchical_labels()
+            self.checker.check_labels(train_lables, val_labels, test_labels)
+            self._store_labels(train_lables, val_labels, test_labels, encoding)
         else:
             log.info("Skipping splitting step")
-
-        train_dict, val_dict, test_dict = self._load_train_val_test_pickles()
-        # TODO call some label generation stuff here or move it downwards
 
         if force_memmap:
             prep.create_memmaps_for_enzymes(enzyme_dir=self.dirs['enzymes_proc'],
@@ -165,7 +169,7 @@ class DataManager():
             raise NotImplementedError
 
 
-    def _load_train_val_test_pickles(self):
+    def _load_train_val_test_data_pickles(self):
         path_to_train = os.path.join(self.dirs['enzymes_proc'], 'train_data.pickle')
         path_to_val = os.path.join(self.dirs['enzymes_proc'], 'val_data.pickle')
         path_to_test = os.path.join(self._test_dir['enzymes'], 'test_data.pickle')
@@ -195,6 +199,49 @@ class DataManager():
                 test_dict = cPickle.load(tst)
 
         return train_dict, val_dict, test_dict
+
+
+    def _load_train_val_test_label_pickles(self):
+        path_to_train = os.path.join(self.dirs['enzymes_proc'], 'train_labels.pickle')
+        path_to_val = os.path.join(self.dirs['enzymes_proc'], 'val_labels.pickle')
+        path_to_test = os.path.join(self._test_dir['enzymes'], 'test_labels.pickle')
+
+        if not os.path.exists(path_to_train):
+            log.error("No previously saved train labels found. "
+                      "Re-run with force_split=True")
+            raise IOError
+        else:
+            with open(path_to_train, 'r') as tr:
+                train_labels = cPickle.load(tr)
+
+        if not os.path.exists(path_to_val):
+            log.error("No previously saved validation data found. "
+                      "Re-run with force_split=True")
+            raise IOError
+        else:
+            with open(path_to_val, 'r') as val:
+                val_labels = cPickle.load(val)
+
+        if not os.path.exists(path_to_test):
+            log.error("No previously saved validation data found. "
+                      "Re-run with force_split=True")
+            raise IOError
+        else:
+            with open(path_to_test, 'r') as tst:
+                test_labels = cPickle.load(tst)
+
+        return train_labels, val_labels, test_labels
+
+
+    def _store_labels(self, train_labels, val_labels, test_labels, label_encoding):
+        with open(os.path.join(self.dirs['enzymes_proc'], 'train_labels.pickle'), 'wb') as f:
+            cPickle.dump(train_labels, f)
+        with open(os.path.join(self.dirs['enzymes_proc'], 'val_labels.pickle'), 'wb') as f:
+            cPickle.dump(val_labels, f)
+        with open(os.path.join(self._test_dir['enzymes'], 'test_labels.pickle'), 'wb') as f:
+            cPickle.dump(test_labels, f)
+        with open(os.path.join(self.dirs['enzymes_proc'], 'label_encoding.pickle'), 'wb') as f:
+            cPickle.dump(label_encoding, f)
 
 
     def _store_valid(self):
@@ -229,7 +276,9 @@ class DataManager():
         """
         :return: a dictionary of the training and validation dataset, containing a
         """
-        data = dict()
+        train_dict, val_dict, _ = self._load_train_val_test_data_pickles()
+        train_lables, val_labels, _ = self._load_train_val_test_label_pickles()
+
         pass
 
 

@@ -32,6 +32,7 @@ class _DataSplitter():
         if not os.path.exists(self.test_dir['moldata']):
             os.makedirs(self.test_dir['moldata'])
 
+        test_enzymes = None
         if len(os.listdir(self.test_dir['enzymes'])) > 0:
             log.warning("CAUTION: This method is meant to be executed only once. "
                         "It look like a test set has already been created. "
