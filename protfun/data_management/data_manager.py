@@ -120,9 +120,9 @@ class DataManager():
             if resp.startswith('y'):
                 self._test_dir, test_dict = ds.store_test_data()
                 self.checker.check_splitting(test_dir=self._test_dir)
-                # prep.create_memmaps_for_enzymes(enzyme_dir=self._test_dir['enzymes'],
-                #                                 moldata_dir=self._test_dir['moldata'],
-                #                                 pdb_dir=self.dirs['pdb_proc'])
+                prep.create_memmaps_for_enzymes(enzyme_dir=self._test_dir['enzymes'],
+                                                moldata_dir=self._test_dir['moldata'],
+                                                pdb_dir=self.dirs['pdb_proc'])
             ds.split_trainval()
             train_dict, val_dict, test_dict = self._load_train_val_test_data_pickles()
             lf = _LabelFactory(train_dict, val_dict, test_dict,

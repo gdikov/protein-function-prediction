@@ -7,6 +7,7 @@ import StringIO
 
 # import theano
 floatX = np.float32 #theano.config.floatX
+intX = np.int32
 
 
 class MoleculeProcessor(object):
@@ -164,7 +165,7 @@ class Preprocessor():
                         continue
                     mol_info[pc] = mol
                     valid_codes[cls].append(pc)
-            n_atoms = np.array([mol["atoms_count"] for mol in mol_info])
+            n_atoms = np.array([mol_info[mol]["atoms_count"] for mol in mol_info.keys()])
             max_atoms = n_atoms.max()
             mol_info['max_atoms'] = max_atoms
         else:
@@ -264,14 +265,23 @@ def create_memmaps_for_enzymes(enzyme_dir, moldata_dir, pdb_dir):
             prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
             for pc in prot_codes_in_cls:
                 path_to_pdb = os.path.join(pdb_dir, 'pdb' + pc.lower() + '.ent')
-                enzyme_memmap_filename = os.path.join(moldata_dir, pc.upper() + '.memmap')
+
                 # generate and save the memmaps
                 coords = np.zeros(shape=(mol_data['max_atoms'], 3), dtype=floatX)
                 charges = np.zeros(shape=(mol_data['max_atoms'],), dtype=floatX)
-                vdwradii = np.ones(shape=(mol_data['max_atoms'],), dtype=floatX)
-                coords[0:mol_data[pc]["atoms_count"]] = mol_data[pc]["coords"]
-                charges[0:mol_data[pc]["atoms_count"]] = mol_data[pc]["charges"]
-                vdwradii[0:mol_data[pc]["atoms_count"]] = mol_data[pc]["vdwradii"]
-                save_to_memmap(enzyme_memmap_filename, coords, dtype=floatX)
-                save_to_memmap(enzyme_memmap_filename, charges, dtype=floatX)
-                save_to_memmap(enzyme_memmap_filename, vdwradii, dtype=floatX)
+                vdwradii = np.zeros(shape=(mol_data['max_atoms'],), dtype=floatX)
+                n_atoms = np.zeros(shape=(1,), dtype=intX)
+                coords[:mol_data[pc]["atoms_count"]] = mol_data[pc]["coords"]
+                charges[:mol_data[pc]["atoms_count"]] = mol_data[pc]["charges"]
+                vdwradii[:mol_data[pc]["atoms_count"]] = mol_data[pc]["vdwradii"]
+                n_atoms[0] = mol_data[pc]["atoms_count"]
+
+
+                save_to_memmap(os.path.join(moldata_dir, pc.upper() + '_coords' + '.memmap'),
+                               coords, dtype=floatX)
+                save_to_memmap(os.path.join(moldata_dir, pc.upper() + '_charges' + '.memmap'),
+                               charges, dtype=floatX)
+                save_to_memmap(os.path.join(moldata_dir, pc.upper() + '_vdwradii' + '.memmap'),
+                               vdwradii, dtype=floatX)
+                save_to_memmap(os.path.join(moldata_dir, pc.upper() + '_natoms' + '.memmap'),
+                               n_atoms, dtype=floatX)
