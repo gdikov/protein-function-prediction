@@ -9,7 +9,6 @@ import numpy as np
 from protfun.layers import MoleculeMapLayer
 from protfun.data_management.data_manager import DataManager
 from protfun.visualizer.molview import MoleculeView
-from protfun.data_management.preprocess.grid_processor import GridProcessor
 from protfun.data_management.data_feed import EnzymesMolDataFeeder, EnzymesGridFeeder
 from protfun.models import ModelTrainer
 from protfun.models import MemmapsDisjointClassifier, GridsDisjointClassifier
@@ -66,7 +65,7 @@ def train_enz_from_grids():
     trainer.train(epochs=100)
 
 
-def preprocess_grids():
+def test_datamanager():
     data = DataManager(data_dirname='test_folder', data_type='enzyme_categorical',
                        force_download=True, force_process=True, force_split=True,
                        force_memmap=True, force_gridding=True,
@@ -74,16 +73,11 @@ def preprocess_grids():
                        p_test=50, p_val=50)
 
     data = data.load_trainval()
-    print(data['x_train'])
-    print(data['y_train'])
-
-    print(data['x_val'])
-    print(data['y_val'])
 
 
 
 if __name__ == "__main__":
     # train_enz_from_memmaps()
-    preprocess_grids()
+    test_datamanager()
     # train_enz_from_grids()
     # visualize()
