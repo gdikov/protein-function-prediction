@@ -5,6 +5,7 @@ import protfun.data_management.preprocess as prep
 from protfun.data_management.sanity_checker import _SanityChecker
 from protfun.data_management.splitter import _DataSplitter
 from protfun.data_management.label_factory import _LabelFactory
+from protfun.data_management.preprocess.grid_processor import GridProcessor
 
 
 class DataManager():
@@ -14,7 +15,8 @@ class DataManager():
     """
 
     def __init__(self, data_dirname='data', data_type='enzyme_categorical',
-                 force_download=False, force_process=False, force_split=False, force_memmap=False,
+                 force_download=False, force_process=False, force_split=False,
+                 force_memmap=False, force_gridding=False,
                  constraint_on=None,
                  hierarchical_depth=4,
                  p_test=10,
@@ -31,11 +33,11 @@ class DataManager():
                      'go_raw': os.path.join(data_dir_raw, "go"),
                      'enzymes_raw': os.path.join(data_dir_raw, "enzymes"),
                      'moldata_raw': os.path.join(data_dir_raw, "moldata"),
-                     'data_proc': data_dir_processed,
-                     'pdb_proc': os.path.join(data_dir_processed, "pdb"),
-                     'go_proc': os.path.join(data_dir_processed, "go"),
-                     'enzymes_proc': os.path.join(data_dir_processed, "enzymes"),
-                     'moldata_proc': os.path.join(data_dir_processed, "moldata")}
+                     'data': data_dir_processed,
+                     'pdb': os.path.join(data_dir_processed, "pdb"),
+                     'go': os.path.join(data_dir_processed, "go"),
+                     'enzymes': os.path.join(data_dir_processed, "enzymes"),
+                     'moldata': os.path.join(data_dir_processed, "moldata")}
 
         if not os.path.exists(self.dirs['data_raw']):
             os.makedirs(self.dirs['data_raw'])
@@ -47,16 +49,16 @@ class DataManager():
             os.makedirs(self.dirs['enzymes_raw'])
         if not os.path.exists(self.dirs['moldata_raw']):
             os.makedirs(self.dirs['moldata_raw'])
-        if not os.path.exists(self.dirs['data_proc']):
-            os.makedirs(self.dirs['data_proc'])
-        if not os.path.exists(self.dirs['pdb_proc']):
-            os.makedirs(self.dirs['pdb_proc'])
-        if not os.path.exists(self.dirs['go_proc']):
-            os.makedirs(self.dirs['go_proc'])
-        if not os.path.exists(self.dirs['enzymes_proc']):
-            os.makedirs(self.dirs['enzymes_proc'])
-        if not os.path.exists(self.dirs['moldata_proc']):
-            os.makedirs(self.dirs['moldata_proc'])
+        if not os.path.exists(self.dirs['data']):
+            os.makedirs(self.dirs['data'])
+        if not os.path.exists(self.dirs['pdb']):
+            os.makedirs(self.dirs['pdb'])
+        if not os.path.exists(self.dirs['go']):
+            os.makedirs(self.dirs['go'])
+        if not os.path.exists(self.dirs['enzymes']):
+            os.makedirs(self.dirs['enzymes'])
+        if not os.path.exists(self.dirs['moldata']):
+            os.makedirs(self.dirs['moldata'])
 
         self.checker = _SanityChecker(data_type=data_type,
                                       enz_classes=constraint_on,
@@ -71,6 +73,7 @@ class DataManager():
                                     force_process=force_process,
                                     force_split=force_split,
                                     force_memmap=force_memmap,
+                                    force_gridding=force_gridding,
                                     enzyme_classes=constraint_on)
         elif data_type == 'protein_geneontological':
             self._setup_geneont_data(force_download=force_download,
@@ -82,7 +85,9 @@ class DataManager():
             raise ValueError
 
 
-    def _setup_enzyme_data(self, force_download, force_process, force_split, force_memmap, enzyme_classes):
+    def _setup_enzyme_data(self, force_download, force_process, force_split,
+                           force_memmap, force_gridding,
+                           enzyme_classes):
         # interpret the include variable as list of enzymes classes
         self.enzyme_classes = enzyme_classes
 
@@ -122,23 +127,35 @@ class DataManager():
                 self.checker.check_splitting(test_dir=self._test_dir)
                 prep.create_memmaps_for_enzymes(enzyme_dir=self._test_dir['enzymes'],
                                                 moldata_dir=self._test_dir['moldata'],
-                                                pdb_dir=self.dirs['pdb_proc'])
+                                                pdb_dir=self.dirs['pdb'])
             ds.split_trainval()
             train_dict, val_dict, test_dict = self._load_train_val_test_data_pickles()
             lf = _LabelFactory(train_dict, val_dict, test_dict,
                                hierarchical_depth=self.max_hierarchical_depth)
-            train_lables, val_labels, test_labels, encoding = lf.generate_hierarchical_labels()
-            self.checker.check_labels(train_lables, val_labels, test_labels)
-            self._store_labels(train_lables, val_labels, test_labels, encoding)
+            train_labels, val_labels, test_labels, encoding = lf.generate_hierarchical_labels()
+            self.checker.check_labels(train_labels, val_labels, test_labels)
+            self._store_labels(train_labels, val_labels, test_labels, encoding)
         else:
             log.info("Skipping splitting step")
 
         if force_memmap:
-            prep.create_memmaps_for_enzymes(enzyme_dir=self.dirs['enzymes_proc'],
-                                            moldata_dir=self.dirs['moldata_proc'],
-                                            pdb_dir=self.dirs['pdb_proc'])
+            prep.create_memmaps_for_enzymes(enzyme_dir=self.dirs['enzymes'],
+                                            moldata_dir=self.dirs['moldata'],
+                                            pdb_dir=self.dirs['pdb'])
         else:
             log.info("Skipping memmapping step")
+
+        if force_gridding:
+            train_labels, val_labels, test_labels = self._load_train_val_test_label_pickles()
+            trainval_pdbs = train_labels.keys() + val_labels.keys()
+            test_pdbs = test_labels.keys()
+            trainval_gp = GridProcessor(data_dirs=self.dirs, force_process=True)
+            trainval_gp.process_all(trainval_pdbs)
+            if force_split:
+                test_gp = GridProcessor(data_dirs=self._test_dir, force_process=True)
+                test_gp.process_all(test_pdbs)
+        else:
+            log.info("Skipping grid processing step")
 
 
     def _setup_geneont_data(self, force_download, force_process, force_split):
@@ -170,8 +187,8 @@ class DataManager():
 
 
     def _load_train_val_test_data_pickles(self):
-        path_to_train = os.path.join(self.dirs['enzymes_proc'], 'train_data.pickle')
-        path_to_val = os.path.join(self.dirs['enzymes_proc'], 'val_data.pickle')
+        path_to_train = os.path.join(self.dirs['enzymes'], 'train_data.pickle')
+        path_to_val = os.path.join(self.dirs['enzymes'], 'val_data.pickle')
         path_to_test = os.path.join(self._test_dir['enzymes'], 'test_data.pickle')
 
         if not os.path.exists(path_to_train):
@@ -202,8 +219,8 @@ class DataManager():
 
 
     def _load_train_val_test_label_pickles(self):
-        path_to_train = os.path.join(self.dirs['enzymes_proc'], 'train_labels.pickle')
-        path_to_val = os.path.join(self.dirs['enzymes_proc'], 'val_labels.pickle')
+        path_to_train = os.path.join(self.dirs['enzymes'], 'train_labels.pickle')
+        path_to_val = os.path.join(self.dirs['enzymes'], 'val_labels.pickle')
         path_to_test = os.path.join(self._test_dir['enzymes'], 'test_labels.pickle')
 
         if not os.path.exists(path_to_train):
@@ -234,31 +251,31 @@ class DataManager():
 
 
     def _store_labels(self, train_labels, val_labels, test_labels, label_encoding):
-        with open(os.path.join(self.dirs['enzymes_proc'], 'train_labels.pickle'), 'wb') as f:
+        with open(os.path.join(self.dirs['enzymes'], 'train_labels.pickle'), 'wb') as f:
             cPickle.dump(train_labels, f)
-        with open(os.path.join(self.dirs['enzymes_proc'], 'val_labels.pickle'), 'wb') as f:
+        with open(os.path.join(self.dirs['enzymes'], 'val_labels.pickle'), 'wb') as f:
             cPickle.dump(val_labels, f)
         with open(os.path.join(self._test_dir['enzymes'], 'test_labels.pickle'), 'wb') as f:
             cPickle.dump(test_labels, f)
-        with open(os.path.join(self.dirs['enzymes_proc'], 'label_encoding.pickle'), 'wb') as f:
+        with open(os.path.join(self.dirs['enzymes'], 'label_encoding.pickle'), 'wb') as f:
             cPickle.dump(label_encoding, f)
 
 
     def _store_valid(self, molecule_info):
         if self.data_type == 'enzyme_categorical':
             for cls in self.valid_protein_codes.keys():
-                with open(os.path.join(self.dirs['enzymes_proc'], cls + '.proteins'), mode='w') as f:
+                with open(os.path.join(self.dirs['enzymes'], cls + '.proteins'), mode='w') as f:
                     for prot_code in self.valid_protein_codes[cls]:
                         f.write(prot_code + '\n')
                         pdb_filename_src = os.path.join(self.dirs['pdb_raw'],
                                                         'pdb' + prot_code.lower() + '.ent')
-                        pdb_filename_dst = os.path.join(self.dirs['pdb_proc'],
+                        pdb_filename_dst = os.path.join(self.dirs['pdb'],
                                                         'pdb' + prot_code.lower() + '.ent')
                         os.system("cp %s %s" % (pdb_filename_src, pdb_filename_dst))
                         if not os.path.isfile(pdb_filename_dst):
                             log.warning("Failed copying pdb file {0} from raw to proccessed".
                                         format(pdb_filename_src))
-            with open(os.path.join(self.dirs['pdb_proc'], 'mol_info.pickle'), 'wb') as f:
+            with open(os.path.join(self.dirs['pdb'], 'mol_info.pickle'), 'wb') as f:
                 cPickle.dump(molecule_info, f)
         else:
             raise NotImplementedError
@@ -276,16 +293,25 @@ class DataManager():
 
     def load_trainval(self):
         """
-        :return: a dictionary of the training and validation dataset, containing a
+        Unpickle the previously stored data and labels and pack in a dictionary
+        :return: a dictionary of the training and validation dataset
         """
         train_dict, val_dict, _ = self._load_train_val_test_data_pickles()
         train_lables, val_labels, _ = self._load_train_val_test_label_pickles()
-
-        pass
+        data = {'x_train': train_dict, 'y_train':train_lables,
+                'x_val': val_dict, 'y_val': val_labels}
+        return data
 
 
     def load_test(self):
-        raise NotImplementedError
+        """
+       Unpickle the previously stored data and labels and pack in a dictionary
+       :return: a dictionary of the training and validation dataset
+       """
+        _, _, test_dict = self._load_train_val_test_data_pickles()
+        _, _, test_labels = self._load_train_val_test_label_pickles()
+        test_data = {'x_test': test_dict, 'y_test': test_labels}
+        return test_data
 
 
 if __name__ == "__main__":

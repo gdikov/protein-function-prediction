@@ -51,9 +51,9 @@ class _SanityChecker():
     def check_splitting(self, test_dir=None):
         log.info("Checking the data splits for consistency and completeness")
         # take self.percentage_test data points from each hierarchical leaf class
-        leaf_classes = [x for x in os.listdir(self.dirs['enzymes_proc']) if x.endswith('.proteins')]
+        leaf_classes = [x for x in os.listdir(self.dirs['enzymes']) if x.endswith('.proteins')]
         for cls in leaf_classes:
-            path_to_cls = os.path.join(self.dirs['enzymes_proc'], cls)
+            path_to_cls = os.path.join(self.dirs['enzymes'], cls)
             with open(path_to_cls, 'r') as f:
                 prot_codes_trainval_in_cls = [pc.strip() for pc in f.readlines()]
             path_to_test_cls = os.path.join(test_dir['enzymes'], cls)

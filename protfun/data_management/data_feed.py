@@ -5,7 +5,7 @@ import numpy as np
 import theano
 from os import path
 
-from protfun.data_management.preprocess import DataSetup
+from protfun.data_management.preprocess.data_prep import DataSetup
 
 log.basicConfig(level=logging.DEBUG)
 floatX = theano.config.floatX

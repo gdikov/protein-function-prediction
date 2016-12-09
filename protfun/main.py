@@ -7,10 +7,10 @@ import theano
 import numpy as np
 
 from protfun.layers import MoleculeMapLayer
-from protfun.data_management.preprocess import DataSetup
+from protfun.data_management.data_manager import DataManager
 from protfun.visualizer.molview import MoleculeView
-from protfun.data_management.preprocess import GridProcessor
-from protfun.models import EnzymesMolDataFeeder, EnzymesGridFeeder
+from protfun.data_management.preprocess.grid_processor import GridProcessor
+from protfun.data_management.data_feed import EnzymesMolDataFeeder, EnzymesGridFeeder
 from protfun.models import ModelTrainer
 from protfun.models import MemmapsDisjointClassifier, GridsDisjointClassifier
 from protfun.networks import basic_convnet
@@ -67,21 +67,23 @@ def train_enz_from_grids():
 
 
 def preprocess_grids():
-    data = DataSetup(enzyme_classes=['3.4.21', '3.4.24'],
-                     label_type='enzyme_classes',
-                     force_download=False,
-                     force_process=False)
-    data = data.load_dataset()
-    gridder = GridProcessor(force_process=False)
-    for i in data['x_train']:
-        gridder.process(i)
-    for i in data['x_test']:
-        gridder.process(i)
-    for i in data['x_val']:
-        gridder.process(i)
+    data = DataManager(data_dirname='test_folder', data_type='enzyme_categorical',
+                       force_download=True, force_process=True, force_split=True,
+                       force_memmap=True, force_gridding=True,
+                       constraint_on=['3.4.21.21', '3.4.21.34'], hierarchical_depth=4,
+                       p_test=50, p_val=50)
+
+    data = data.load_trainval()
+    print(data['x_train'])
+    print(data['y_train'])
+
+    print(data['x_val'])
+    print(data['y_val'])
+
+
 
 if __name__ == "__main__":
     # train_enz_from_memmaps()
-    # preprocess_grids()
-    train_enz_from_grids()
+    preprocess_grids()
+    # train_enz_from_grids()
     # visualize()

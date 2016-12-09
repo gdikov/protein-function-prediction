@@ -14,7 +14,7 @@ class _DataSplitter():
         self.percentage_val = percentage_val
 
     def store_test_data(self):
-        test_dir = os.path.join(self.trainval_dir['data_proc'], 'FORBIDDEN_FOLDER')
+        test_dir = os.path.join(self.trainval_dir['data'], 'FORBIDDEN_FOLDER')
         self.test_dir = {'data': test_dir,
                          'pdb': os.path.join(test_dir, "pdb"),
                          'go': os.path.join(test_dir, "go"),
@@ -25,6 +25,10 @@ class _DataSplitter():
             os.makedirs(self.test_dir['data'])
         if not os.path.exists(self.test_dir['pdb']):
             os.makedirs(self.test_dir['pdb'])
+            path_to_molinfo_dict = os.path.join(self.trainval_dir['pdb'], 'mol_info.pickle')
+            if os.path.exists(path_to_molinfo_dict):
+                path_to_test_molinfo_dict = os.path.join(self.test_dir['pdb'], 'mol_info.pickle')
+                os.system("cp %s %s" % (path_to_molinfo_dict, path_to_test_molinfo_dict))
         if not os.path.exists(self.test_dir['go']):
             os.makedirs(self.test_dir['go'])
         if not os.path.exists(self.test_dir['enzymes']):
@@ -56,9 +60,9 @@ class _DataSplitter():
         log.info("Splitting data into test and trainval")
         test_dict = dict()
         # take self.percentage_test data points from each hierarchical leaf class
-        leaf_classes = [x for x in os.listdir(self.trainval_dir['enzymes_proc']) if x.endswith('.proteins')]
+        leaf_classes = [x for x in os.listdir(self.trainval_dir['enzymes']) if x.endswith('.proteins')]
         for cls in leaf_classes:
-            path_to_cls = os.path.join(self.trainval_dir['enzymes_proc'], cls)
+            path_to_cls = os.path.join(self.trainval_dir['enzymes'], cls)
             with open(path_to_cls, 'r') as f:
                 prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
 
@@ -93,11 +97,11 @@ class _DataSplitter():
     def _split_trainval(self):
         log.info("Splitting trainval data into train and validation sets")
         # take self.percentage_val data points from each hierarchical leaf class
-        leaf_classes = [x for x in os.listdir(self.trainval_dir['enzymes_proc']) if x.endswith('.proteins')]
+        leaf_classes = [x for x in os.listdir(self.trainval_dir['enzymes']) if x.endswith('.proteins')]
         train_enzymes = dict()
         val_enzymes = dict()
         for cls in leaf_classes:
-            path_to_cls = os.path.join(self.trainval_dir['enzymes_proc'], cls)
+            path_to_cls = os.path.join(self.trainval_dir['enzymes'], cls)
             with open(path_to_cls, 'r') as f:
                 prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
             num_prots_in_cls = len(prot_codes_in_cls)
@@ -115,9 +119,9 @@ class _DataSplitter():
             train_prot_codes_in_cls = [prot_codes_in_cls[i] for i in train_indices]
             train_enzymes[cls.replace('.proteins', '')] = train_prot_codes_in_cls
 
-        with open(os.path.join(self.trainval_dir['enzymes_proc'], 'train_data.pickle'), 'wb') as f:
+        with open(os.path.join(self.trainval_dir['enzymes'], 'train_data.pickle'), 'wb') as f:
             cPickle.dump(train_enzymes, f)
-        with open(os.path.join(self.trainval_dir['enzymes_proc'], 'val_data.pickle'), 'wb') as f:
+        with open(os.path.join(self.trainval_dir['enzymes'], 'val_data.pickle'), 'wb') as f:
             cPickle.dump(val_enzymes, f)
 
         return train_enzymes, val_enzymes
