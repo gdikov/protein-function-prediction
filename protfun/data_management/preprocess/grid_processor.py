@@ -18,8 +18,15 @@ class GridProcessor(object):
             os.makedirs(self.grid_dir)
         self.force_process = force_process
 
-        dummy = lasagne.layers.InputLayer(shape=(None,))
-        self.processor = MoleculeMapLayer(incomings=[dummy, dummy], minibatch_size=1, rotate=False)
+        dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
+        dummy_charges_input = lasagne.layers.InputLayer(shape=(1, None))
+        dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
+        dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
+
+        self.processor = MoleculeMapLayer(incomings=[dummy_coords_input, dummy_charges_input,
+                                                     dummy_vdwradii_input, dummy_natoms_input],
+                                          minibatch_size=1,
+                                          rotate=False)
 
         path_to_moldata = os.path.join(self.dirs['pdb'], 'mol_info.pickle')
         with open(path_to_moldata, 'r') as f:
