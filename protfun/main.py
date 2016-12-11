@@ -1,4 +1,5 @@
 import os
+
 os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=1"
 # enable if you want to profile the forward pass
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -73,7 +74,6 @@ def test_datamanager():
                        p_test=50, p_val=50)
 
     data = data.load_trainval()
-
 
 
 if __name__ == "__main__":

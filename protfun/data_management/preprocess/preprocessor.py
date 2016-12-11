@@ -1,16 +1,143 @@
+import abc
 import os
 import colorlog as log
 import numpy as np
 import csv
-import cPickle
 import StringIO
+import theano
+import lasagne
 
-# import theano
-floatX = np.float32 #theano.config.floatX
+from protfun.layers import MoleculeMapLayer
+
+floatX = theano.config.floatX
 intX = np.int32
 
 
-class MoleculeProcessor(object):
+class DataProcessor(object):
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self, from_dir, target_dir):
+        self.from_dir = from_dir
+        self.target_dir = target_dir
+
+    @abc.abstractmethod
+    def process(self):
+        raise NotImplementedError
+
+
+class EnzymeDataProcessor(DataProcessor):
+    """
+    Enzyme protein data processor.
+
+    Does pre-processing of the downloaded PDB files.
+    numpy.memmap's are created for molecules (from the PDB files with no errors)
+    """
+
+    def __init__(self, from_dir, target_dir, protein_codes, process_grids=True, process_memmaps=True):
+        super(EnzymeDataProcessor, self).__init__(from_dir=from_dir, target_dir=target_dir)
+        self.prot_codes = protein_codes
+        self.process_grids = process_grids
+        self.process_memmaps = process_memmaps
+        self.molecule_processor = PDBMoleculeProcessor()
+        self.grid_processor = GridProcessor()
+
+    def process(self):
+        # will store the valid proteins for each enzyme class, which is the key in the dict()
+        valid_codes = dict()
+
+        for cls in self.prot_codes.keys():
+            valid_codes[cls] = []
+            for pc in self.prot_codes[cls]:
+                prot_dir = os.path.join(self.target_dir, pc.upper())
+                f_path = os.path.join(self.from_dir, pc.upper(), 'pdb' + pc.lower() + '.ent')
+
+                # if required, process the memmaps for the molecules again
+                if self.process_memmaps:
+                    # attempt to process the molecule from the PDB file
+                    mol = self.molecule_processor.process_molecule(f_path)
+                    if mol is None:
+                        log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
+                        continue
+
+                    # persist the molecule and add the resulting memmaps to mol_info if processing was successful
+                    self._persist_processed(prot_dir=prot_dir, mol=mol)
+
+                # if required, process the molecule grids as well
+                if self.process_grids:
+                    grid = self.grid_processor.process(prot_dir)
+                    if grid is None:
+                        log.warning("Ignoring PDB file {}, grid could not be processed".format(pc))
+                        continue
+                    self.save_to_memmap(file_path=os.path.join(prot_dir, "grid.memmap"), data=grid, dtype=floatX)
+
+                # copy the PDB file to the target directory
+                os.system("cp %s %s" % (f_path, os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')))
+
+                valid_codes[cls].append(pc)
+
+        return valid_codes
+
+    def _persist_processed(self, prot_dir, mol):
+        # generate and save the memmaps
+        coords = mol["coords"]
+        charges = mol["charges"]
+        vdwradii = mol["vdwradii"]
+
+        self.save_to_memmap(os.path.join(prot_dir, 'coords.memmap'),
+                            coords, dtype=floatX)
+        self.save_to_memmap(os.path.join(prot_dir, 'charges.memmap'),
+                            charges, dtype=floatX)
+        self.save_to_memmap(os.path.join(prot_dir, 'vdwradii.memmap'),
+                            vdwradii, dtype=floatX)
+
+    @staticmethod
+    def save_to_memmap(file_path, data, dtype):
+        tmp = np.memmap(file_path, shape=data.shape, mode='w+', dtype=dtype)
+        log.info("Saving memmap. Shape of {0} is {1}".format(file_path, data.shape))
+        tmp[:] = data[:]
+        tmp.flush()
+        del tmp
+
+
+class GODataProcessor(DataProcessor):
+    """
+    Gene ontology data processor
+    """
+
+    def __init__(self, from_dir, target_dir):
+        super(GODataProcessor, self).__init__(from_dir=from_dir, target_dir=target_dir)
+        self.molecule_processor = PDBMoleculeProcessor()
+        self.go_processor = GeneOntologyProcessor()
+
+    def process(self):
+        # valid_codes = []
+        # for pc in self.prot_codes:
+        #     f_path = os.path.join(self.data_dir, 'pdb' + pc.lower() + '.ent')
+        #     # process molecule from file
+        #     mol = molecule_processor.process_molecule(f_path)
+        #     if mol is None:
+        #         log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
+        #         erroneous_pdb_files.append((f_path, "invalid molecule"))
+        #         continue
+        #
+        #     # process gene ontology (GO) target label from file
+        #     if self.label_type == 'gene_ontological':
+        #         go_ids = go_processor.process_gene_ontologies(f_path)
+        #         if go_ids is None or len(go_ids) == 0:
+        #             log.warning("Ignoring PDB file %s because it has no gene ontologies associated with it." % pc)
+        #             erroneous_pdb_files.append((pc, "no associated gene ontologies"))
+        #             continue
+        #         go_targets.append(go_ids)
+        #     molecules.append(mol)
+        #     valid_codes.append(pc)
+        #
+        #     # save the final GO targets into a .csv file
+        #     with open(os.path.join(self.go_dir, "go_ids.csv"), "wb") as f:
+        #         csv.writer(f).writerows(go_targets)
+        raise NotImplementedError
+
+
+class PDBMoleculeProcessor(object):
     """
     MoleculeProcessor can produce a ProcessedMolecule from the contents of a PDB file.
     """
@@ -118,170 +245,29 @@ class GeneOntologyProcessor(object):
             return ["unknown"]
 
 
-class Preprocessor():
-    def __init__(self, protein_codes, data_path):
-        if isinstance(protein_codes, dict):
-            self.label_type = 'enzyme_categorical'
-        else:
-            self.label_type = 'gene_ontological'
-        self.prot_codes = protein_codes
-        self.data_dir = data_path
+class GridProcessor(object):
+    def __init__(self):
+        dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
+        dummy_charges_input = lasagne.layers.InputLayer(shape=(1, None))
+        dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
+        dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
 
-    def process(self):
-        """
-        Does pre-processing of the downloaded PDB files.
-        numpy.memmap's are created for molecules (from the PDB files with no errors)
-        """
+        self.processor = MoleculeMapLayer(incomings=[dummy_coords_input, dummy_charges_input,
+                                                     dummy_vdwradii_input, dummy_natoms_input],
+                                          minibatch_size=1,
+                                          rotate=False)
 
-        molecule_processor = MoleculeProcessor()
-        go_processor = GeneOntologyProcessor()
-
-        molecules = list()
-        go_targets = list()
-
-        # also create a list of all deleted files to be inspected manually later
-        erroneous_pdb_files = []
-
-        # process all PDB codes, use [:] trick to create a copy for the iteration,
-        # as removing is not allowed during iteration
-        if isinstance(self.prot_codes, dict):
-            valid_codes = dict()
-        else:
-            valid_codes = []
-            raise NotImplementedError
-
-        if self.label_type == 'enzyme_categorical':
-            mol_info = dict()
-            for cls in self.prot_codes.keys():
-                valid_codes[cls] = []
-                for pc in self.prot_codes[cls]:
-                    f_path = os.path.join(self.data_dir, 'pdb' + pc.lower() + '.ent')
-                    # process molecule from file
-                    mol = molecule_processor.process_molecule(f_path)
-                    if mol is None:
-                        log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
-                        erroneous_pdb_files.append((f_path, "invalid molecule"))
-                        # self.prot_codes.remove(pc)
-                        continue
-                    mol_info[pc] = mol
-                    valid_codes[cls].append(pc)
-            n_atoms = np.array([mol_info[mol]["atoms_count"] for mol in mol_info.keys()])
-            max_atoms = n_atoms.max()
-            mol_info['max_atoms'] = max_atoms
-        else:
-            valid_codes = []
-            for pc in self.prot_codes:
-                f_path = os.path.join(self.data_dir, 'pdb' + pc.lower() + '.ent')
-                # process molecule from file
-                mol = molecule_processor.process_molecule(f_path)
-                if mol is None:
-                    log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
-                    erroneous_pdb_files.append((f_path, "invalid molecule"))
-                    continue
-
-                # process gene ontology (GO) target label from file
-                if self.label_type == 'gene_ontological':
-                    go_ids = go_processor.process_gene_ontologies(f_path)
-                    if go_ids is None or len(go_ids) == 0:
-                        log.warning("Ignoring PDB file %s because it has no gene ontologies associated with it." % pc)
-                        erroneous_pdb_files.append((pc, "no associated gene ontologies"))
-                        continue
-                    go_targets.append(go_ids)
-                molecules.append(mol)
-                valid_codes.append(pc)
-
-        return valid_codes, mol_info
-
-        # if self.label_type == 'protein_geneontological':
-        #     # save the final GO targets into a .csv file
-        #     with open(os.path.join(self.go_dir, "go_ids.csv"), "wb") as f:
-        #         csv.writer(f).writerows(go_targets)
-        #
-        # n_atoms = np.array([mol["atoms_count"] for mol in molecules])
-        # max_atoms = n_atoms.max()
-        # molecules_count = len(molecules)
-        #
-        # # save the error pdb files log
-        # with open(os.path.join(self.pdb_dir, "erroneous_pdb_files.log"), "wb") as f:
-        #     for er in erroneous_pdb_files:
-        #         f.write(str(er) + "\n")
-        #
-        # # save the correctly preprocessed enzymes
-        # with open(self.enz_dir + "/preprocessed_enzymes.pickle", "wb") as f:
-        #     pickle.dump(self.prot_codes, f)
-        #
-        # # after pre-processing, the PDB files should match the final molecules
-        # assert molecules_count == len(self.prot_codes), "incorrect number of processed proteins: {} vs. {}".format(
-        #     molecules_count, len(self.prot_codes))
-        #
-        # # create numpy arrays for the final data
-        # coords = np.zeros(shape=(molecules_count, max_atoms, 3), dtype=floatX)
-        # charges = np.zeros(shape=(molecules_count, max_atoms), dtype=floatX)
-        # vdwradii = np.ones(shape=(molecules_count, max_atoms), dtype=floatX)
-        # atom_mask = np.zeros(shape=(molecules_count, max_atoms), dtype=floatX)
-        #
-        # for i, mol in enumerate(molecules):
-        #     coords[i, 0:mol["atoms_count"]] = mol["coords"]
-        #     charges[i, 0:mol["atoms_count"]] = mol["charges"]
-        #     vdwradii[i, 0:mol["atoms_count"]] = mol["vdwradii"]
-        #     atom_mask[i, 0:mol["atoms_count"]] = 1
-        #
-        # n_atoms = np.asarray(n_atoms, dtype=intX)
-        #
-        # # save the final molecules into memmap files
-        # def save_to_memmap(filename, data, dtype):
-        #     tmp = np.memmap(filename, shape=data.shape, mode='w+', dtype=dtype)
-        #     log.info("Saving memmap. Shape of {0} is {1}".format(filename, data.shape))
-        #     tmp[:] = data[:]
-        #     tmp.flush()
-        #     del tmp
-        #
-        # save_to_memmap(os.path.join(self.memmap_dir, 'max_atoms.memmap'), np.asarray([max_atoms], dtype=intX),
-        #                dtype=intX)
-        # save_to_memmap(os.path.join(self.memmap_dir, 'coords.memmap'), coords, dtype=floatX)
-        # save_to_memmap(os.path.join(self.memmap_dir, 'charges.memmap'), charges, dtype=floatX)
-        # save_to_memmap(os.path.join(self.memmap_dir, 'vdwradii.memmap'), vdwradii, dtype=floatX)
-        # save_to_memmap(os.path.join(self.memmap_dir, 'n_atoms.memmap'), n_atoms, dtype=intX)
-        # save_to_memmap(os.path.join(self.memmap_dir, 'atom_mask.memmap'), atom_mask, dtype=floatX)
-
-def create_memmaps_for_enzymes(enzyme_dir, moldata_dir, pdb_dir):
-
-    def save_to_memmap(filename, data, dtype):
-        tmp = np.memmap(filename, shape=data.shape, mode='w+', dtype=dtype)
-        log.info("Saving memmap. Shape of {0} is {1}".format(filename, data.shape))
-        tmp[:] = data[:]
-        tmp.flush()
-        del tmp
-
-    path_to_moldata = os.path.join(pdb_dir, 'mol_info.pickle')
-    with open(path_to_moldata, 'r') as f:
-        mol_data = cPickle.load(f)
-
-    # For each enzyme in enzymes dir, create a memmap file in moldata taking the info from the pdb_dir
-    leaf_classes = [x for x in os.listdir(enzyme_dir) if x.endswith('.proteins')]
-    for cls in leaf_classes:
-        path_to_cls = os.path.join(enzyme_dir, cls)
-        with open(path_to_cls, 'r') as f:
-            prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
-            for pc in prot_codes_in_cls:
-                path_to_pdb = os.path.join(pdb_dir, 'pdb' + pc.lower() + '.ent')
-
-                # generate and save the memmaps
-                coords = np.zeros(shape=(mol_data['max_atoms'], 3), dtype=floatX)
-                charges = np.zeros(shape=(mol_data['max_atoms'],), dtype=floatX)
-                vdwradii = np.zeros(shape=(mol_data['max_atoms'],), dtype=floatX)
-                n_atoms = np.zeros(shape=(1,), dtype=intX)
-                coords[:mol_data[pc]["atoms_count"]] = mol_data[pc]["coords"]
-                charges[:mol_data[pc]["atoms_count"]] = mol_data[pc]["charges"]
-                vdwradii[:mol_data[pc]["atoms_count"]] = mol_data[pc]["vdwradii"]
-                n_atoms[0] = mol_data[pc]["atoms_count"]
-
-
-                save_to_memmap(os.path.join(moldata_dir, pc.upper() + '_coords' + '.memmap'),
-                               coords, dtype=floatX)
-                save_to_memmap(os.path.join(moldata_dir, pc.upper() + '_charges' + '.memmap'),
-                               charges, dtype=floatX)
-                save_to_memmap(os.path.join(moldata_dir, pc.upper() + '_vdwradii' + '.memmap'),
-                               vdwradii, dtype=floatX)
-                save_to_memmap(os.path.join(moldata_dir, pc.upper() + '_natoms' + '.memmap'),
-                               n_atoms, dtype=floatX)
+    def process(self, prot_dir):
+        try:
+            coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))
+            charges = np.memmap(os.path.join(prot_dir, 'charges.memmap'), mode='r', dtype=floatX).reshape((1, -1))
+            vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))
+            n_atoms = coords.shape[1]
+        except IOError:
+            return None
+        mol_info = [theano.shared(coords),
+                    theano.shared(charges),
+                    theano.shared(vdwradii),
+                    theano.shared(n_atoms)]
+        grid = self.processor.get_output_for(mols_info=mol_info).eval()
+        return grid

@@ -1,6 +1,7 @@
 import numpy as np
 
-class _LabelFactory():
+
+class LabelFactory(object):
     def __init__(self, train_dict, val_dict, test_dict, hierarchical_depth=1):
         self.train_dict = train_dict
         self.val_dict = val_dict
@@ -37,6 +38,5 @@ if __name__ == "__main__":
           '2.1.3': ['d', 'e'], '2.1.4': ['f', 'g']}
     va = {'3.1.2': ['h'], '2.1.2': ['i']}
     te = {'3.1.1': ['j'], '2.1.8': ['k']}
-    lf = _LabelFactory(tr, va, te, 3)
+    lf = LabelFactory(tr, va, te, 3)
     lf.generate_hierarchical_labels()
-

@@ -1,14 +1,15 @@
 import os
 import colorlog as log
 
+
 class EnzymeFetcher(object):
     """ Generate and filter enzyme IDs which are to be downloaded
      :param categories: list of strings in the form 1.1 or 4.3.2.1 giving the most general category of interest. """
 
-    def __init__(self, categories, excluded_categories=[], enzyme_dir=None):
+    def __init__(self, categories, excluded_categories=list(), enzyme_dir=None):
         self.enzyme_dir = enzyme_dir
         self.excluded_categories = excluded_categories
-        self.leaf_categories = []
+        self.leaf_categories = list()
         self.pdb_files = None
 
         log.info("Evaluating the total categorical hierarchy...")
@@ -53,7 +54,7 @@ class EnzymeFetcher(object):
     def fetch_enzymes(self):
         if self.leaf_categories is not None:
             log.info("Processing html pages for each enzyme classes ({0} in total). "
-                  "This may take a while...".format(len(self.leaf_categories)))
+                     "This may take a while...".format(len(self.leaf_categories)))
             self.pdb_files = self._ecs2pdbs()
         else:
             log.warning("No leaf enzyme categories found.")
@@ -64,10 +65,7 @@ class EnzymeFetcher(object):
                 if key.startswith(cl) and value is not None:
                     pdb_ids += value
             if len(pdb_ids) is not 0:
-                with open(os.path.join(self.enzyme_dir, cl + '.proteins'),
-                          mode='w') as f:
-                    f.writelines(["%s\n" % item for item in pdb_ids])
-            self.fetched_prot_codes[cl] = pdb_ids
+                self.fetched_prot_codes[cl] = pdb_ids
         return self.fetched_prot_codes
 
     def _ecs2pdbs(self):
@@ -111,6 +109,31 @@ class EnzymeFetcher(object):
         return pdbs
 
 
+def download_pdbs(base_dir, protein_codes):
+    """
+    Downloads the PDB database (or a part of it) as PDB files.
+    """
+    prot_codes = []
+    if isinstance(protein_codes, dict):
+        for key in protein_codes.keys():
+            prot_codes += protein_codes[key]
+    else:
+        prot_codes = protein_codes
+    from Bio.PDB import PDBList
+    failed = 0
+    attempted = len(prot_codes)
+    for code in prot_codes:
+        try:
+            pl = PDBList(pdb=os.path.join(base_dir, code.upper()))
+            pl.flat_tree = 1
+            pl.retrieve_pdb_file(pdb_code=code)
+        except IOError:
+            log.warning("Failed to download protein {}".format(code))
+            failed += 1
+            continue
+    log.info("Downloaded {0}/{1} molecules".format(attempted - failed, attempted))
+
+
 if __name__ == "__main__":
     ep = EnzymeFetcher(['3.4.21', '3.4.24'])
     ep.fetch_enzymes()
@@ -128,31 +151,3 @@ if __name__ == "__main__":
         f.writelines(["%s\n" % item for item in pdbs21])
     with open(file_24, mode='w') as f:
         f.writelines(["%s\n" % item for item in pdbs24])
-
-
-def download_pdbs(pdb_dirpath, protein_codes=None):
-    """
-    Downloads the PDB database (or a part of it) as PDB files.
-    """
-    prot_codes = []
-    if isinstance(protein_codes, dict):
-        for key in protein_codes.keys():
-            prot_codes += protein_codes[key]
-    else:
-        prot_codes = protein_codes
-    from Bio.PDB import PDBList
-    pl = PDBList(pdb=pdb_dirpath)
-    pl.flat_tree = 1
-    if prot_codes is not None:
-        failed = 0
-        attempted = len(prot_codes)
-        for code in prot_codes:
-            try:
-                pl.retrieve_pdb_file(pdb_code=code)
-            except IOError:
-                log.warning("Failed to download protein {}".format(code))
-                failed += 1
-                continue
-        log.info("Downloaded {0}/{1} molecules".format(attempted - failed, attempted))
-    else:
-        pl.download_entire_pdb()

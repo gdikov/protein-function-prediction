@@ -1,3 +1,2 @@
-
 from protein_fetcher import EnzymeFetcher, download_pdbs
-from preprocessor import Preprocessor, create_memmaps_for_enzymes
+from preprocessor import EnzymeDataProcessor, GODataProcessor

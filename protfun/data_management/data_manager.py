@@ -1,325 +1,250 @@
+import abc
 import os
+import shutil
 import colorlog as log
 import cPickle
+import numpy as np
 import protfun.data_management.preprocess as prep
-from protfun.data_management.sanity_checker import _SanityChecker
-from protfun.data_management.splitter import _DataSplitter
-from protfun.data_management.label_factory import _LabelFactory
-from protfun.data_management.preprocess.grid_processor import GridProcessor
+from protfun.data_management.validation import EnzymeValidator
+from protfun.data_management.label_factory import LabelFactory
 
 
-class DataManager():
+class DataManager(object):
+    __metaclass__ = abc.ABCMeta
     """
-    The data management cycle is: [[download] -> [preprocess] -> store] -> load
+    The data management cycle is: [[download] -> [preprocess] -> [split test/train]] -> provide
     Each datatype has its own _fetcher and _preprocessor
     """
 
-    def __init__(self, data_dirname='data', data_type='enzyme_categorical',
-                 force_download=False, force_process=False, force_split=False,
-                 force_memmap=False, force_gridding=False,
-                 constraint_on=None,
+    def __init__(self, data_dirname='data', force_download=False, force_process=False, split_test=False,
+                 percentage_test=10, percentage_val=20):
+        self.data_dirname = data_dirname
+        self.force_download = force_download
+        self.force_process = force_process or force_download
+        self.split_test = split_test or force_process or force_download
+        self.p_test = percentage_test
+        self.p_val = percentage_val
+
+    @abc.abstractmethod
+    def get_test_set(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_training_set(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_validation_set(self):
+        raise NotImplementedError
+
+    @staticmethod
+    def split_data(data, percentage):
+        first_data_dict = dict()
+        second_data_dict = dict()
+
+        # take percentage of data points from each hierarchical leaf class
+        for cls, samples in data:
+            num_samples = len(samples)
+            first_part_size = int((num_samples * percentage) // 100)
+            second_part_size = num_samples - first_part_size
+            if first_part_size == 0 or second_part_size == 0:
+                log.warning("Data size: {0} percentage: {1}".format(num_samples, percentage))
+                log.warning("One part of the split will be empty. Please increase the percentage.")
+                raise ValueError
+            else:
+                first_samples = np.random.choice(samples,
+                                                 replace=False,
+                                                 size=int((num_samples * percentage) / 100.0))
+                second_samples = np.setdiff1d(samples, first_samples)
+            first_data_dict[cls] = first_samples
+            second_data_dict[cls] = second_samples
+
+        return first_data_dict, second_data_dict
+
+
+class EnzymeDataManager(DataManager):
+    def __init__(self, data_dirname='data', force_download=False, force_memmaps=False, force_grids=False,
+                 split_test=False,
+                 enzyme_classes=None,
                  hierarchical_depth=4,
-                 p_test=10,
-                 p_val=20):
-
-        self.data_type = data_type
-
-        data_dir_raw = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                    "../../", data_dirname + "_raw")
-        data_dir_processed = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                          "../../", data_dirname + "_processed")
-        self.dirs = {'data_raw': data_dir_raw,
-                     'pdb_raw': os.path.join(data_dir_raw, "pdb"),
-                     'go_raw': os.path.join(data_dir_raw, "go"),
-                     'enzymes_raw': os.path.join(data_dir_raw, "enzymes"),
-                     'moldata_raw': os.path.join(data_dir_raw, "moldata"),
-                     'data': data_dir_processed,
-                     'pdb': os.path.join(data_dir_processed, "pdb"),
-                     'go': os.path.join(data_dir_processed, "go"),
-                     'enzymes': os.path.join(data_dir_processed, "enzymes"),
-                     'moldata': os.path.join(data_dir_processed, "moldata")}
-
-        if not os.path.exists(self.dirs['data_raw']):
-            os.makedirs(self.dirs['data_raw'])
-        if not os.path.exists(self.dirs['pdb_raw']):
-            os.makedirs(self.dirs['pdb_raw'])
-        if not os.path.exists(self.dirs['go_raw']):
-            os.makedirs(self.dirs['go_raw'])
-        if not os.path.exists(self.dirs['enzymes_raw']):
-            os.makedirs(self.dirs['enzymes_raw'])
-        if not os.path.exists(self.dirs['moldata_raw']):
-            os.makedirs(self.dirs['moldata_raw'])
-        if not os.path.exists(self.dirs['data']):
-            os.makedirs(self.dirs['data'])
-        if not os.path.exists(self.dirs['pdb']):
-            os.makedirs(self.dirs['pdb'])
-        if not os.path.exists(self.dirs['go']):
-            os.makedirs(self.dirs['go'])
-        if not os.path.exists(self.dirs['enzymes']):
-            os.makedirs(self.dirs['enzymes'])
-        if not os.path.exists(self.dirs['moldata']):
-            os.makedirs(self.dirs['moldata'])
-
-        self.checker = _SanityChecker(data_type=data_type,
-                                      enz_classes=constraint_on,
-                                      dirs=self.dirs)
-
-        self.max_hierarchical_depth = hierarchical_depth
-        self.p_val = p_val
-        self.p_test = p_test
-
-        if data_type == 'enzyme_categorical':
-            self._setup_enzyme_data(force_download=force_download,
-                                    force_process=force_process,
-                                    force_split=force_split,
-                                    force_memmap=force_memmap,
-                                    force_gridding=force_gridding,
-                                    enzyme_classes=constraint_on)
-        elif data_type == 'protein_geneontological':
-            self._setup_geneont_data(force_download=force_download,
-                                     force_process=force_process,
-                                     force_split=force_split)
-        else:
-            log.error("Unknown data type. Possible values are"
-                      " 'enzyme_categorical' and 'protein_geneontological'")
-            raise ValueError
-
-    def _setup_enzyme_data(self, force_download, force_process, force_split,
-                           force_memmap, force_gridding,
-                           enzyme_classes):
-        # interpret the include variable as list of enzymes classes
+                 percentage_test=10,
+                 percentage_val=20):
+        super(EnzymeDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
+                                                force_process=force_grids or force_memmaps, split_test=split_test,
+                                                percentage_test=percentage_test, percentage_val=percentage_val)
+        self.force_grids = force_grids
+        self.force_memmaps = force_memmaps
         self.enzyme_classes = enzyme_classes
+        self.max_hierarchical_depth = hierarchical_depth
 
-        if self.enzyme_classes is None or not self.checker.check_naming(self.enzyme_classes):
+        self.validator = EnzymeValidator(enz_classes=enzyme_classes,
+                                         dirs=self.dirs)
+
+        # define directories for storing the data
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "../../", data_dirname)
+        self.dirs = {'data': data_dir,
+                     'data_raw': os.path.join(data_dir, "raw"),
+                     'data_processed': os.path.join(data_dir, "processed"),
+                     'data_train': os.path.join(data_dir, "train"),
+                     'data_test': os.path.join(data_dir, "test")}
+
+        # ensure all directories exist
+        for _, d in self.dirs.items():
+            if not os.path.exists(d):
+                os.makedirs(d)
+
+        self._setup_enzyme_data()
+
+    def _setup_enzyme_data(self):
+        if self.enzyme_classes is None or not self.validator.check_naming(self.enzyme_classes):
             log.error("Unknown enzyme classes")
             raise ValueError
 
-        if force_download:
+        # Download the data if required
+        if self.force_download:
             ef = prep.EnzymeFetcher(categories=self.enzyme_classes,
-                                    enzyme_dir=self.dirs['enzymes_raw'])
-            self.all_protein_codes = ef.fetch_enzymes()
-            prep.download_pdbs(pdb_dirpath=self.dirs['pdb_raw'],
-                               protein_codes=self.all_protein_codes)
+                                    enzyme_dir=self.dirs['data_raw'])
+            self.all_proteins = ef.fetch_enzymes()
+            prep.download_pdbs(base_dir=self.dirs['data_raw'],
+                               protein_codes=self.all_proteins)
+            self._save_pickle(file_path=os.path.join(self.dirs["data_raw"], "all_prot_codes.pickle"),
+                              data=self.all_proteins)
+            self._save_enzyme_list(target_dir=self.dirs["data_raw"], proteins_dict=self.all_proteins)
         else:
             log.info("Skipping downloading step")
-            self.all_protein_codes = self._load_fetched_codes()
-        failed_downloads = self.checker.check_downloaded_codes()
-        self._remove_failed(failed=failed_downloads)
-        log.info("Total number of downloaded proteins found is {0}. Failed to download {1}".
-                 format(len(self.all_protein_codes), len(failed_downloads)))
+            self.all_proteins = self._load_pickle(
+                file_path=os.path.join(self.dirs["data_raw"], "all_prot_codes.pickle"))
 
-        if force_process:
-            pp = prep.Preprocessor(protein_codes=self.all_protein_codes,
-                                   data_path=self.dirs['pdb_raw'])
-            self.valid_protein_codes, valid_proteins_info_dict = pp.process()
-            self._store_valid(molecule_info=valid_proteins_info_dict)
+        failed_downloads = self.validator.check_downloaded_codes()
+        self._remove_failed_downloads(failed=failed_downloads)
+        log.info("Total number of downloaded proteins found is {0}. Failed to download {1}".
+                 format(len(self.all_proteins), len(failed_downloads)))
+
+        # Process the data if required
+        if self.force_process:
+            edp = prep.EnzymeDataProcessor(protein_codes=self.all_proteins,
+                                           from_dir=self.dirs['data_raw'],
+                                           target_dir=self.dirs['data_processed'],
+                                           process_grids=self.force_grids,
+                                           process_memmaps=self.force_memmaps)
+            self.valid_proteins = edp.process()
+            self._save_pickle(file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"),
+                              data=self.valid_proteins)
+            self._save_enzyme_list(target_dir=self.dirs["data_preprocessed"], proteins_dict=self.valid_proteins)
         else:
             log.info("Skipping preprocessing step")
+            self.valid_proteins = self._load_pickle(file_path=os.path.join(self.dirs["data_processed"],
+                                                                           "valid_prot_codes.pickle"))
 
-        if force_split:
-            ds = _DataSplitter(data_dir=self.dirs,
-                               percentage_test=self.p_test, percentage_val=self.p_val)
-
-            resp = raw_input("Do you want to store a secret test data? y/[n]\n")
+        # Split a test data set if required
+        if self.split_test:
+            resp = raw_input("Do you really want to split a test set into a separate directory?" +
+                             "This will change the existing test set / train set split! y/[n]\n")
             if resp.startswith('y'):
-                self._test_dir, test_dict = ds.store_test_data()
-                self.checker.check_splitting(test_dir=self._test_dir)
-                prep.create_memmaps_for_enzymes(enzyme_dir=self._test_dir['enzymes'],
-                                                moldata_dir=self._test_dir['moldata'],
-                                                pdb_dir=self.dirs['pdb'])
-            ds.split_trainval()
-            train_dict, val_dict, test_dict = self._load_train_val_test_data_pickles()
-            lf = _LabelFactory(train_dict, val_dict, test_dict,
-                               hierarchical_depth=self.max_hierarchical_depth)
-            train_labels, val_labels, test_labels, encoding = lf.generate_hierarchical_labels()
-            self.checker.check_labels(train_labels, val_labels, test_labels)
-            self._store_labels(train_labels, val_labels, test_labels, encoding)
-        else:
-            log.info("Skipping splitting step")
-            # set to the default test_dir
-            _test_dir = os.path.join(self.dirs['data'], 'FORBIDDEN_FOLDER')
-            self._test_dir = {'data': _test_dir,
-                              'pdb': os.path.join(_test_dir, "pdb"),
-                              'go': os.path.join(_test_dir, "go"),
-                              'enzymes': os.path.join(_test_dir, "enzymes"),
-                              'moldata': os.path.join(_test_dir, "moldata")}
+                test_data, train_data = self.split_data(self.valid_proteins, percentage=self.p_test)
 
-        if force_memmap:
-            prep.create_memmaps_for_enzymes(enzyme_dir=self.dirs['enzymes'],
-                                            moldata_dir=self.dirs['moldata'],
-                                            pdb_dir=self.dirs['pdb'])
-        else:
-            log.info("Skipping memmapping step")
+                # recreate the train and test dirs
+                shutil.rmtree(self.dirs['data_train'])
+                os.makedirs(self.dirs['data_train'])
+                shutil.rmtree(self.dirs['data_test'])
+                os.makedirs(self.dirs['data_test'])
 
-        if force_gridding:
-            train_labels, val_labels, test_labels = self._load_train_val_test_label_pickles()
-            trainval_pdbs = train_labels.keys() + val_labels.keys()
-            test_pdbs = test_labels.keys()
-            trainval_gp = GridProcessor(data_dirs=self.dirs, force_process=True)
-            trainval_gp.process_all(trainval_pdbs)
-            if force_split:
-                test_gp = GridProcessor(data_dirs=self._test_dir, force_process=True)
-                test_gp.process_all(test_pdbs)
-        else:
-            log.info("Skipping grid processing step")
+                self._copy_processed(target_dir=self.dirs["data_train"], proteins_dict=train_data)
+                self._save_pickle(file_path=os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
+                                  data=train_data)
+                self._save_enzyme_list(target_dir=self.dirs["data_train"], proteins_dict=train_data)
 
-    def _setup_geneont_data(self, force_download, force_process, force_split):
-        self.all_protein_codes = []
-        self.valid_protein_codes = []
+                self._copy_processed(target_dir=self.dirs["data_test"], proteins_dict=test_data)
+                self._save_pickle(file_path=os.path.join(self.dirs["data_test"], "test_prot_codes.pickle"),
+                                  data=test_data)
+                self._save_enzyme_list(target_dir=self.dirs["data_test"], proteins_dict=test_data)
+
+                self.validator.check_splitting()
+
+        self.test_dataset = self._load_pickle(file_path=os.path.join(self.dirs["data_test"],
+                                                                     "test_prot_codes.pickle"))
+        train_data = self._load_pickle(file_path=os.path.join(self.dirs["data_train"],
+                                                              "train_prot_codes.pickle"))
+        # split a validation set on the fly
+        self.val_dataset, self.train_dataset = self.split_data(train_data, percentage=self.p_val)
+
+        lf = LabelFactory(self.train_dataset, self.val_dataset, self.test_dataset,
+                          hierarchical_depth=self.max_hierarchical_depth)
+        self.train_labels, self.val_labels, self.test_labels, _ = lf.generate_hierarchical_labels()
+
+        # final sanity check
+        self.validator.check_labels(self.train_labels, self.val_labels, self.test_labels)
+
+    def _remove_failed_downloads(self, failed=None):
+        # here the protein codes are stored in a dict according to their classes
+        for cls in failed.keys():
+            self.all_proteins[cls] = list(set(self.all_proteins[cls]) - set(failed[cls]))
+
+    def get_training_set(self):
+        return self.train_dataset, self.train_labels
+
+    def get_validation_set(self):
+        return self.val_dataset, self.val_labels
+
+    def get_test_set(self):
+        return self.test_dataset, self.test_labels
+
+    def _copy_processed(self, target_dir, proteins_dict):
+        src_dir = self.dirs["data_processed"]
+        for prot_codes in proteins_dict.values():
+            for prot_code in prot_codes:
+                os.system("cp -R %s %s" % (os.path.join(src_dir, prot_code.upper()), os.path.join(target_dir, ".")))
+                log.info("Copied {0} to {1} ...".format(prot_code, target_dir))
+
+    @staticmethod
+    def _save_enzyme_list(target_dir, proteins_dict):
+        for cls, prot_codes in proteins_dict.items():
+            with open(os.path.join(target_dir, cls + '.proteins'), mode='w') as f:
+                for prot_code in prot_codes:
+                    f.write(prot_code + '\n')
+
+    @staticmethod
+    def _save_pickle(file_path, data):
+        with open(file_path, 'wb') as f:
+            cPickle.dump(data, f)
+
+    @staticmethod
+    def _load_pickle(file_path):
+        if not os.path.exists(file_path):
+            log.error("No data was saved in {0}.".format(file_path))
+            raise IOError
+        else:
+            with open(file_path, 'r') as f:
+                data = cPickle.load(f)
+            return data
+
+
+class GOProteinsDataManager(DataManager):
+    def __init__(self, data_dirname='data', force_download=False, force_process=False, split_test=False,
+                 percentage_test=10,
+                 percentage_val=20):
+        super(GOProteinsDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
+                                                    force_process=force_process, split_test=split_test,
+                                                    percentage_test=percentage_test, percentage_val=percentage_val)
+
+    def get_test_set(self):
         raise NotImplementedError
 
-    def _load_fetched_codes(self):
-        if self.data_type == 'enzyme_categorical':
-            protein_codes = dict()
-            for cl in self.enzyme_classes:
-                try:
-                    with open(os.path.join(self.dirs['enzymes_raw'], cl + '.proteins'), mode='r') as f:
-                        new_protein_codes = [e.strip() for e in f.readlines()]
-                        if new_protein_codes is None:
-                            log.warning("Enzyme class {0} contains 0 protein codes".format(cl))
-                            protein_codes[cl] = []
-                        else:
-                            protein_codes[cl] = new_protein_codes
-                except EnvironmentError:
-                    log.error("One or more enzyme classes have not been downloaded. "
-                              "Re-run with force_download=True")
-                    raise IOError
-            return protein_codes
-        else:
-            protein_codes = []
-            raise NotImplementedError
+    def get_training_set(self):
+        raise NotImplementedError
 
-    def _load_train_val_test_data_pickles(self):
-        path_to_train = os.path.join(self.dirs['enzymes'], 'train_data.pickle')
-        path_to_val = os.path.join(self.dirs['enzymes'], 'val_data.pickle')
-        path_to_test = os.path.join(self._test_dir['enzymes'], 'test_data.pickle')
-
-        if not os.path.exists(path_to_train):
-            log.error("No previously saved train data found. "
-                      "Re-run with force_split=True")
-            raise IOError
-        else:
-            with open(path_to_train, 'r') as tr:
-                train_dict = cPickle.load(tr)
-
-        if not os.path.exists(path_to_val):
-            log.error("No previously saved validation data found. "
-                      "Re-run with force_split=True")
-            raise IOError
-        else:
-            with open(path_to_val, 'r') as val:
-                val_dict = cPickle.load(val)
-
-        if not os.path.exists(path_to_test):
-            log.error("No previously saved validation data found. "
-                      "Re-run with force_split=True")
-            raise IOError
-        else:
-            with open(path_to_test, 'r') as tst:
-                test_dict = cPickle.load(tst)
-
-        return train_dict, val_dict, test_dict
-
-    def _load_train_val_test_label_pickles(self):
-        path_to_train = os.path.join(self.dirs['enzymes'], 'train_labels.pickle')
-        path_to_val = os.path.join(self.dirs['enzymes'], 'val_labels.pickle')
-        path_to_test = os.path.join(self._test_dir['enzymes'], 'test_labels.pickle')
-
-        if not os.path.exists(path_to_train):
-            log.error("No previously saved train labels found. "
-                      "Re-run with force_split=True")
-            raise IOError
-        else:
-            with open(path_to_train, 'r') as tr:
-                train_labels = cPickle.load(tr)
-
-        if not os.path.exists(path_to_val):
-            log.error("No previously saved validation data found. "
-                      "Re-run with force_split=True")
-            raise IOError
-        else:
-            with open(path_to_val, 'r') as val:
-                val_labels = cPickle.load(val)
-
-        if not os.path.exists(path_to_test):
-            log.error("No previously saved validation data found. "
-                      "Re-run with force_split=True")
-            raise IOError
-        else:
-            with open(path_to_test, 'r') as tst:
-                test_labels = cPickle.load(tst)
-
-        return train_labels, val_labels, test_labels
-
-    def _store_labels(self, train_labels, val_labels, test_labels, label_encoding):
-        with open(os.path.join(self.dirs['enzymes'], 'train_labels.pickle'), 'wb') as f:
-            cPickle.dump(train_labels, f)
-        with open(os.path.join(self.dirs['enzymes'], 'val_labels.pickle'), 'wb') as f:
-            cPickle.dump(val_labels, f)
-        with open(os.path.join(self._test_dir['enzymes'], 'test_labels.pickle'), 'wb') as f:
-            cPickle.dump(test_labels, f)
-        with open(os.path.join(self.dirs['enzymes'], 'label_encoding.pickle'), 'wb') as f:
-            cPickle.dump(label_encoding, f)
-
-    def _store_valid(self, molecule_info):
-        if self.data_type == 'enzyme_categorical':
-            for cls in self.valid_protein_codes.keys():
-                with open(os.path.join(self.dirs['enzymes'], cls + '.proteins'), mode='w') as f:
-                    for prot_code in self.valid_protein_codes[cls]:
-                        f.write(prot_code + '\n')
-                        pdb_filename_src = os.path.join(self.dirs['pdb_raw'],
-                                                        'pdb' + prot_code.lower() + '.ent')
-                        pdb_filename_dst = os.path.join(self.dirs['pdb'],
-                                                        'pdb' + prot_code.lower() + '.ent')
-                        os.system("cp %s %s" % (pdb_filename_src, pdb_filename_dst))
-                        if not os.path.isfile(pdb_filename_dst):
-                            log.warning("Failed copying pdb file {0} from raw to proccessed".
-                                        format(pdb_filename_src))
-            with open(os.path.join(self.dirs['pdb'], 'mol_info.pickle'), 'wb') as f:
-                cPickle.dump(molecule_info, f)
-        else:
-            raise NotImplementedError
-
-    def _remove_failed(self, failed=None):
-        if self.data_type == 'enzyme_categorical':
-            # here the protein codes are stored in a dict according to their classes
-            for cls in failed.keys():
-                self.all_protein_codes[cls] = list(set(self.all_protein_codes[cls]) - set(failed[cls]))
-        else:
-            # here the protein codes are stored in a list as there are no classes
-            self.all_protein_codes = list(set(self.all_protein_codes) - set(failed))
-
-    def load_trainval(self):
-        """
-        Unpickle the previously stored data and labels and pack in a dictionary
-        :return: a dictionary of the training and validation dataset
-        """
-        train_dict, val_dict, _ = self._load_train_val_test_data_pickles()
-        train_lables, val_labels, _ = self._load_train_val_test_label_pickles()
-        data = {'x_train': train_dict, 'y_train': train_lables,
-                'x_val': val_dict, 'y_val': val_labels}
-        return data
-
-    def load_test(self):
-        """
-       Unpickle the previously stored data and labels and pack in a dictionary
-       :return: a dictionary of the training and validation dataset
-       """
-        _, _, test_dict = self._load_train_val_test_data_pickles()
-        _, _, test_labels = self._load_train_val_test_label_pickles()
-        test_data = {'x_test': test_dict, 'y_test': test_labels}
-        return test_data
+    def get_validation_set(self):
+        raise NotImplementedError
 
 
 if __name__ == "__main__":
-    dm = DataManager(data_dirname='experimental',
-                     data_type='enzyme_categorical',
-                     force_download=False,
-                     force_process=False,
-                     force_split=False,
-                     force_memmap=True,
-                     p_test=50,
-                     p_val=50,
-                     hierarchical_depth=4,
-                     constraint_on=['3.4.21.21', '3.4.21.34'])
-    # NOTES: force_download works for enzymes
+    dm = EnzymeDataManager(data_dirname='experimental',
+                           force_download=False,
+                           force_memmaps=False,
+                           force_grids=False,
+                           split_test=False,
+                           percentage_test=50,
+                           percentage_val=50,
+                           hierarchical_depth=4,
+                           enzyme_classes=['3.4.21.21', '3.4.21.34'])
