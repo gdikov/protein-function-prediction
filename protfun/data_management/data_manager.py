@@ -25,6 +25,20 @@ class DataManager(object):
         self.p_test = percentage_test
         self.p_val = percentage_val
 
+        # define directories for storing the data
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "../../", data_dirname)
+        self.dirs = {'data': data_dir,
+                     'data_raw': os.path.join(data_dir, "raw"),
+                     'data_processed': os.path.join(data_dir, "processed"),
+                     'data_train': os.path.join(data_dir, "train"),
+                     'data_test': os.path.join(data_dir, "test")}
+
+        # ensure all directories exist
+        for _, d in self.dirs.items():
+            if not os.path.exists(d):
+                os.makedirs(d)
+
     @abc.abstractmethod
     def get_test_set(self):
         raise NotImplementedError
@@ -79,21 +93,6 @@ class EnzymeDataManager(DataManager):
 
         self.validator = EnzymeValidator(enz_classes=enzyme_classes,
                                          dirs=self.dirs)
-
-        # define directories for storing the data
-        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                "../../", data_dirname)
-        self.dirs = {'data': data_dir,
-                     'data_raw': os.path.join(data_dir, "raw"),
-                     'data_processed': os.path.join(data_dir, "processed"),
-                     'data_train': os.path.join(data_dir, "train"),
-                     'data_test': os.path.join(data_dir, "test")}
-
-        # ensure all directories exist
-        for _, d in self.dirs.items():
-            if not os.path.exists(d):
-                os.makedirs(d)
-
         self._setup_enzyme_data()
 
     def _setup_enzyme_data(self):

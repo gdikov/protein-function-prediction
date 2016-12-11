@@ -12,22 +12,21 @@ class EnzymeValidator(object):
         return sum([not bool(re.compile(r'[^0-9.]').search(cls)) for cls in classes]) == len(classes)
 
     def check_downloaded_codes(self):
-        log.info("Checking downloaded codes")
+        log.info("Checking downloaded proteins")
         num_errors = 0
-        files_and_folders = os.listdir(self.dirs['enzymes_raw'])
-        downloaded_pdbs = os.listdir(self.dirs['pdb_raw'])
+        raw_data_files = os.listdir(self.dirs['data_raw'])
         missing_enzymes = dict()
         for enzyme_class in self.enzyme_classes:
-            if enzyme_class + '.proteins' not in files_and_folders:
+            if enzyme_class + '.proteins' not in raw_data_files:
                 log.warning("Enzyme class {0} has not been downloaded".format(enzyme_class))
                 num_errors += 1
             else:
-                with open(os.path.join(self.dirs['enzymes_raw'], enzyme_class + '.proteins')) \
+                with open(os.path.join(self.dirs['data_raw'], enzyme_class + '.proteins')) \
                         as enz_class_file:
                     all_enzymes_in_class = [e.strip() for e in enz_class_file.readlines()]
                 # check if the codes are in the pdb folder
                 for e in all_enzymes_in_class:
-                    if 'pdb' + e.lower() + '.ent' not in downloaded_pdbs:
+                    if 'pdb' + e.lower() + '.ent' not in raw_data_files:
                         log.warning("PDB file for enzyme {0} is not found (residing in class {1})"
                                     .format(e, enzyme_class))
                         if enzyme_class in missing_enzymes.keys():
@@ -41,20 +40,27 @@ class EnzymeValidator(object):
 
         return missing_enzymes
 
-    def check_splitting(self, test_dir=None):
+    def check_splitting(self):
         log.info("Checking the data splits for consistency and completeness")
-        # take self.percentage_test data points from each hierarchical leaf class
-        leaf_classes = [x for x in os.listdir(self.dirs['enzymes']) if x.endswith('.proteins')]
+        leaf_classes = [x for x in os.listdir(self.dirs['data_processed']) if x.endswith('.proteins')]
         for cls in leaf_classes:
-            path_to_cls = os.path.join(self.dirs['enzymes'], cls)
-            with open(path_to_cls, 'r') as f:
-                prot_codes_trainval_in_cls = [pc.strip() for pc in f.readlines()]
-            path_to_test_cls = os.path.join(test_dir['enzymes'], cls)
+            path_to_valid_cls = os.path.join(self.dirs['data_processed'], cls)
+            with open(path_to_valid_cls, 'r') as f:
+                valid_prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
+
+            path_to_train_cls = os.path.join(self.dirs['data_train'], cls)
+            with open(path_to_train_cls, 'r') as f:
+                train_prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
+
+            path_to_test_cls = os.path.join(self.dirs['data_test'], cls)
             with open(path_to_test_cls, 'r') as f:
-                prot_codes_test_in_cls = [pc.strip() for pc in f.readlines()]
-            if len(set(prot_codes_trainval_in_cls)) + len(set(prot_codes_test_in_cls)) != \
-                    len(set(prot_codes_trainval_in_cls + prot_codes_test_in_cls)):
-                log.error("Incomplete or inconsistent trainval/test splitting!")
+                test_prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
+
+            assert len(set(train_prot_codes_in_cls)) + len(set(test_prot_codes_in_cls)) == \
+                   len(set(train_prot_codes_in_cls + test_prot_codes_in_cls)), "Train and test set are not disjoint!"
+
+            assert set(train_prot_codes_in_cls + test_prot_codes_in_cls) == \
+                   set(valid_prot_codes_in_cls), "Train and test set are not a partition of all processed proteins "
 
     def check_labels(self, train_labels=None, val_labels=None, test_lables=None):
         log.warning("Label checking is not implemented yet")
