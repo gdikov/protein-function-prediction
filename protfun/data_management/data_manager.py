@@ -52,12 +52,12 @@ class DataManager(object):
         raise NotImplementedError
 
     @staticmethod
-    def split_data(data, percentage):
+    def split_data(data_dict, percentage):
         first_data_dict = dict()
         second_data_dict = dict()
 
         # take percentage of data points from each hierarchical leaf class
-        for cls, samples in data:
+        for cls, samples in data_dict.items():
             num_samples = len(samples)
             first_part_size = int((num_samples * percentage) // 100)
             second_part_size = num_samples - first_part_size
@@ -86,8 +86,8 @@ class EnzymeDataManager(DataManager):
         super(EnzymeDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
                                                 force_process=force_grids or force_memmaps, split_test=split_test,
                                                 percentage_test=percentage_test, percentage_val=percentage_val)
-        self.force_grids = force_grids
-        self.force_memmaps = force_memmaps
+        self.force_grids = force_grids or force_download or force_memmaps
+        self.force_memmaps = force_memmaps or force_download
         self.enzyme_classes = enzyme_classes
         self.max_hierarchical_depth = hierarchical_depth
 
@@ -115,13 +115,13 @@ class EnzymeDataManager(DataManager):
             self.all_proteins = self._load_pickle(
                 file_path=os.path.join(self.dirs["data_raw"], "all_prot_codes.pickle"))
 
-        failed_downloads = self.validator.check_downloaded_codes()
+        failed_downloads, n_successful, n_failed = self.validator.check_downloaded_codes()
         self._remove_failed_downloads(failed=failed_downloads)
         log.info("Total number of downloaded proteins found is {0}. Failed to download {1}".
-                 format(len(self.all_proteins), len(failed_downloads)))
+                 format(n_successful, n_failed))
 
         # Process the data if required
-        if self.force_process:
+        if self.force_memmaps or self.force_grids:
             edp = prep.EnzymeDataProcessor(protein_codes=self.all_proteins,
                                            from_dir=self.dirs['data_raw'],
                                            target_dir=self.dirs['data_processed'],
@@ -130,7 +130,7 @@ class EnzymeDataManager(DataManager):
             self.valid_proteins = edp.process()
             self._save_pickle(file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"),
                               data=self.valid_proteins)
-            self._save_enzyme_list(target_dir=self.dirs["data_preprocessed"], proteins_dict=self.valid_proteins)
+            self._save_enzyme_list(target_dir=self.dirs["data_processed"], proteins_dict=self.valid_proteins)
         else:
             log.info("Skipping preprocessing step")
             self.valid_proteins = self._load_pickle(file_path=os.path.join(self.dirs["data_processed"],
@@ -139,7 +139,7 @@ class EnzymeDataManager(DataManager):
         # Split a test data set if required
         if self.split_test:
             resp = raw_input("Do you really want to split a test set into a separate directory?" +
-                             "This will change the existing test set / train set split! y/[n]\n")
+                             " This will change the existing test set / train set split! y/[n]\n")
             if resp.startswith('y'):
                 test_data, train_data = self.split_data(self.valid_proteins, percentage=self.p_test)
 
@@ -242,7 +242,7 @@ if __name__ == "__main__":
                            force_download=False,
                            force_memmaps=False,
                            force_grids=False,
-                           split_test=False,
+                           split_test=True,
                            percentage_test=50,
                            percentage_val=50,
                            hierarchical_depth=4,

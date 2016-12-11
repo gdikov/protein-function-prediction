@@ -68,6 +68,8 @@ class EnzymeDataProcessor(DataProcessor):
                     if grid is None:
                         log.warning("Ignoring PDB file {}, grid could not be processed".format(pc))
                         continue
+                    if not os.path.exists(prot_dir):
+                        os.makedirs(prot_dir)
                     self.save_to_memmap(file_path=os.path.join(prot_dir, "grid.memmap"), data=grid, dtype=floatX)
 
                 # copy the PDB file to the target directory
@@ -78,6 +80,8 @@ class EnzymeDataProcessor(DataProcessor):
         return valid_codes
 
     def _persist_processed(self, prot_dir, mol):
+        if not os.path.exists(prot_dir):
+            os.makedirs(prot_dir)
         # generate and save the memmaps
         coords = mol["coords"]
         charges = mol["charges"]
@@ -262,7 +266,7 @@ class GridProcessor(object):
             coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))
             charges = np.memmap(os.path.join(prot_dir, 'charges.memmap'), mode='r', dtype=floatX).reshape((1, -1))
             vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))
-            n_atoms = coords.shape[1]
+            n_atoms = np.array(coords.shape[1], dtype=intX).reshape((1,))
         except IOError:
             return None
         mol_info = [theano.shared(coords),

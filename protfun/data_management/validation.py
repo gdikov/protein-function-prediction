@@ -1,6 +1,8 @@
 import os
+import ntpath
 import colorlog as log
 import re
+from glob import glob
 
 
 class EnzymeValidator(object):
@@ -14,10 +16,14 @@ class EnzymeValidator(object):
     def check_downloaded_codes(self):
         log.info("Checking downloaded proteins")
         num_errors = 0
-        raw_data_files = os.listdir(self.dirs['data_raw'])
+        raw_pdb_files = [ntpath.basename(y) for x in os.walk(self.dirs['data_raw']) for y in
+                         glob(os.path.join(x[0], '*.ent'))]
+        raw_enzyme_lists = [x for x in os.listdir(self.dirs['data_raw']) if x.endswith('.proteins')]
         missing_enzymes = dict()
+        successful = 0
+        failed = 0
         for enzyme_class in self.enzyme_classes:
-            if enzyme_class + '.proteins' not in raw_data_files:
+            if enzyme_class + '.proteins' not in raw_enzyme_lists:
                 log.warning("Enzyme class {0} has not been downloaded".format(enzyme_class))
                 num_errors += 1
             else:
@@ -26,19 +32,22 @@ class EnzymeValidator(object):
                     all_enzymes_in_class = [e.strip() for e in enz_class_file.readlines()]
                 # check if the codes are in the pdb folder
                 for e in all_enzymes_in_class:
-                    if 'pdb' + e.lower() + '.ent' not in raw_data_files:
+                    if "pdb" + e.lower() + ".ent" not in raw_pdb_files:
+                        failed += 1
                         log.warning("PDB file for enzyme {0} is not found (residing in class {1})"
                                     .format(e, enzyme_class))
                         if enzyme_class in missing_enzymes.keys():
                             missing_enzymes[enzyme_class].append(e.upper())
                         else:
                             missing_enzymes[enzyme_class] = [e.upper()]
+                    else:
+                        successful += 1
             if num_errors > len(self.enzyme_classes) // 10:
                 log.error("More than 10% of the enzyme classes have not been downloaded. "
                           "Consider downloading and processing them anew")
-                return missing_enzymes
+                return missing_enzymes, successful, failed
 
-        return missing_enzymes
+        return missing_enzymes, successful, failed
 
     def check_splitting(self):
         log.info("Checking the data splits for consistency and completeness")
