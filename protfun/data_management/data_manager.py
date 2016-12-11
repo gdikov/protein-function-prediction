@@ -25,9 +25,9 @@ class DataManager():
         self.data_type = data_type
 
         data_dir_raw = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                "../../", data_dirname + "_raw")
+                                    "../../", data_dirname + "_raw")
         data_dir_processed = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                    "../../", data_dirname + "_processed")
+                                          "../../", data_dirname + "_processed")
         self.dirs = {'data_raw': data_dir_raw,
                      'pdb_raw': os.path.join(data_dir_raw, "pdb"),
                      'go_raw': os.path.join(data_dir_raw, "go"),
@@ -77,13 +77,12 @@ class DataManager():
                                     enzyme_classes=constraint_on)
         elif data_type == 'protein_geneontological':
             self._setup_geneont_data(force_download=force_download,
-                                    force_process=force_process,
-                                    force_split=force_split)
+                                     force_process=force_process,
+                                     force_split=force_split)
         else:
             log.error("Unknown data type. Possible values are"
                       " 'enzyme_categorical' and 'protein_geneontological'")
             raise ValueError
-
 
     def _setup_enzyme_data(self, force_download, force_process, force_split,
                            force_memmap, force_gridding,
@@ -137,6 +136,13 @@ class DataManager():
             self._store_labels(train_labels, val_labels, test_labels, encoding)
         else:
             log.info("Skipping splitting step")
+            # set to the default test_dir
+            _test_dir = os.path.join(self.dirs['data'], 'FORBIDDEN_FOLDER')
+            self._test_dir = {'data': _test_dir,
+                              'pdb': os.path.join(_test_dir, "pdb"),
+                              'go': os.path.join(_test_dir, "go"),
+                              'enzymes': os.path.join(_test_dir, "enzymes"),
+                              'moldata': os.path.join(_test_dir, "moldata")}
 
         if force_memmap:
             prep.create_memmaps_for_enzymes(enzyme_dir=self.dirs['enzymes'],
@@ -157,12 +163,10 @@ class DataManager():
         else:
             log.info("Skipping grid processing step")
 
-
     def _setup_geneont_data(self, force_download, force_process, force_split):
         self.all_protein_codes = []
         self.valid_protein_codes = []
         raise NotImplementedError
-
 
     def _load_fetched_codes(self):
         if self.data_type == 'enzyme_categorical':
@@ -184,7 +188,6 @@ class DataManager():
         else:
             protein_codes = []
             raise NotImplementedError
-
 
     def _load_train_val_test_data_pickles(self):
         path_to_train = os.path.join(self.dirs['enzymes'], 'train_data.pickle')
@@ -217,7 +220,6 @@ class DataManager():
 
         return train_dict, val_dict, test_dict
 
-
     def _load_train_val_test_label_pickles(self):
         path_to_train = os.path.join(self.dirs['enzymes'], 'train_labels.pickle')
         path_to_val = os.path.join(self.dirs['enzymes'], 'val_labels.pickle')
@@ -249,7 +251,6 @@ class DataManager():
 
         return train_labels, val_labels, test_labels
 
-
     def _store_labels(self, train_labels, val_labels, test_labels, label_encoding):
         with open(os.path.join(self.dirs['enzymes'], 'train_labels.pickle'), 'wb') as f:
             cPickle.dump(train_labels, f)
@@ -259,7 +260,6 @@ class DataManager():
             cPickle.dump(test_labels, f)
         with open(os.path.join(self.dirs['enzymes'], 'label_encoding.pickle'), 'wb') as f:
             cPickle.dump(label_encoding, f)
-
 
     def _store_valid(self, molecule_info):
         if self.data_type == 'enzyme_categorical':
@@ -280,7 +280,6 @@ class DataManager():
         else:
             raise NotImplementedError
 
-
     def _remove_failed(self, failed=None):
         if self.data_type == 'enzyme_categorical':
             # here the protein codes are stored in a dict according to their classes
@@ -290,7 +289,6 @@ class DataManager():
             # here the protein codes are stored in a list as there are no classes
             self.all_protein_codes = list(set(self.all_protein_codes) - set(failed))
 
-
     def load_trainval(self):
         """
         Unpickle the previously stored data and labels and pack in a dictionary
@@ -298,10 +296,9 @@ class DataManager():
         """
         train_dict, val_dict, _ = self._load_train_val_test_data_pickles()
         train_lables, val_labels, _ = self._load_train_val_test_label_pickles()
-        data = {'x_train': train_dict, 'y_train':train_lables,
+        data = {'x_train': train_dict, 'y_train': train_lables,
                 'x_val': val_dict, 'y_val': val_labels}
         return data
-
 
     def load_test(self):
         """
@@ -317,13 +314,12 @@ class DataManager():
 if __name__ == "__main__":
     dm = DataManager(data_dirname='experimental',
                      data_type='enzyme_categorical',
-                     force_download=True,
-                     force_process=True,
-                     force_split=True,
+                     force_download=False,
+                     force_process=False,
+                     force_split=False,
                      force_memmap=True,
                      p_test=50,
                      p_val=50,
                      hierarchical_depth=4,
                      constraint_on=['3.4.21.21', '3.4.21.34'])
     # NOTES: force_download works for enzymes
-
