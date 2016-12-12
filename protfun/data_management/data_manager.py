@@ -110,7 +110,7 @@ class EnzymeDataManager(DataManager):
         super(EnzymeDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
                                                 force_process=force_grids or force_memmaps, force_split=force_split,
                                                 percentage_test=percentage_test, percentage_val=percentage_val)
-        self.force_grids = force_grids or force_download or force_memmaps
+        self.force_grids = force_download or force_memmaps or force_grids
         self.force_memmaps = force_memmaps or force_download
         self.enzyme_classes = enzyme_classes
         self.max_hierarchical_depth = hierarchical_depth
@@ -162,12 +162,13 @@ class EnzymeDataManager(DataManager):
                                                                            "valid_prot_codes.pickle"))
             self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
 
-        # Split a test data set if required
+        # Split test / val data set if required
         if self.force_split:
             resp = raw_input("Do you really want to split a test set into a separate directory?" +
                              " This will change the existing test set / train set split! y/[n]\n")
             if resp.startswith('y'):
-                test_data, train_data = self.split_data(self.valid_proteins, percentage=self.p_test)
+                test_data, trainval_data = self.split_data(self.valid_proteins, percentage=self.p_test)
+                val_data, train_data = self.split_data(trainval_data, percentage=self.p_val)
 
                 # recreate the train and test dirs
                 shutil.rmtree(self.dirs['data_train'])
@@ -175,45 +176,42 @@ class EnzymeDataManager(DataManager):
                 shutil.rmtree(self.dirs['data_test'])
                 os.makedirs(self.dirs['data_test'])
 
+                # save val and train sets under dirs["data_train"], copy over all corresponding data samples
                 self._copy_processed(target_dir=self.dirs["data_train"], proteins_dict=train_data)
-                self._save_pickle(file_path=os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
-                                  data=train_data)
-                self._save_enzyme_list(target_dir=self.dirs["data_train"], proteins_dict=train_data)
+                self._save_enzyme_list(target_dir=self.dirs["data_train"], proteins_dict=trainval_data)
+                self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
+                                             os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
+                                  data=[self.train_dataset, self.val_dataset])
 
+                # save test set under dirs["data_test"], copy over all corresponding data samples
                 self._copy_processed(target_dir=self.dirs["data_test"], proteins_dict=test_data)
+                self._save_enzyme_list(target_dir=self.dirs["data_test"], proteins_dict=test_data)
                 self._save_pickle(file_path=os.path.join(self.dirs["data_test"], "test_prot_codes.pickle"),
                                   data=test_data)
-                self._save_enzyme_list(target_dir=self.dirs["data_test"], proteins_dict=test_data)
 
                 self.validator.check_splitting()
-
-            self.test_dataset = self._load_pickle(file_path=os.path.join(self.dirs["data_test"],
-                                                                         "test_prot_codes.pickle"))
-
-            # check if validation split has beed performed and merge the train and validation sets
-            if os.path.exists(os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")):
+            else:
+                # only reinitialize the train and validation sets
+                # the existing train and val pickles need to be merged and split again
                 train_data, val_data = self._load_pickle(file_path=[os.path.join(self.dirs["data_train"],
                                                                                  "train_prot_codes.pickle"),
                                                                     os.path.join(self.dirs["data_train"],
                                                                                  "val_prot_codes.pickle")])
-                train_data = self.merge_data(data=[train_data, val_data])
-            else:
-                train_data = self._load_pickle(file_path=os.path.join(self.dirs["data_train"],
-                                                                      "train_prot_codes.pickle"))
-            # reinitialize the train and validation sets
-            self.val_dataset, self.train_dataset = self.split_data(train_data, percentage=self.p_val)
+                trainval_data = self.merge_data(data=[train_data, val_data])
 
-            # overwrite the current unsplit train data with the subset for training only
-            # and save the validation set too
-            self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
-                                         os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
-                              data=[self.train_dataset, self.val_dataset])
+                # split them again
+                self.val_dataset, self.train_dataset = self.split_data(trainval_data, percentage=self.p_val)
+                self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
+                                             os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
+                                  data=[self.train_dataset, self.val_dataset])
 
+            # generate labels based on the new splits
             lf = LabelFactory(self.train_dataset, self.val_dataset, self.test_dataset,
                               hierarchical_depth=self.max_hierarchical_depth)
             self.train_labels, self.val_labels, self.test_labels, encoding = lf.generate_hierarchical_labels()
             self._save_pickle(file_path=os.path.join(self.dirs['misc'], "label_encoding.pickle"),
                               data=encoding)
+
             # pickle the generated labels
             self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_labels.pickle"),
                                          os.path.join(self.dirs["data_train"], "val_labels.pickle"),
@@ -224,15 +222,16 @@ class EnzymeDataManager(DataManager):
             self.validator.check_labels(self.train_labels, self.val_labels, self.test_labels)
         else:
             log.info("Skipping splitting step")
-            self.train_dataset, self.val_dataset, self.test_dataset = \
-                self._load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
-                                             os.path.join(self.dirs["data_train"], "val_prot_codes.pickle"),
-                                             os.path.join(self.dirs["data_test"], "test_prot_codes.pickle")])
 
-            self.train_labels, self.val_labels, self.test_labels = \
-                self._load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_labels.pickle"),
-                                             os.path.join(self.dirs["data_train"], "val_labels.pickle"),
-                                             os.path.join(self.dirs["data_test"], "test_labels.pickle")])
+        self.train_dataset, self.val_dataset, self.test_dataset = \
+            self._load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
+                                         os.path.join(self.dirs["data_train"], "val_prot_codes.pickle"),
+                                         os.path.join(self.dirs["data_test"], "test_prot_codes.pickle")])
+
+        self.train_labels, self.val_labels, self.test_labels = \
+            self._load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_labels.pickle"),
+                                         os.path.join(self.dirs["data_train"], "val_labels.pickle"),
+                                         os.path.join(self.dirs["data_test"], "test_labels.pickle")])
 
     def _remove_failed_downloads(self, failed=None):
         # here the protein codes are stored in a dict according to their classes
@@ -320,7 +319,7 @@ if __name__ == "__main__":
                            force_download=False,
                            force_memmaps=False,
                            force_grids=False,
-                           force_split=True,
+                           force_split=False,
                            percentage_test=25,
                            percentage_val=50,
                            hierarchical_depth=4,

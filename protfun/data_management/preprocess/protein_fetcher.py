@@ -119,6 +119,7 @@ def download_pdbs(base_dir, protein_codes):
             prot_codes += protein_codes[key]
     else:
         prot_codes = protein_codes
+    prot_codes = list(set(prot_codes))
     from Bio.PDB import PDBList
     failed = 0
     attempted = len(prot_codes)
