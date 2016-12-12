@@ -42,7 +42,6 @@ class EnzymeDataFeeder(DataFeeder):
                                               force_memmaps=False,
                                               force_grids=False,
                                               force_split=False)
-        self.dirs = self.data_manager.dirs
 
     # NOTE: this method will be removed in the very near future. I need it for a moment.
     def iter_minibatches(self, inputs_list, mode='train'):
@@ -91,7 +90,7 @@ class EnzymesMolDataFeeder(DataFeeder):
             resp = raw_input("Think twice before testing. "
                              "Are you sure you want to do a final model evaluation? y/[n]")
             if resp.startswith('y'):
-                x_test, y_test = dm.get_test_set()
+                x_test, y_test = self.data_manager.get_test_set()
                 self.data = {'x_test': x_test, 'y_test': y_test}
             else:
                 log.warning("Changing mode to 'train'")

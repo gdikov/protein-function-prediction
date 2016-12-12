@@ -233,6 +233,7 @@ class EnzymeDataManager(DataManager):
                                          os.path.join(self.dirs["data_train"], "val_labels.pickle"),
                                          os.path.join(self.dirs["data_test"], "test_labels.pickle")])
 
+
     def _remove_failed_downloads(self, failed=None):
         # here the protein codes are stored in a dict according to their classes
         for cls in failed.keys():
