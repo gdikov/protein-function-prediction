@@ -68,14 +68,12 @@ class DataManager(object):
             first_part_size = int((num_samples * percentage) // 100)
             second_part_size = num_samples - first_part_size
             if first_part_size == 0 or second_part_size == 0:
-                log.warning("Data size: {0} percentage: {1}".format(num_samples, percentage))
-                log.warning("One part of the split will be empty. Please increase the percentage.")
-                raise ValueError
-            else:
-                first_samples = np.random.choice(samples,
-                                                 replace=False,
-                                                 size=int((num_samples * percentage) / 100.0))
-                second_samples = np.setdiff1d(samples, first_samples, assume_unique=True)
+                log.warning("Data size of leaf class: {0} percentage: {1}".format(num_samples, percentage))
+                log.warning("Class {} will not be represented in one part of the split.".format(cls))
+            first_samples = np.random.choice(samples,
+                                             replace=False,
+                                             size=int((num_samples * percentage) // 100.0))
+            second_samples = np.setdiff1d(samples, first_samples, assume_unique=True)
             first_data_dict[cls] = list(first_samples)
             second_data_dict[cls] = list(second_samples)
 
@@ -110,7 +108,7 @@ class EnzymeDataManager(DataManager):
         super(EnzymeDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
                                                 force_process=force_grids or force_memmaps, force_split=force_split,
                                                 percentage_test=percentage_test, percentage_val=percentage_val)
-        self.force_grids = force_download or force_memmaps or force_grids
+        self.force_grids = False
         self.force_memmaps = force_memmaps or force_download
         self.enzyme_classes = enzyme_classes
         self.max_hierarchical_depth = hierarchical_depth
@@ -167,8 +165,8 @@ class EnzymeDataManager(DataManager):
             resp = raw_input("Do you really want to split a test set into a separate directory?" +
                              " This will change the existing test set / train set split! y/[n]\n")
             if resp.startswith('y'):
-                test_data, trainval_data = self.split_data(self.valid_proteins, percentage=self.p_test)
-                val_data, train_data = self.split_data(trainval_data, percentage=self.p_val)
+                test_dataset, trainval_data = self.split_data(self.valid_proteins, percentage=self.p_test)
+                val_dataset, train_dataset = self.split_data(trainval_data, percentage=self.p_val)
 
                 # recreate the train and test dirs
                 shutil.rmtree(self.dirs['data_train'])
@@ -177,36 +175,38 @@ class EnzymeDataManager(DataManager):
                 os.makedirs(self.dirs['data_test'])
 
                 # save val and train sets under dirs["data_train"], copy over all corresponding data samples
-                self._copy_processed(target_dir=self.dirs["data_train"], proteins_dict=train_data)
+                self._copy_processed(target_dir=self.dirs["data_train"], proteins_dict=train_dataset)
                 self._save_enzyme_list(target_dir=self.dirs["data_train"], proteins_dict=trainval_data)
                 self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
                                              os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
-                                  data=[self.train_dataset, self.val_dataset])
+                                  data=[train_dataset, val_dataset])
 
                 # save test set under dirs["data_test"], copy over all corresponding data samples
-                self._copy_processed(target_dir=self.dirs["data_test"], proteins_dict=test_data)
-                self._save_enzyme_list(target_dir=self.dirs["data_test"], proteins_dict=test_data)
+                self._copy_processed(target_dir=self.dirs["data_test"], proteins_dict=test_dataset)
+                self._save_enzyme_list(target_dir=self.dirs["data_test"], proteins_dict=test_dataset)
                 self._save_pickle(file_path=os.path.join(self.dirs["data_test"], "test_prot_codes.pickle"),
-                                  data=test_data)
+                                  data=test_dataset)
 
                 self.validator.check_splitting()
             else:
                 # only reinitialize the train and validation sets
                 # the existing train and val pickles need to be merged and split again
-                train_data, val_data = self._load_pickle(file_path=[os.path.join(self.dirs["data_train"],
-                                                                                 "train_prot_codes.pickle"),
-                                                                    os.path.join(self.dirs["data_train"],
-                                                                                 "val_prot_codes.pickle")])
-                trainval_data = self.merge_data(data=[train_data, val_data])
+                train_dataset, val_dataset = self._load_pickle(file_path=[os.path.join(self.dirs["data_train"],
+                                                                                       "train_prot_codes.pickle"),
+                                                                          os.path.join(self.dirs["data_train"],
+                                                                                       "val_prot_codes.pickle")])
+                trainval_data = self.merge_data(data=[train_dataset, val_dataset])
 
                 # split them again
-                self.val_dataset, self.train_dataset = self.split_data(trainval_data, percentage=self.p_val)
+                val_dataset, train_dataset = self.split_data(trainval_data, percentage=self.p_val)
                 self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
                                              os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
-                                  data=[self.train_dataset, self.val_dataset])
+                                  data=[train_dataset, val_dataset])
+
+            test_dataset = self._load_pickle(file_path=os.path.join(self.dirs["data_test"], "test_prot_codes.pickle"))
 
             # generate labels based on the new splits
-            lf = LabelFactory(self.train_dataset, self.val_dataset, self.test_dataset,
+            lf = LabelFactory(train_dataset, val_dataset, test_dataset,
                               hierarchical_depth=self.max_hierarchical_depth)
             self.train_labels, self.val_labels, self.test_labels, encoding = lf.generate_hierarchical_labels()
             self._save_pickle(file_path=os.path.join(self.dirs['misc'], "label_encoding.pickle"),
@@ -321,10 +321,10 @@ if __name__ == "__main__":
                            force_memmaps=False,
                            force_grids=False,
                            force_split=False,
-                           percentage_test=25,
-                           percentage_val=50,
+                           percentage_test=20,
+                           percentage_val=15,
                            hierarchical_depth=4,
-                           enzyme_classes=['3.4.21.21', '3.4.21.34'])
+                           enzyme_classes=['3.4.21', '3.4.24'])
     print(dm.train_dataset)
     print(dm.train_labels)
     print(dm.val_dataset)
