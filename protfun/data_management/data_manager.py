@@ -16,12 +16,13 @@ class DataManager(object):
     Each datatype has its own _fetcher and _preprocessor
     """
 
-    def __init__(self, data_dirname='data', force_download=False, force_process=False, split_test=False,
+    def __init__(self, data_dirname='data',
+                 force_download=False, force_process=False, force_split=False,
                  percentage_test=10, percentage_val=20):
         self.data_dirname = data_dirname
         self.force_download = force_download
         self.force_process = force_process or force_download
-        self.split_test = split_test or force_process or force_download
+        self.force_split = force_split or force_process or force_download
         self.p_test = percentage_test
         self.p_val = percentage_val
 
@@ -32,7 +33,8 @@ class DataManager(object):
                      'data_raw': os.path.join(data_dir, "raw"),
                      'data_processed': os.path.join(data_dir, "processed"),
                      'data_train': os.path.join(data_dir, "train"),
-                     'data_test': os.path.join(data_dir, "test")}
+                     'data_test': os.path.join(data_dir, "test"),
+                     'misc': os.path.join(data_dir, "misc")}
 
         # ensure all directories exist
         for _, d in self.dirs.items():
@@ -53,6 +55,10 @@ class DataManager(object):
 
     @staticmethod
     def split_data(data_dict, percentage):
+        if percentage > 100:
+            log.error("Bad percentage number. Must be in [0, 100]")
+            raise ValueError
+
         first_data_dict = dict()
         second_data_dict = dict()
 
@@ -69,22 +75,40 @@ class DataManager(object):
                 first_samples = np.random.choice(samples,
                                                  replace=False,
                                                  size=int((num_samples * percentage) / 100.0))
-                second_samples = np.setdiff1d(samples, first_samples)
-            first_data_dict[cls] = first_samples
-            second_data_dict[cls] = second_samples
+                second_samples = np.setdiff1d(samples, first_samples, assume_unique=True)
+            first_data_dict[cls] = list(first_samples)
+            second_data_dict[cls] = list(second_samples)
 
         return first_data_dict, second_data_dict
 
+    @staticmethod
+    def merge_data(data=None):
+        if isinstance(data, list):
+            all_keys = set(sum([d.keys() for d in data], []))
+            merged_data_dict = {k: [] for k in all_keys}
+            for d in data:
+                for k in all_keys:
+                    if k in d.keys():
+                        merged_data_dict[k] += d[k]
+            # remove eventual duplicates from the lists of elements for each key
+            for k in all_keys:
+                merged_data_dict[k] = list(set(merged_data_dict[k]))
+            return merged_data_dict
+        else:
+            log.error("Provide a list of data dictionaries to be merged")
+            raise ValueError
+
 
 class EnzymeDataManager(DataManager):
-    def __init__(self, data_dirname='data', force_download=False, force_memmaps=False, force_grids=False,
-                 split_test=False,
+    def __init__(self, data_dirname='data',
+                 force_download=False, force_memmaps=False,
+                 force_grids=False, force_split=False,
                  enzyme_classes=None,
                  hierarchical_depth=4,
                  percentage_test=10,
                  percentage_val=20):
         super(EnzymeDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
-                                                force_process=force_grids or force_memmaps, split_test=split_test,
+                                                force_process=force_grids or force_memmaps, force_split=force_split,
                                                 percentage_test=percentage_test, percentage_val=percentage_val)
         self.force_grids = force_grids or force_download or force_memmaps
         self.force_memmaps = force_memmaps or force_download
@@ -139,7 +163,7 @@ class EnzymeDataManager(DataManager):
             self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
 
         # Split a test data set if required
-        if self.split_test:
+        if self.force_split:
             resp = raw_input("Do you really want to split a test set into a separate directory?" +
                              " This will change the existing test set / train set split! y/[n]\n")
             if resp.startswith('y'):
@@ -163,19 +187,52 @@ class EnzymeDataManager(DataManager):
 
                 self.validator.check_splitting()
 
-        self.test_dataset = self._load_pickle(file_path=os.path.join(self.dirs["data_test"],
-                                                                     "test_prot_codes.pickle"))
-        train_data = self._load_pickle(file_path=os.path.join(self.dirs["data_train"],
-                                                              "train_prot_codes.pickle"))
-        # split a validation set on the fly
-        self.val_dataset, self.train_dataset = self.split_data(train_data, percentage=self.p_val)
+            self.test_dataset = self._load_pickle(file_path=os.path.join(self.dirs["data_test"],
+                                                                         "test_prot_codes.pickle"))
 
-        lf = LabelFactory(self.train_dataset, self.val_dataset, self.test_dataset,
-                          hierarchical_depth=self.max_hierarchical_depth)
-        self.train_labels, self.val_labels, self.test_labels, _ = lf.generate_hierarchical_labels()
+            # check if validation split has beed performed and merge the train and validation sets
+            if os.path.exists(os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")):
+                train_data, val_data = self._load_pickle(file_path=[os.path.join(self.dirs["data_train"],
+                                                                                 "train_prot_codes.pickle"),
+                                                                    os.path.join(self.dirs["data_train"],
+                                                                                 "val_prot_codes.pickle")])
+                train_data = self.merge_data(data=[train_data, val_data])
+            else:
+                train_data = self._load_pickle(file_path=os.path.join(self.dirs["data_train"],
+                                                                      "train_prot_codes.pickle"))
+            # reinitialize the train and validation sets
+            self.val_dataset, self.train_dataset = self.split_data(train_data, percentage=self.p_val)
 
-        # final sanity check
-        self.validator.check_labels(self.train_labels, self.val_labels, self.test_labels)
+            # overwrite the current unsplit train data with the subset for training only
+            # and save the validation set too
+            self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
+                                         os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
+                              data=[self.train_dataset, self.val_dataset])
+
+            lf = LabelFactory(self.train_dataset, self.val_dataset, self.test_dataset,
+                              hierarchical_depth=self.max_hierarchical_depth)
+            self.train_labels, self.val_labels, self.test_labels, encoding = lf.generate_hierarchical_labels()
+            self._save_pickle(file_path=os.path.join(self.dirs['misc'], "label_encoding.pickle"),
+                              data=encoding)
+            # pickle the generated labels
+            self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_labels.pickle"),
+                                         os.path.join(self.dirs["data_train"], "val_labels.pickle"),
+                                         os.path.join(self.dirs["data_test"], "test_labels.pickle")],
+                              data=[self.train_labels, self.val_labels, self.test_labels])
+
+            # final sanity check
+            self.validator.check_labels(self.train_labels, self.val_labels, self.test_labels)
+        else:
+            log.info("Skipping splitting step")
+            self.train_dataset, self.val_dataset, self.test_dataset = \
+                self._load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
+                                             os.path.join(self.dirs["data_train"], "val_prot_codes.pickle"),
+                                             os.path.join(self.dirs["data_test"], "test_prot_codes.pickle")])
+
+            self.train_labels, self.val_labels, self.test_labels = \
+                self._load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_labels.pickle"),
+                                             os.path.join(self.dirs["data_train"], "val_labels.pickle"),
+                                             os.path.join(self.dirs["data_test"], "test_labels.pickle")])
 
     def _remove_failed_downloads(self, failed=None):
         # here the protein codes are stored in a dict according to their classes
@@ -207,26 +264,45 @@ class EnzymeDataManager(DataManager):
 
     @staticmethod
     def _save_pickle(file_path, data):
-        with open(file_path, 'wb') as f:
-            cPickle.dump(data, f)
+        if isinstance(data, list) and isinstance(file_path, list):
+            if len(data) == len(file_path):
+                for path, dat in zip(file_path, data):
+                    with open(path, 'wb') as f:
+                        cPickle.dump(dat, f)
+            else:
+                log.error("File paths are not matching the number of objects to save")
+                raise ValueError
+        else:
+            with open(file_path, 'wb') as f:
+                cPickle.dump(data, f)
 
     @staticmethod
     def _load_pickle(file_path):
-        if not os.path.exists(file_path):
-            log.error("No data was saved in {0}.".format(file_path))
-            raise IOError
+        def _load_one(path):
+            if not os.path.exists(path):
+                log.error("No data was saved in {0}.".format(path))
+                raise IOError
+            else:
+                with open(path, 'r') as f:
+                    data = cPickle.load(f)
+                return data
+
+        if isinstance(file_path, list):
+            objs = []
+            for path in file_path:
+                unpickled = _load_one(path)
+                objs.append(unpickled)
+            return objs
         else:
-            with open(file_path, 'r') as f:
-                data = cPickle.load(f)
-            return data
+            return _load_one(file_path)
 
 
 class GOProteinsDataManager(DataManager):
-    def __init__(self, data_dirname='data', force_download=False, force_process=False, split_test=False,
+    def __init__(self, data_dirname='data', force_download=False, force_process=False, force_split=False,
                  percentage_test=10,
                  percentage_val=20):
         super(GOProteinsDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
-                                                    force_process=force_process, split_test=split_test,
+                                                    force_process=force_process, force_split=force_split,
                                                     percentage_test=percentage_test, percentage_val=percentage_val)
 
     def get_test_set(self):
@@ -241,11 +317,17 @@ class GOProteinsDataManager(DataManager):
 
 if __name__ == "__main__":
     dm = EnzymeDataManager(data_dirname='experimental',
-                           force_download=True,
-                           force_memmaps=True,
-                           force_grids=True,
-                           split_test=True,
-                           percentage_test=50,
+                           force_download=False,
+                           force_memmaps=False,
+                           force_grids=False,
+                           force_split=True,
+                           percentage_test=25,
                            percentage_val=50,
                            hierarchical_depth=4,
                            enzyme_classes=['3.4.21.21', '3.4.21.34'])
+    print(dm.train_dataset)
+    print(dm.train_labels)
+    print(dm.val_dataset)
+    print(dm.val_labels)
+    print(dm.test_dataset)
+    print(dm.test_labels)

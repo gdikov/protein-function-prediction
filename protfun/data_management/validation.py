@@ -57,7 +57,7 @@ class EnzymeValidator(object):
                 log.warning("Class {0} is not represented".format(cls))
                 if clean_dict:
                     bad_keys.append(cls)
-        if clean_dict:
+        if clean_dict and len(bad_keys) > 0:
             log.warning("Class(es) %r will be deleted from the data dictionary" %bad_keys)
             for k in data_dict.keys():
                 if k in bad_keys:
