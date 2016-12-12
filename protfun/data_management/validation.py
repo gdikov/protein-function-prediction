@@ -42,10 +42,6 @@ class EnzymeValidator(object):
                             missing_enzymes[enzyme_class] = [e.upper()]
                     else:
                         successful += 1
-            if num_errors > len(self.enzyme_classes) // 10:
-                log.error("More than 10% of the enzyme classes have not been downloaded. "
-                          "Consider downloading and processing them anew")
-                return missing_enzymes, successful, failed
 
         return missing_enzymes, successful, failed
 
