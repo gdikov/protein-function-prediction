@@ -6,6 +6,7 @@ import theano
 from os import path
 
 from protfun.data_management.preprocess.data_prep import DataSetup
+from protfun.data_management.data_manager import EnzymeDataManager
 
 log.basicConfig(level=logging.DEBUG)
 floatX = theano.config.floatX
@@ -34,15 +35,16 @@ class DataFeeder(object):
 
 
 class EnzymeDataFeeder(DataFeeder):
-    def __init__(self, minibatch_size, init_samples_per_class, enzyme_classes, force_download=False,
-                 force_process=False):
+    def __init__(self, minibatch_size, init_samples_per_class):
         super(EnzymeDataFeeder, self).__init__(minibatch_size, init_samples_per_class)
-        data = DataSetup(enzyme_classes=enzyme_classes,
-                         label_type='enzyme_classes',
-                         force_download=force_download,
-                         force_process=force_process)
-        self.data = data.load_dataset()
 
+        self.data_manager = EnzymeDataManager(force_download=False,
+                                              force_memmaps=False,
+                                              force_grids=False,
+                                              force_split=False)
+        self.dirs = self.data_manager.dirs
+
+    # NOTE: this method will be removed in the very near future. I need it for a moment.
     def iter_minibatches(self, inputs_list, mode='train'):
         data_size = self.data['y_' + mode].shape[0]
         num_classes = self.data['class_distribution_' + mode].shape[0]
@@ -79,14 +81,31 @@ class EnzymeDataFeeder(DataFeeder):
             yield next_data_points + next_targets
 
 
-class EnzymesMolDataFeeder(EnzymeDataFeeder):
-    def __init__(self, path_to_moldata, minibatch_size, init_samples_per_class, enzyme_classes,
-                 force_download=False,
-                 force_process=False):
-        super(EnzymesMolDataFeeder, self).__init__(minibatch_size, init_samples_per_class,
-                                                   enzyme_classes=enzyme_classes,
-                                                   force_download=force_download,
-                                                   force_process=force_process)
+class EnzymesMolDataFeeder(DataFeeder):
+    def __init__(self, minibatch_size, init_samples_per_class, mode='train'):
+        super(EnzymesMolDataFeeder, self).__init__(minibatch_size, init_samples_per_class)
+
+        #TODOs...
+
+        if mode == 'test':
+            resp = raw_input("Think twice before testing. "
+                             "Are you sure you want to do a final model evaluation? y/[n]")
+            if resp.startswith('y'):
+                x_test, y_test = dm.get_test_set()
+                self.data = {'x_test': x_test, 'y_test': y_test}
+            else:
+                log.warning("Changing mode to 'train'")
+                mode = 'train'
+        elif mode == 'train':
+            x_train, y_train = dm.get_training_set()
+            x_val, y_val = dm.get_validation_set()
+            self.data = {'x_train': x_train, 'y_train': y_train,
+                         'x_val': x_val, 'y_val': y_val}
+        else:
+            log.error("Only 'train' and 'test' modes are allowed")
+            raise ValueError
+
+        self.mode = mode
 
         self.max_atoms = np.memmap(path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
         coords = np.memmap(path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=floatX).reshape(
