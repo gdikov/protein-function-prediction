@@ -128,6 +128,7 @@ class EnzymeDataManager(DataManager):
                                            process_grids=self.force_grids,
                                            process_memmaps=self.force_memmaps)
             self.valid_proteins = edp.process()
+            self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
             self._save_pickle(file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"),
                               data=self.valid_proteins)
             self._save_enzyme_list(target_dir=self.dirs["data_processed"], proteins_dict=self.valid_proteins)
@@ -135,6 +136,7 @@ class EnzymeDataManager(DataManager):
             log.info("Skipping preprocessing step")
             self.valid_proteins = self._load_pickle(file_path=os.path.join(self.dirs["data_processed"],
                                                                            "valid_prot_codes.pickle"))
+            self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
 
         # Split a test data set if required
         if self.split_test:
@@ -194,7 +196,7 @@ class EnzymeDataManager(DataManager):
         for prot_codes in proteins_dict.values():
             for prot_code in prot_codes:
                 os.system("cp -R %s %s" % (os.path.join(src_dir, prot_code.upper()), os.path.join(target_dir, ".")))
-                log.info("Copied {0} to {1} ...".format(prot_code, target_dir))
+                log.info("Copied {0} to {1}".format(prot_code, target_dir))
 
     @staticmethod
     def _save_enzyme_list(target_dir, proteins_dict):
@@ -239,9 +241,9 @@ class GOProteinsDataManager(DataManager):
 
 if __name__ == "__main__":
     dm = EnzymeDataManager(data_dirname='experimental',
-                           force_download=False,
-                           force_memmaps=False,
-                           force_grids=False,
+                           force_download=True,
+                           force_memmaps=True,
+                           force_grids=True,
                            split_test=True,
                            percentage_test=50,
                            percentage_val=50,
