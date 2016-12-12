@@ -8,7 +8,6 @@ import theano
 import numpy as np
 
 from protfun.layers import MoleculeMapLayer
-from protfun.data_management.data_manager import DataManager
 from protfun.visualizer.molview import MoleculeView
 from protfun.data_management.data_feed import EnzymesMolDataFeeder, EnzymesGridFeeder
 from protfun.models import ModelTrainer
@@ -44,10 +43,7 @@ def visualize():
 
 
 def train_enz_from_memmaps():
-    path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/moldata")
-    data_feeder = EnzymesMolDataFeeder(path_to_moldata=path_to_moldata,
-                                       enzyme_classes=['3.4.21', '3.4.24'],
-                                       minibatch_size=8,
+    data_feeder = EnzymesMolDataFeeder(minibatch_size=8,
                                        init_samples_per_class=1)
     model = MemmapsDisjointClassifier(n_classes=2, network=basic_convnet, minibatch_size=8)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
@@ -55,29 +51,14 @@ def train_enz_from_memmaps():
 
 
 def train_enz_from_grids():
-    grids_dir = os.path.join(os.path.dirname(__file__), "../data/grids")
-    data_feeder = EnzymesGridFeeder(grids_dir=grids_dir,
-                                    grid_size=64,
-                                    enzyme_classes=['3.4.21', '3.4.24'],
-                                    minibatch_size=1,
+    data_feeder = EnzymesGridFeeder(minibatch_size=8,
                                     init_samples_per_class=1)
     model = GridsDisjointClassifier(n_classes=2, network=basic_convnet, grid_size=64, minibatch_size=8)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
     trainer.train(epochs=100)
 
 
-def test_datamanager():
-    data = DataManager(data_dirname='test_folder', data_type='enzyme_categorical',
-                       force_download=True, force_process=True, force_split=True,
-                       force_memmap=True, force_gridding=True,
-                       constraint_on=['3.4.21.21', '3.4.21.34'], hierarchical_depth=4,
-                       p_test=50, p_val=50)
-
-    data = data.load_trainval()
-
-
 if __name__ == "__main__":
-    # train_enz_from_memmaps()
-    test_datamanager()
+    train_enz_from_memmaps()
     # train_enz_from_grids()
     # visualize()
