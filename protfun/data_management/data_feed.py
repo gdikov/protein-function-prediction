@@ -1,11 +1,10 @@
 import logging
-
+import abc
 import colorlog as log
 import numpy as np
 import theano
 from os import path
 
-from protfun.data_management.preprocess.data_prep import DataSetup
 from protfun.data_management.data_manager import EnzymeDataManager
 
 log.basicConfig(level=logging.DEBUG)
@@ -44,7 +43,8 @@ class EnzymeDataFeeder(DataFeeder):
                                               force_split=False)
 
     # NOTE: this method will be removed in the very near future. I need it for a moment.
-    def iter_minibatches(self, inputs_list, mode='train'):
+    def _iter_minibatches(self, mode='train'):
+        # TODO: fix this up so that it correctly loads the labels and prot codes for the given mode
         data_size = self.data['y_' + mode].shape[0]
         num_classes = self.data['class_distribution_' + mode].shape[0]
         represented_classes = np.arange(num_classes)[self.data['class_distribution_' + mode] > 0.]
@@ -79,86 +79,52 @@ class EnzymeDataFeeder(DataFeeder):
             next_data_points = [input_var[memmap_indices] for input_var in inputs_list]
             yield next_data_points + next_targets
 
+    @abc.abstractmethod
+    def _form_sample_minibatch(self, prot_codes, from_dir):
+        raise NotImplementedError
 
-class EnzymesMolDataFeeder(DataFeeder):
-    def __init__(self, minibatch_size, init_samples_per_class, mode='train'):
+
+class EnzymesMolDataFeeder(EnzymeDataFeeder):
+    def __init__(self, minibatch_size, init_samples_per_class):
         super(EnzymesMolDataFeeder, self).__init__(minibatch_size, init_samples_per_class)
 
-        #TODOs...
-
-        if mode == 'test':
-            resp = raw_input("Think twice before testing. "
-                             "Are you sure you want to do a final model evaluation? y/[n]")
-            if resp.startswith('y'):
-                x_test, y_test = self.data_manager.get_test_set()
-                self.data = {'x_test': x_test, 'y_test': y_test}
-            else:
-                log.warning("Changing mode to 'train'")
-                mode = 'train'
-        elif mode == 'train':
-            x_train, y_train = dm.get_training_set()
-            x_val, y_val = dm.get_validation_set()
-            self.data = {'x_train': x_train, 'y_train': y_train,
-                         'x_val': x_val, 'y_val': y_val}
-        else:
-            log.error("Only 'train' and 'test' modes are allowed")
-            raise ValueError
-
-        self.mode = mode
-
-        self.max_atoms = np.memmap(path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
-        coords = np.memmap(path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=floatX).reshape(
-            (-1, self.max_atoms, 3))
-        charges = np.memmap(path.join(path_to_moldata, 'charges.memmap'), mode='r', dtype=floatX).reshape(
-            (-1, self.max_atoms))
-        vdwradii = np.memmap(path.join(path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape(
-            (-1, self.max_atoms))
-        n_atoms = np.memmap(path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=intX)
-
-        self.inputs_list = [coords, charges, vdwradii, n_atoms]
-
     def iterate_test_data(self):
-        for inputs in self.iter_minibatches(self.inputs_list, mode='test'):
+        for inputs in self._iter_minibatches(mode='test'):
             yield inputs
 
     def iterate_train_data(self):
-        for inputs in self.iter_minibatches(self.inputs_list, mode='train'):
+        for inputs in self._iter_minibatches(mode='train'):
             yield inputs
 
     def iterate_val_data(self):
-        for inputs in self.iter_minibatches(self.inputs_list, mode='val'):
+        for inputs in self._iter_minibatches(mode='val'):
             yield inputs
+
+    def _form_sample_minibatch(self, prot_codes, from_dir):
+        # TODO: load the memmaps from the given from_dir
+        # TODO: stack them into a numpy array
+        # TODO: return the array
+        raise NotImplementedError
 
 
 class EnzymesGridFeeder(EnzymeDataFeeder):
-    def __init__(self, grids_dir, grid_size, minibatch_size, init_samples_per_class, enzyme_classes=list(),
-                 force_download=False,
-                 force_process=False):
-        super(EnzymesGridFeeder, self).__init__(minibatch_size, init_samples_per_class,
-                                                enzyme_classes=enzyme_classes,
-                                                force_download=force_download,
-                                                force_process=force_process)
-        total_size = self.data['y_train'].shape[0] + self.data['y_val'].shape[0] + self.data['y_test'].shape[0]
-
-        # read all grid files from the grids dir, they are the models inputs
-        grids = list()
-        for i in range(0, total_size):
-            grid_file = path.join(grids_dir, "grid{}.memmap".format(i))
-            grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 2, grid_size, grid_size, grid_size))
-            grids.append(grid)
-
-        # convert ot a numpy array
-        grids = np.vstack(grids)
-        self.inputs_list = [grids]
+    def __init__(self, minibatch_size, init_samples_per_class):
+        super(EnzymesGridFeeder, self).__init__(minibatch_size, init_samples_per_class)
 
     def iterate_test_data(self):
-        for inputs in self.iter_minibatches(self.inputs_list, mode='test'):
+        for inputs in self._iter_minibatches(mode='test'):
             yield inputs
 
     def iterate_train_data(self):
-        for inputs in self.iter_minibatches(self.inputs_list, mode='train'):
+        for inputs in self._iter_minibatches(mode='train'):
             yield inputs
 
     def iterate_val_data(self):
-        for inputs in self.iter_minibatches(self.inputs_list, mode='val'):
+        for inputs in self._iter_minibatches(mode='val'):
             yield inputs
+
+    def _form_sample_minibatch(self, prot_codes, from_dir):
+        # TODO: load the grid memmaps from the given from_dir
+        # TODO: stack them into a numpy array
+        # TODO: return the array
+        raise NotImplementedError
