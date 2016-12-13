@@ -81,7 +81,7 @@ class EnzymeDataFeeder(DataFeeder):
 
             # labels are accessed at a fixed hierarchical depth of 3 counting from the root, e.g. 3.4.21.
             # TODO: make it a variable and incoroporate the knowledge of all labels of depth < max_depth
-            next_targets = [labels[prot_code][2][0] for prot_code in prots_in_minibatch]
+            next_targets = [labels[prot_code][2][0].astype(intX) for prot_code in prots_in_minibatch]
 
             next_samples = self._form_samples_minibatch(prot_codes=prots_in_minibatch, from_dir=data_dir)
             yield next_samples + next_targets
