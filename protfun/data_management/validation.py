@@ -51,13 +51,22 @@ class EnzymeValidator(object):
 
         return missing_enzymes, successful, failed
 
-    def check_class_representation(self, data_dict, clean_dict=True):
+    def check_class_representation(self, data_dict, clean_dict=True, clean_diplicates=True):
         bad_keys = []
+        duplicates = set()
         for cls, prots in data_dict.items():
             if len(prots) == 0:
                 log.warning("Class {0} is not represented".format(cls))
                 if clean_dict:
                     bad_keys.append(cls)
+            duplicates |= set(prots)
+            if clean_diplicates:
+                for c, prots in data_dict.items():
+                    if c == cls:
+                        continue
+                    for p in prots[:]:
+                        if p in duplicates:
+                            prots.remove(p)
         if clean_dict and len(bad_keys) > 0:
             log.warning("Class(es) %r will be deleted from the data dictionary" % bad_keys)
             for k in data_dict.keys():
