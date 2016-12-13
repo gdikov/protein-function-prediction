@@ -37,7 +37,8 @@ class EnzymeDataFeeder(DataFeeder):
     def __init__(self, minibatch_size, init_samples_per_class):
         super(EnzymeDataFeeder, self).__init__(minibatch_size, init_samples_per_class)
 
-        self.data_manager = EnzymeDataManager(force_download=False,
+        self.data_manager = EnzymeDataManager(enzyme_classes=['3.4.21', '3.4.24'],
+                                              force_download=False,
                                               force_memmaps=False,
                                               force_grids=False,
                                               force_split=False)
