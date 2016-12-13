@@ -52,13 +52,13 @@ def train_enz_from_memmaps():
 
 def train_enz_from_grids():
     data_feeder = EnzymesGridFeeder(minibatch_size=8,
-                                    init_samples_per_class=1)
+                                    init_samples_per_class=2000)
     model = GridsDisjointClassifier(n_classes=2, network=basic_convnet, grid_size=64, minibatch_size=8)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
-    trainer.train(epochs=100)
+    trainer.train(epochs=1000)
 
 
 if __name__ == "__main__":
-    train_enz_from_memmaps()
-    # train_enz_from_grids()
+    # train_enz_from_memmaps()
+    train_enz_from_grids()
     # visualize()

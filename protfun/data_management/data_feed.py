@@ -57,6 +57,16 @@ class EnzymeDataFeeder(DataFeeder):
             log.error("iter_mode can only be 'train', 'val' or 'test'")
             raise ValueError
 
+        # TODO: refactor this later to be more generic
+        prots21 = list()
+        prots24 = list()
+        for cls, prots in samples.items():
+            if cls.startswith('3.4.21'):
+                prots21 += prots
+            else:
+                prots24 += prots
+        # TODO: end todo
+
         represented_classes, data_sizes = \
             map(list, zip(*[(cls, len(prots)) for cls, prots in samples.items() if len(prots) > 0]))
         data_size = sum(data_sizes)
@@ -73,18 +83,23 @@ class EnzymeDataFeeder(DataFeeder):
                 minibatch_count += 1
 
         for _ in xrange(0, minibatch_count):
-            classes_in_minibatch = np.random.choice(represented_classes,
-                                                    size=self.minibatch_size,
-                                                    replace=True)
-            prots_in_minibatch = [np.random.choice(samples[cls][:self.samples_per_class])
-                                  for cls in classes_in_minibatch]
+            # TODO: fix this inbalance issue
+            # classes_in_minibatch = np.random.choice(represented_classes,
+            #                                         size=self.minibatch_size,
+            #                                         replace=True)
+
+            class_choices = np.random.randint(0, 2, size=self.minibatch_size)
+            prots_in_minibatch = [np.random.choice((prots21 if class_choice else prots24)[:self.samples_per_class])
+                                  for class_choice in class_choices]
+
+            next_samples = self._form_samples_minibatch(prot_codes=prots_in_minibatch, from_dir=data_dir)
 
             # labels are accessed at a fixed hierarchical depth of 3 counting from the root, e.g. 3.4.21.
             # TODO: make it a variable and incoroporate the knowledge of all labels of depth < max_depth
-            next_targets = [labels[prot_code][2][0].astype(intX) for prot_code in prots_in_minibatch]
-
-            next_samples = self._form_samples_minibatch(prot_codes=prots_in_minibatch, from_dir=data_dir)
-            yield next_samples + next_targets
+            # next_targets = np.vstack([labels[prot_code][2][0].astype(intX) for prot_code in prots_in_minibatch])
+            # TODO: make this more general, so that it scales for more than 2 classes
+            yield next_samples + [np.array(class_choices, dtype=intX),
+                                  np.array(np.logical_not(class_choices), dtype=intX)]
 
     @abc.abstractmethod
     def _form_samples_minibatch(self, prot_codes, from_dir):
