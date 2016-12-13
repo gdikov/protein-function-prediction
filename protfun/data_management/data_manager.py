@@ -175,7 +175,7 @@ class EnzymeDataManager(DataManager):
                 os.makedirs(self.dirs['data_test'])
 
                 # save val and train sets under dirs["data_train"], copy over all corresponding data samples
-                self._copy_processed(target_dir=self.dirs["data_train"], proteins_dict=train_dataset)
+                self._copy_processed(target_dir=self.dirs["data_train"], proteins_dict=trainval_data)
                 self._save_enzyme_list(target_dir=self.dirs["data_train"], proteins_dict=trainval_data)
                 self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
                                              os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
@@ -232,7 +232,6 @@ class EnzymeDataManager(DataManager):
             self._load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_labels.pickle"),
                                          os.path.join(self.dirs["data_train"], "val_labels.pickle"),
                                          os.path.join(self.dirs["data_test"], "test_labels.pickle")])
-
 
     def _remove_failed_downloads(self, failed=None):
         # here the protein codes are stored in a dict according to their classes
@@ -316,7 +315,7 @@ class GOProteinsDataManager(DataManager):
 
 
 if __name__ == "__main__":
-    dm = EnzymeDataManager(data_dirname='experimental',
+    dm = EnzymeDataManager(data_dirname='data',
                            force_download=False,
                            force_memmaps=False,
                            force_grids=False,

@@ -45,7 +45,6 @@ class EnzymeValidator(object):
 
         return missing_enzymes, successful, failed
 
-
     def check_class_representation(self, data_dict, clean_dict=True):
         bad_keys = []
         for cls, prots in data_dict.items():
@@ -54,11 +53,10 @@ class EnzymeValidator(object):
                 if clean_dict:
                     bad_keys.append(cls)
         if clean_dict and len(bad_keys) > 0:
-            log.warning("Class(es) %r will be deleted from the data dictionary" %bad_keys)
+            log.warning("Class(es) %r will be deleted from the data dictionary" % bad_keys)
             for k in data_dict.keys():
                 if k in bad_keys:
                     del data_dict[k]
-
 
     def check_splitting(self):
         log.info("Checking the data splits for consistency and completeness")
