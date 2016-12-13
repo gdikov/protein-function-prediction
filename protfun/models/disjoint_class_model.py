@@ -25,8 +25,7 @@ class DisjointClassModel(object):
         train_params = lasagne.layers.get_all_params(output_layers, trainable=True)
 
         # define the losses
-        targets_ints = [T.ivector('targets' + str(i)) for i in range(0, self.n_classes)]
-        targets = [T.eq(targets_ints[i].reshape((-1, 1)), T.arange(2)) for i in range(0, self.n_classes)]
+        targets = [T.imatrix('targets' + str(i)) for i in range(0, self.n_classes)]
 
         def categorical_crossentropy_logdomain(log_predictions, targets):
             return -T.sum(targets * log_predictions, axis=1)
@@ -36,7 +35,7 @@ class DisjointClassModel(object):
         train_losses = T.stack([categorical_crossentropy_logdomain(log_predictions=train_predictions[i],
                                                                    targets=targets[i]).mean() for i in
                                 range(0, self.n_classes)])
-        train_accuracies = T.stack([T.mean(T.eq(T.argmax(train_predictions[i], axis=-1), targets_ints[i]),
+        train_accuracies = T.stack([T.mean(T.eq(T.argmax(train_predictions[i], axis=-1), T.argmax(targets[i], axis=-1)),
                                            dtype=theano.config.floatX) for i in range(0, self.n_classes)])
 
         val_predictions = [lasagne.layers.get_output(output_layers[i], deterministic=True) for i in
@@ -44,7 +43,7 @@ class DisjointClassModel(object):
         val_losses = T.stack([categorical_crossentropy_logdomain(log_predictions=val_predictions[i],
                                                                  targets=targets[i]).mean() for i in
                               range(0, self.n_classes)])
-        val_accuracies = T.stack([T.mean(T.eq(T.argmax(val_predictions[i], axis=-1), targets_ints[i]),
+        val_accuracies = T.stack([T.mean(T.eq(T.argmax(val_predictions[i], axis=-1), T.argmax(targets[i], axis=-1)),
                                          dtype=theano.config.floatX) for i in range(0, self.n_classes)])
 
         total_loss = sum(train_losses)
@@ -52,11 +51,11 @@ class DisjointClassModel(object):
                                                     params=train_params,
                                                     learning_rate=1e-4)
 
-        self.train_function = theano.function(inputs=input_vars + targets_ints,
+        self.train_function = theano.function(inputs=input_vars + targets,
                                               outputs={"losses": train_losses, "accs": train_accuracies},
                                               updates=train_params_updates)  # , profile=True)
 
-        self.validation_function = theano.function(inputs=input_vars + targets_ints,
+        self.validation_function = theano.function(inputs=input_vars + targets,
                                                    outputs={"losses": val_losses, "accs": val_accuracies})
         log.info("Computational graph compiled")
 
@@ -71,8 +70,6 @@ class MemmapsDisjointClassifier(DisjointClassModel):
     def __init__(self, n_classes, network, minibatch_size):
         super(MemmapsDisjointClassifier, self).__init__(n_classes)
         self.minibatch_size = minibatch_size
-        self.path_to_moldata = path.join(path.dirname(path.realpath(__file__)), "../../data/moldata")
-        self.max_atoms = np.memmap(path.join(self.path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
 
         coords = T.tensor3('coords')
         charges = T.matrix('charges')
