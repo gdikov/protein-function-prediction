@@ -18,7 +18,7 @@ class LabelFactory(object):
 
         for h in range(self.h_depth):
             unique_labels_at_depth_h = list(set(['.'.join(x.split('.')[:h + 1]) for x in all_classes]))
-            onehot_labels_at_depth_h = np.eye(len(unique_labels_at_depth_h))
+            onehot_labels_at_depth_h = np.eye(len(unique_labels_at_depth_h), dtype=np.int32)
             label_dict_at_depth_h = {k: v for k, v in
                                      zip(unique_labels_at_depth_h, onehot_labels_at_depth_h)}
             encoding_dict[h] = label_dict_at_depth_h

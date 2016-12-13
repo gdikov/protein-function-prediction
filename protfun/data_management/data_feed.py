@@ -122,9 +122,9 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
             n_atoms[i] = vdwradii_tmp[i].shape[0]
 
         max_atoms = max(n_atoms)
-        coords = np.zeros((self.minibatch_size, max_atoms, 3))
-        charges = np.zeros((self.minibatch_size, max_atoms))
-        vdwradii = np.zeros((self.minibatch_size, max_atoms))
+        coords = np.zeros((self.minibatch_size, max_atoms, 3), dtype=floatX)
+        charges = np.zeros((self.minibatch_size, max_atoms), dtype=floatX)
+        vdwradii = np.zeros((self.minibatch_size, max_atoms), dtype=floatX)
 
         for i in range(self.minibatch_size):
             coords[i, :n_atoms[i], :] = coords_tmp[i]
