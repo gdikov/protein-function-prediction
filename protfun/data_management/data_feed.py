@@ -116,7 +116,8 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
         n_atoms = np.zeros((self.minibatch_size,), dtype=intX)
         for i, prot_id in enumerate(prot_codes):
             path_to_prot = path.join(from_dir, prot_id.upper())
-            coords_tmp.append(np.memmap(path.join(path_to_prot, 'coords.memmap'), mode='r', dtype=floatX).reshape(-1, 3))
+            coords_tmp.append(
+                np.memmap(path.join(path_to_prot, 'coords.memmap'), mode='r', dtype=floatX).reshape(-1, 3))
             charges_tmp.append(np.memmap(path.join(path_to_prot, 'charges.memmap'), mode='r', dtype=floatX))
             vdwradii_tmp.append(np.memmap(path.join(path_to_prot, 'vdwradii.memmap'), mode='r', dtype=floatX))
             n_atoms[i] = vdwradii_tmp[i].shape[0]
@@ -151,7 +152,12 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
             yield inputs
 
     def _form_samples_minibatch(self, prot_codes, from_dir):
-        # TODO: load the grid memmaps from the given from_dir
-        # TODO: stack them into a numpy array
-        # TODO: return the array
-        raise NotImplementedError
+        assert len(prot_codes) == self.minibatch_size, \
+            "prot_codes must be of the same size as minibatch_size"
+        grids = list()
+        for i, prot_id in enumerate(prot_codes):
+            path_to_prot = path.join(from_dir, prot_id.upper())
+            grids.append(
+                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64)))
+
+        return [np.vstack(grids)]

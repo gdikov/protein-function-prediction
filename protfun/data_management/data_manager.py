@@ -106,7 +106,7 @@ class EnzymeDataManager(DataManager):
                  percentage_test=10,
                  percentage_val=20):
         super(EnzymeDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
-                                                force_process=force_memmaps, force_split=force_split,
+                                                force_process=force_memmaps or force_grids, force_split=force_split,
                                                 percentage_test=percentage_test, percentage_val=percentage_val)
         self.force_grids = force_grids or force_memmaps or force_download
         self.force_memmaps = force_memmaps or force_download
