@@ -18,30 +18,36 @@ class EnzymeValidator(object):
         num_errors = 0
         raw_pdb_files = [ntpath.basename(y) for x in os.walk(self.dirs['data_raw']) for y in
                          glob(os.path.join(x[0], '*.ent'))]
-        raw_enzyme_lists = [x for x in os.listdir(self.dirs['data_raw']) if x.endswith('.proteins')]
+        raw_enzyme_lists = [x.strip('.proteins')
+                            for x in os.listdir(self.dirs['data_raw'])
+                            if x.endswith('.proteins')]
         missing_enzymes = dict()
         successful = 0
         failed = 0
         for enzyme_class in self.enzyme_classes:
-            if enzyme_class + '.proteins' not in raw_enzyme_lists:
+            if not any(enzyme_class in end_class for end_class in raw_enzyme_lists):
                 log.warning("Enzyme class {0} has not been downloaded".format(enzyme_class))
                 num_errors += 1
             else:
-                with open(os.path.join(self.dirs['data_raw'], enzyme_class + '.proteins')) \
-                        as enz_class_file:
-                    all_enzymes_in_class = [e.strip() for e in enz_class_file.readlines()]
-                # check if the codes are in the pdb folder
-                for e in all_enzymes_in_class:
-                    if "pdb" + e.lower() + ".ent" not in raw_pdb_files:
-                        failed += 1
-                        log.warning("PDB file for enzyme {0} is not found (residing in class {1})"
-                                    .format(e, enzyme_class))
-                        if enzyme_class in missing_enzymes.keys():
-                            missing_enzymes[enzyme_class].append(e.upper())
+                # for all leaf nodes check if their enzymes are there
+                for enzyme_class_leaf in raw_enzyme_lists:
+                    if not enzyme_class_leaf.startswith(enzyme_class):
+                        continue
+                    with open(os.path.join(self.dirs['data_raw'], enzyme_class_leaf + '.proteins')) \
+                            as enz_class_file:
+                        all_enzymes_in_class = [e.strip() for e in enz_class_file.readlines()]
+                    # check if the codes are in the pdb folder
+                    for e in all_enzymes_in_class:
+                        if "pdb" + e.lower() + ".ent" not in raw_pdb_files:
+                            failed += 1
+                            log.warning("PDB file for enzyme {0} is not found (residing in class {1})"
+                                        .format(e, enzyme_class_leaf))
+                            if enzyme_class_leaf in missing_enzymes.keys():
+                                missing_enzymes[enzyme_class_leaf].append(e.upper())
+                            else:
+                                missing_enzymes[enzyme_class_leaf] = [e.upper()]
                         else:
-                            missing_enzymes[enzyme_class] = [e.upper()]
-                    else:
-                        successful += 1
+                            successful += 1
 
         return missing_enzymes, successful, failed
 
