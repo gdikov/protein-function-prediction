@@ -76,7 +76,7 @@ class EnzymeDataFeeder(DataFeeder):
             classes_in_minibatch = np.random.choice(represented_classes,
                                                     size=self.minibatch_size,
                                                     replace=True)
-            prots_in_minibatch = [np.random.choice(samples[cls][:self.samples_per_class], size=1)
+            prots_in_minibatch = [np.random.choice(samples[cls][:self.samples_per_class])
                                   for cls in classes_in_minibatch]
 
             # labels are accessed at a fixed hierarchical depth of 3 counting from the root, e.g. 3.4.21.
@@ -116,7 +116,7 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
         n_atoms = np.zeros((self.minibatch_size,), dtype=intX)
         for i, prot_id in enumerate(prot_codes):
             path_to_prot = path.join(from_dir, prot_id.upper())
-            coords_tmp.append(np.memmap(path.join(path_to_prot, 'coords.memmap'), mode='r', dtype=floatX))
+            coords_tmp.append(np.memmap(path.join(path_to_prot, 'coords.memmap'), mode='r', dtype=floatX).reshape(-1, 3))
             charges_tmp.append(np.memmap(path.join(path_to_prot, 'charges.memmap'), mode='r', dtype=floatX))
             vdwradii_tmp.append(np.memmap(path.join(path_to_prot, 'vdwradii.memmap'), mode='r', dtype=floatX))
             n_atoms[i] = vdwradii_tmp[i].shape[0]
@@ -127,7 +127,7 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
         vdwradii = np.zeros((self.minibatch_size, max_atoms))
 
         for i in range(self.minibatch_size):
-            coords[i, :n_atoms[i]] = coords_tmp[i]
+            coords[i, :n_atoms[i], :] = coords_tmp[i]
             charges[i, :n_atoms[i]] = charges_tmp[i]
             vdwradii[i, :n_atoms[i]] = vdwradii_tmp[i]
 
