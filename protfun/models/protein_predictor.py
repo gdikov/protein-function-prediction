@@ -128,14 +128,6 @@ class ProteinPredictor(object):
 
         filter_size = (3, 3, 3)
 
-        network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
-                                                    num_filters=32,
-                                                    filter_size=filter_size,
-                                                    nonlinearity=lasagne.nonlinearities.leaky_rectify)
-        network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network,
-                                                       pool_size=(2, 2, 2),
-                                                       stride=2)
-
         for i in range(0, 6):
             # NOTE: we start with a very poor filter count.
             network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
@@ -151,9 +143,9 @@ class ProteinPredictor(object):
         network2 = network
 
         for i in range(0, 2):
-            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=256,
+            network1 = lasagne.layers.DenseLayer(incoming=network1, num_units=512,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
-            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=256,
+            network2 = lasagne.layers.DenseLayer(incoming=network2, num_units=512,
                                                  nonlinearity=lasagne.nonlinearities.leaky_rectify)
 
         output_layer1 = lasagne.layers.DenseLayer(incoming=network1, num_units=2,

@@ -1,18 +1,22 @@
 import os
+import colorlog as log
 
 
 class EnzymeFetcher(object):
     """ Generate and filter enzyme IDs which are to be downloaded
      :param categories: list of strings in the form 1.1 or 4.3.2.1 giving the most general category of interest. """
 
-    def __init__(self, categories, excluded_categories=[]):
+    def __init__(self, categories, excluded_categories=list(), enzyme_dir=None):
+        self.enzyme_dir = enzyme_dir
         self.excluded_categories = excluded_categories
-        self.leaf_categories = []
+        self.leaf_categories = list()
         self.pdb_files = None
 
-        print("INFO: Evaluating the total categorical hierarchy...")
+        log.info("Evaluating the total categorical hierarchy...")
         for cat in set(categories) - set(excluded_categories):
             self._find_leaf_categories(cat)
+
+        self.fetched_prot_codes = dict()
 
     def _find_leaf_categories(self, cat):
         import requests
@@ -35,13 +39,13 @@ class EnzymeFetcher(object):
             children_table = page.find('body').find_all('table', recursive=False)[2]
             children = children_table.find('tr').find('td').find_all('table', recursive=False)[first_child_index:]
         except (AttributeError, IndexError):
-            print("WARNING: No subcategory table found for parent category {0}".format(cat))
+            log.warning("No subcategory table found for parent category {0}".format(cat))
             return
         for child in children:
             try:
                 child_cat = child.find('a', {'class': 'menuClass'}, href=True).text
             except (AttributeError, IndexError):
-                print("WARNING: no link to child category")
+                log.warning("Wno link to child category")
                 continue
             # remove trailing .- and the "EC " in front
             child_cat = child_cat.rstrip('.-')[3:]
@@ -49,11 +53,20 @@ class EnzymeFetcher(object):
 
     def fetch_enzymes(self):
         if self.leaf_categories is not None:
-            print("INFO: Processing html pages for each enzyme ({0} in total). "
-                  "This may take a while...".format(len(self.leaf_categories)))
+            log.info("Processing html pages for each enzyme classes ({0} in total). "
+                     "This may take a while...".format(len(self.leaf_categories)))
             self.pdb_files = self._ecs2pdbs()
         else:
-            print("WARNING: No leaf enzyme categories found.")
+            log.warning("No leaf enzyme categories found.")
+
+        for cl in self.leaf_categories:
+            pdb_ids = []
+            for key, value in self.pdb_files.items():
+                if key.startswith(cl) and value is not None:
+                    pdb_ids += value
+            if len(pdb_ids) is not 0:
+                self.fetched_prot_codes[cl] = pdb_ids
+        return self.fetched_prot_codes
 
     def _ecs2pdbs(self):
         import requests
@@ -73,11 +86,11 @@ class EnzymeFetcher(object):
         try:
             pdb_table = parsed_html.find('body').find_all('p')[2].find('table')
         except (AttributeError, IndexError):
-            print("WARNING: Something went wrong while parsing " + str(cat) + " Probably no PDB table present.")
+            log.warning("Something went wrong while parsing " + str(cat) + " Probably no PDB table present.")
             return None
 
         if pdb_table is None:
-            print("WARNING: A pdbs-containing table was not found while parsing " + str(cat))
+            log.warning("A pdbs-containing table was not found while parsing " + str(cat))
             return None
 
         pdbs = []
@@ -94,6 +107,32 @@ class EnzymeFetcher(object):
                 pdbs.append(str(pdb_code).upper())
 
         return pdbs
+
+
+def download_pdbs(base_dir, protein_codes):
+    """
+    Downloads the PDB database (or a part of it) as PDB files.
+    """
+    prot_codes = []
+    if isinstance(protein_codes, dict):
+        for key in protein_codes.keys():
+            prot_codes += protein_codes[key]
+    else:
+        prot_codes = protein_codes
+    prot_codes = list(set(prot_codes))
+    from Bio.PDB import PDBList
+    failed = 0
+    attempted = len(prot_codes)
+    for code in prot_codes:
+        try:
+            pl = PDBList(pdb=os.path.join(base_dir, code.upper()))
+            pl.flat_tree = 1
+            pl.retrieve_pdb_file(pdb_code=code)
+        except IOError:
+            log.warning("Failed to download protein {}".format(code))
+            failed += 1
+            continue
+    log.info("Downloaded {0}/{1} molecules".format(attempted - failed, attempted))
 
 
 if __name__ == "__main__":

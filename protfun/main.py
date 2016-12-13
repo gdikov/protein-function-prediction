@@ -1,6 +1,6 @@
 import os
 
-os.environ["THEANO_FLAGS"] = "device=gpu7,lib.cnmem=0"
+os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=0"
 # enable if you want to profile the forward pass
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import lasagne
@@ -8,10 +8,8 @@ import theano
 import numpy as np
 
 from protfun.layers import MoleculeMapLayer
-from protfun.preprocess.data_prep import DataSetup
 from protfun.visualizer.molview import MoleculeView
-from protfun.preprocess.grid_processor import GridProcessor
-from protfun.models import EnzymesMolDataFeeder, EnzymesGridFeeder
+from protfun.data_management.data_feed import EnzymesMolDataFeeder, EnzymesGridFeeder
 from protfun.models import ModelTrainer
 from protfun.models import MemmapsDisjointClassifier, GridsDisjointClassifier
 from protfun.networks import basic_convnet
@@ -45,10 +43,7 @@ def visualize():
 
 
 def train_enz_from_memmaps():
-    path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/moldata")
-    data_feeder = EnzymesMolDataFeeder(path_to_moldata=path_to_moldata,
-                                       enzyme_classes=['3.4.21', '3.4.24'],
-                                       minibatch_size=8,
+    data_feeder = EnzymesMolDataFeeder(minibatch_size=8,
                                        init_samples_per_class=1)
     model = MemmapsDisjointClassifier(n_classes=2, network=basic_convnet, minibatch_size=8)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
@@ -56,33 +51,25 @@ def train_enz_from_memmaps():
 
 
 def train_enz_from_grids():
-    grids_dir = os.path.join(os.path.dirname(__file__), "../data/grids")
-    data_feeder = EnzymesGridFeeder(grids_dir=grids_dir,
-                                    grid_size=64,
-                                    enzyme_classes=['3.4.21', '3.4.24'],
-                                    minibatch_size=8,
-                                    init_samples_per_class=1)
+    data_feeder = EnzymesGridFeeder(minibatch_size=8,
+                                    init_samples_per_class=2000)
     model = GridsDisjointClassifier(n_classes=2, network=basic_convnet, grid_size=64, minibatch_size=8)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
-    trainer.train(epochs=100)
+    trainer.train(epochs=1000)
 
 
-def preprocess_grids():
-    data = DataSetup(enzyme_classes=['3.4.21', '3.4.24'],
-                     label_type='enzyme_classes',
-                     force_download=False,
-                     force_process=False)
-    data = data.load_dataset()
-    gridder = GridProcessor(force_process=False)
-    for i in data['x_train']:
-        gridder.process(i)
-    for i in data['x_test']:
-        gridder.process(i)
-    for i in data['x_val']:
-        gridder.process(i)
+def test_enz_from_grids():
+    data_feeder = EnzymesGridFeeder(minibatch_size=8,
+                                    init_samples_per_class=2000)
+    model = GridsDisjointClassifier(n_classes=2, network=basic_convnet, grid_size=64, minibatch_size=8)
+    trainer = ModelTrainer(model=model, data_feeder=data_feeder)
+    trainer.monitor.load_model(model_name="params_54ep_meanvalacc[ 0.90322578  0.88306451].npz",
+                               network=model.get_output_layers())
+    trainer.test()
+
 
 if __name__ == "__main__":
     # train_enz_from_memmaps()
-    # preprocess_grids()
+    # train_enz_from_grids()
     train_enz_from_grids()
     # visualize()

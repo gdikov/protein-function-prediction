@@ -1,11 +1,12 @@
-import os
-import pickle
-import csv
 import StringIO
-import numpy as np
-import theano
-import colorlog as log
+import csv
 import logging
+import pickle
+
+import colorlog as log
+import numpy as np
+import os
+import theano
 
 log.basicConfig(level=logging.DEBUG)
 
@@ -52,7 +53,7 @@ class DataSetup(object):
     def _setup(self, force_download, force_process):
         if self.enzyme_classes is not None:
             if force_download:
-                from protfun.preprocess import EnzymeFetcher
+                from protfun.data_management.preprocess import EnzymeFetcher
                 ef = EnzymeFetcher(self.enzyme_classes)
                 ef.fetch_enzymes()
 
