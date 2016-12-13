@@ -187,7 +187,7 @@ class EnzymeDataManager(DataManager):
                 self._save_pickle(file_path=os.path.join(self.dirs["data_test"], "test_prot_codes.pickle"),
                                   data=test_dataset)
 
-                self.validator.check_splitting()
+                self.validator.check_splitting(self.valid_proteins, trainval_data, test_dataset)
             else:
                 # only reinitialize the train and validation sets
                 # the existing train and val pickles need to be merged and split again
@@ -319,7 +319,7 @@ if __name__ == "__main__":
                            force_download=False,
                            force_memmaps=False,
                            force_grids=False,
-                           force_split=False,
+                           force_split=True,
                            percentage_test=20,
                            percentage_val=15,
                            hierarchical_depth=4,

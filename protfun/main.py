@@ -58,7 +58,18 @@ def train_enz_from_grids():
     trainer.train(epochs=1000)
 
 
+def test_enz_from_grids():
+    data_feeder = EnzymesGridFeeder(minibatch_size=8,
+                                    init_samples_per_class=2000)
+    model = GridsDisjointClassifier(n_classes=2, network=basic_convnet, grid_size=64, minibatch_size=8)
+    trainer = ModelTrainer(model=model, data_feeder=data_feeder)
+    trainer.monitor.load_model(model_name="params_54ep_meanvalacc[ 0.90322578  0.88306451].npz",
+                               network=model.get_output_layers())
+    trainer.test()
+
+
 if __name__ == "__main__":
     # train_enz_from_memmaps()
+    # train_enz_from_grids()
     train_enz_from_grids()
     # visualize()

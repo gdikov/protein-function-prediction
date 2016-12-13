@@ -54,40 +54,44 @@ class EnzymeValidator(object):
     def check_class_representation(self, data_dict, clean_dict=True, clean_diplicates=True):
         bad_keys = []
         duplicates = set()
+        checked_classes = set()
+        for cls, first_prots in data_dict.items():
+            duplicates |= set(first_prots)
+            checked_classes.add(cls)
+            if clean_diplicates:
+                for c, prots in data_dict.items():
+                    if c not in checked_classes:
+                        for p in prots[:]:
+                            if p in duplicates:
+                                prots.remove(p)
+
         for cls, prots in data_dict.items():
             if len(prots) == 0:
                 log.warning("Class {0} is not represented".format(cls))
                 if clean_dict:
                     bad_keys.append(cls)
-            duplicates |= set(prots)
-            if clean_diplicates:
-                for c, prots in data_dict.items():
-                    if c == cls:
-                        continue
-                    for p in prots[:]:
-                        if p in duplicates:
-                            prots.remove(p)
+
         if clean_dict and len(bad_keys) > 0:
             log.warning("Class(es) %r will be deleted from the data dictionary" % bad_keys)
             for k in data_dict.keys():
                 if k in bad_keys:
                     del data_dict[k]
 
-    def check_splitting(self):
-        log.info("Checking the data splits for consistency and completeness")
-        leaf_classes = [x for x in os.listdir(self.dirs['data_processed']) if x.endswith('.proteins')]
-        for cls in leaf_classes:
-            path_to_valid_cls = os.path.join(self.dirs['data_processed'], cls)
-            with open(path_to_valid_cls, 'r') as f:
-                valid_prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
+    def check_splitting(self, valid_proteins, test_proteins, train_proteins):
+        # log.info("Checking the data splits for consistency and completeness")
+        # leaf_classes = [x for x in os.listdir(self.dirs['data_processed']) if x.endswith('.proteins')]
+        for cls in valid_proteins.keys():
+            # path_to_valid_cls = os.path.join(self.dirs['data_processed'], cls)
+            # with open(path_to_valid_cls, 'r') as f:
+            valid_prot_codes_in_cls = valid_proteins[cls]
 
-            path_to_train_cls = os.path.join(self.dirs['data_train'], cls)
-            with open(path_to_train_cls, 'r') as f:
-                train_prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
+            # path_to_train_cls = os.path.join(self.dirs['data_train'], cls)
+            # with open(path_to_train_cls, 'r') as f:
+            train_prot_codes_in_cls = train_proteins[cls]
 
-            path_to_test_cls = os.path.join(self.dirs['data_test'], cls)
-            with open(path_to_test_cls, 'r') as f:
-                test_prot_codes_in_cls = [pc.strip() for pc in f.readlines()]
+            # path_to_test_cls = os.path.join(self.dirs['data_test'], cls)
+            # with open(path_to_test_cls, 'r') as f:
+            test_prot_codes_in_cls = test_proteins[cls]
 
             assert len(set(train_prot_codes_in_cls)) + len(set(test_prot_codes_in_cls)) == \
                    len(set(train_prot_codes_in_cls + test_prot_codes_in_cls)), "Train and test set are not disjoint!"

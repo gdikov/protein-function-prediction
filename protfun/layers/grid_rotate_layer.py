@@ -134,8 +134,8 @@ if __name__ == "__main__":
     import os
     from protfun.visualizer.molview import MoleculeView
 
-    grid_dir = os.path.join(os.path.dirname(__file__), "../../data/grids")
-    grid_file = os.path.join(grid_dir, "grid2.memmap")
+    grid_dir = os.path.join(os.path.dirname(__file__), "../../data/processed/1AWH")
+    grid_file = os.path.join(grid_dir, "grid.memmap")
     test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64))
     log.debug(test_grid.shape)
     viewer = MoleculeView(data={"potential": test_grid[0, 0], "density": test_grid[0, 1]}, info={"name": "test"})
@@ -150,9 +150,9 @@ if __name__ == "__main__":
 
     log.info("compiled rotation layer")
     import time
-
-    start = time.time()
-    test_grid = func(test_grid)
-    log.info("took time: {}".format(time.time() - start))
-    viewer = MoleculeView(data={"potential": test_grid[0, 0], "density": test_grid[0, 1]}, info={"name": "test"})
-    viewer.density3d()
+    for i in range(0, 10):
+        start = time.time()
+        rotated_grid = func(test_grid)
+        log.info("took time: {}".format(time.time() - start))
+        viewer = MoleculeView(data={"potential": rotated_grid[0, 0], "density": rotated_grid[0, 1]}, info={"name": "test"})
+        viewer.density3d()
