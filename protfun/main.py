@@ -5,6 +5,7 @@ os.environ["THEANO_FLAGS"] = "device=gpu1,lib.cnmem=0"
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import lasagne
 import theano
+import theano.tensor as T
 import numpy as np
 
 from protfun.layers import MoleculeMapLayer
@@ -18,28 +19,42 @@ grid_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/c
 
 
 def visualize():
-    path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/moldata")
-    max_atoms = np.memmap(os.path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=np.int32)[0]
-    coords = np.memmap(os.path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=np.float32).reshape(
-        (-1, max_atoms, 3))
-    charges = np.memmap(os.path.join(path_to_moldata, 'charges.memmap'), mode='r', dtype=np.float32).reshape(
-        (-1, max_atoms))
-    vdwradii = np.memmap(os.path.join(path_to_moldata, 'vdwradii.memmap'), mode='r', dtype=np.float32).reshape(
-        (-1, max_atoms))
-    n_atoms = np.memmap(os.path.join(path_to_moldata, 'n_atoms.memmap'), mode='r', dtype=np.int32)
-    for i in range(3, 100):
-        dummy = lasagne.layers.InputLayer(shape=(None,))
-        preprocess = MoleculeMapLayer(incomings=[dummy, dummy], minibatch_size=1)
-        mol_info = [theano.shared(np.array(coords[[i]], dtype=np.float32)),
-                    theano.shared(np.array(charges[[i]], dtype=np.float32)),
-                    theano.shared(np.array(vdwradii[[i]], dtype=np.float32)),
-                    theano.shared(np.array(n_atoms[[i]], dtype=np.int32))]
+    floatX = theano.config.floatX
+    coords_var = T.tensor3('coords')
+    charges_var = T.matrix('charges')
+    vdwradii_var = T.matrix('vdwradii')
+    n_atoms_var = T.ivector('n_atoms')
+    coords_input = lasagne.layers.InputLayer(shape=(1, None, None),
+                                             input_var=coords_var)
+    charges_input = lasagne.layers.InputLayer(shape=(1, None),
+                                              input_var=charges_var)
+    vdwradii_input = lasagne.layers.InputLayer(shape=(1, None),
+                                               input_var=vdwradii_var)
+    natoms_input = lasagne.layers.InputLayer(shape=(1,),
+                                             input_var=n_atoms_var)
+    preprocess = MoleculeMapLayer(incomings=[coords_input, charges_input, vdwradii_input, natoms_input],
+                                  minibatch_size=1,
+                                  rotate=False)
+
+    path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/processed")
+    for i in ['5HGG', '1QRW', '2WYG', '3H2L']:
+        coords = np.memmap(os.path.join(path_to_moldata, i, 'coords.memmap'),
+                           mode='r', dtype=floatX).reshape(1, -1, 3)
+        charges = np.memmap(os.path.join(path_to_moldata, i, 'charges.memmap'),
+                            mode='r', dtype=floatX).reshape(1, -1)
+        vdwradii = np.memmap(os.path.join(path_to_moldata, i, 'vdwradii.memmap'),
+                             mode='r', dtype=floatX).reshape(1, -1)
+        n_atoms = np.array(vdwradii.shape[0], dtype=np.int32).reshape(1,)
+
+        mol_info = [theano.shared(coords), theano.shared(charges),
+                    theano.shared(vdwradii), theano.shared(n_atoms)]
 
         grids = preprocess.get_output_for(mols_info=mol_info).eval()
-        # np.save(grid_file+str(i), grids)
-        viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": "test"})
-        viewer.density3d()
-        viewer.potential3d()
+        np.save(grid_file + i, grids)
+        print("Saving grid for " + i)
+        # viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": i})
+        # viewer.density3d()
+        # viewer.potential3d()
 
 
 def train_enz_from_memmaps():
@@ -71,5 +86,5 @@ def test_enz_from_grids():
 if __name__ == "__main__":
     # train_enz_from_memmaps()
     # train_enz_from_grids()
-    train_enz_from_grids()
-    # visualize()
+    # train_enz_from_grids()
+    visualize()
