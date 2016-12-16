@@ -37,14 +37,14 @@ def visualize():
                                   rotate=False)
 
     path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/processed")
-    for i in ['5HGG', '1QRW', '2WYG', '3H2L']:
+    for i in ['3V7T']:
         coords = np.memmap(os.path.join(path_to_moldata, i, 'coords.memmap'),
                            mode='r', dtype=floatX).reshape(1, -1, 3)
         charges = np.memmap(os.path.join(path_to_moldata, i, 'charges.memmap'),
                             mode='r', dtype=floatX).reshape(1, -1)
         vdwradii = np.memmap(os.path.join(path_to_moldata, i, 'vdwradii.memmap'),
                              mode='r', dtype=floatX).reshape(1, -1)
-        n_atoms = np.array(vdwradii.shape[0], dtype=np.int32).reshape(1,)
+        n_atoms = np.array(vdwradii.shape[1], dtype=np.int32).reshape(1,)
 
         mol_info = [theano.shared(coords), theano.shared(charges),
                     theano.shared(vdwradii), theano.shared(n_atoms)]
