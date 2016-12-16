@@ -21,7 +21,7 @@ intX = np.int32  # FIXME is this the best choice? (changing would require removi
 class ProteinPredictor(object):
     def __init__(self, data,
                  minibatch_size=1, initial_per_class_datasize=100,
-                 model_name='model'):
+                 model_name='protein_predictor'):
 
         self.minibatch_size = minibatch_size
         self.initial_per_class_datasize = initial_per_class_datasize

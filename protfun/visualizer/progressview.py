@@ -12,7 +12,7 @@ class ProgressView(object):
     Plot train, validation and test error and accuracy over time (epoches).
     """
 
-    def __init__(self, model_name='model1', history_file=None, history_dict=None, mean_window=5):
+    def __init__(self, model_name='dummy_model', history_file=None, history_dict=None, mean_window=5):
         self.name = model_name
         self.model_figures_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                                "../../data/figures/", model_name)
