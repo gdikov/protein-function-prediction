@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import colorlog as log
 
 
 class MoleculeView(object):
@@ -132,56 +133,76 @@ class MoleculeView(object):
         - export_figure : boolean to tell whether to export images from the generated figure.
     """
 
-    def potential3d(self, export_figure=True):
+    def potential3d(self, mode='', export_figure=True):
 
         from mayavi import mlab
 
         potential = self.electron_potential
 
-        grid = mlab.pipeline.scalar_field(potential)
-        # mlab.pipeline.image_plane_widget(grid,
-        #                                  plane_orientation='x_axes',
-        #                                  slice_index=10)
-        #
-        # mlab.pipeline.image_plane_widget(grid,
-        #                                  plane_orientation='y_axes',
-        #                                  slice_index=10)
-        # mlab.outline()
+        if mode == '':
+            grid = mlab.pipeline.scalar_field(potential)
+            # mlab.pipeline.image_plane_widget(grid,
+            #                                  plane_orientation='x_axes',
+            #                                  slice_index=10)
+            #
+            # mlab.pipeline.image_plane_widget(grid,
+            #                                  plane_orientation='y_axes',
+            #                                  slice_index=10)
+            # mlab.outline()
 
-        min = potential.min()
-        negative_steps = np.percentile(potential[potential < 0], [2.0, 3.0, 7.5])
-        positive_steps = np.percentile(potential[potential > 0], [92.5, 97.0, 98.0])
-        max = potential.max()
+            min = potential.min()
+            negative_steps = np.percentile(potential[potential < 0], [2.0, 3.0, 7.5])
+            positive_steps = np.percentile(potential[potential > 0], [92.5, 97.0, 98.0])
+            max = potential.max()
 
-        vol = mlab.pipeline.volume(grid, vmin=min, vmax=max)
-        # mlab.contour3d(potential)
+            vol = mlab.pipeline.volume(grid, vmin=min, vmax=max)
+            # mlab.contour3d(potential)
 
-        from tvtk.util.ctf import ColorTransferFunction
-        ctf = ColorTransferFunction()
-        ctf.add_rgb_point(min, 1, 0.3, 0.3)  # numbers are r,g,b in [0;1]
-        ctf.add_rgb_point(negative_steps[1], 1, 0.3, 0.3)
-        ctf.add_rgb_point(negative_steps[2], 1, 1, 1)
-        ctf.add_rgb_point(positive_steps[0], 1, 1, 1)
-        ctf.add_rgb_point(positive_steps[1], 0.3, 0.3, 1)
-        ctf.add_rgb_point(max, 0.3, 0.3, 1)
-        ctf.range = np.asarray([min, max])
-        vol._volume_property.set_color(ctf)
-        vol._ctf = ctf
-        vol.update_ctf = True
+            from tvtk.util.ctf import ColorTransferFunction
+            ctf = ColorTransferFunction()
+            ctf.add_rgb_point(min, 1, 0.3, 0.3)  # numbers are r,g,b in [0;1]
+            ctf.add_rgb_point(negative_steps[1], 1, 0.3, 0.3)
+            ctf.add_rgb_point(negative_steps[2], 1, 1, 1)
+            ctf.add_rgb_point(positive_steps[0], 1, 1, 1)
+            ctf.add_rgb_point(positive_steps[1], 0.3, 0.3, 1)
+            ctf.add_rgb_point(max, 0.3, 0.3, 1)
+            ctf.range = np.asarray([min, max])
+            vol._volume_property.set_color(ctf)
+            vol._ctf = ctf
+            vol.update_ctf = True
 
-        # Changing the otf:
-        from tvtk.util.ctf import PiecewiseFunction
-        otf = PiecewiseFunction()
-        otf.add_point(min, 1.0)
-        otf.add_point(negative_steps[1], 1.0)
-        otf.add_point(negative_steps[2], 0.0)
-        otf.add_point(positive_steps[0], 0.0)
-        otf.add_point(positive_steps[1], 1.0)
-        otf.add_point(max, 1.0)
-        vol._otf = otf
-        vol._volume_property.set_scalar_opacity(otf)
+            # Changing the otf:
+            from tvtk.util.ctf import PiecewiseFunction
+            otf = PiecewiseFunction()
+            otf.add_point(min, 1.0)
+            otf.add_point(negative_steps[1], 1.0)
+            otf.add_point(negative_steps[2], 0.0)
+            otf.add_point(positive_steps[0], 0.0)
+            otf.add_point(positive_steps[1], 1.0)
+            otf.add_point(max, 1.0)
+            vol._otf = otf
+            vol._volume_property.set_scalar_opacity(otf)
 
-        mlab.axes()
+            mlab.axes()
+
+        elif mode == 'iso_surface':
+            source = mlab.pipeline.scalar_field(potential)
+            clip = mlab.pipeline.data_set_clipper(source)
+            mlab.pipeline.iso_surface(clip)
+
+        elif mode == 'contour':
+            n = self.electron_potential.shape[0]
+            range = 100
+            x, y, z = np.mgrid[-range / 2:range / 2:complex(n),
+                      -range / 2:range / 2:complex(n),
+                      -range / 2:range / 2:complex(n)]
+            mlab.contour3d(x, y, z, self.electron_potential, contours=10, opacity=0.5)
+
+        else:
+            log.error("The visualisation mode of the electrostatic potential"
+                      " can be one of ['', 'iso_surface', 'contour']")
+            raise ValueError
+
 
         if export_figure:
             if not os.path.exists("../../data/figures"):
@@ -189,6 +210,7 @@ class MoleculeView(object):
             mlab.savefig(filename='../../data/figures/{0}_elstpot3d.png'.format(self.molecule_name))
 
         mlab.show()
+
 
     def demo(self):
 
