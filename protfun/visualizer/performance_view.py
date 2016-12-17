@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from itertools import cycle
 
@@ -12,7 +14,6 @@ class PerformanceAnalyser(object):
         self.y_expected = y_expected
         self.y_predicted = y_predicted
         self.model_name = model_name
-        pass
 
     def plot_ROC(self, export_figure=True):
         """
@@ -22,7 +23,7 @@ class PerformanceAnalyser(object):
         false_positive_rate, true_positive_rate, roc_auc = self._compute_ROC()
         if export_figure:
             fig = self._plot_ROC(false_positive_rate, true_positive_rate, roc_auc)
-            plt.savefig(filename='../../data/figures/{0}_ROC.png'.format(self.model_name))
+            fig.savefig(filename='../../data/figures/{0}_ROC.png'.format(self.model_name))
 
 
     def _plot_ROC(self, false_positive_rate, true_positive_rate, roc_auc):

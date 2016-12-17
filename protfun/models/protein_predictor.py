@@ -7,10 +7,12 @@ import colorlog as log
 import logging
 import threading
 from os import path
+
 from protfun.visualizer.progressview import ProgressView
 
 from protfun.layers.molmap_layer import MoleculeMapLayer
 from protfun.models.model_monitor import ModelMonitor
+
 
 log.basicConfig(level=logging.DEBUG)
 
@@ -204,7 +206,6 @@ class ProteinPredictor(object):
                 self.plot_progress()
             self._train(epoch_count)
             self.monitor.save_train_history(self.history)
-            self.summarize()
         except (KeyboardInterrupt, SystemExit):
             self.monitor.save_model(msg="interrupted")
             log.info("Training is interrupted and weights have been saved")
@@ -287,10 +288,6 @@ class ProteinPredictor(object):
                  (mode, mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]))
 
         return mean_losses[0], mean_losses[1], mean_accs[0], mean_accs[1]
-
-    @staticmethod
-    def summarize():
-        log.info("The network has been tremendously successful!")
 
     def plot_progress(self):
         t = threading.Timer(5.0, self.plot_progress)
