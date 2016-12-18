@@ -122,7 +122,7 @@ class ModelTrainer(object):
             epoch_accs.append(accuracies)
             epoch_predictions.append(predictions)
             # TODO: this will break when the DataFeeder is refactored, so refactor too.
-            epoch_targets.append(inputs[-2])
+            epoch_targets.append(inputs[-2:])
 
         epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
         epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
@@ -137,6 +137,7 @@ class ModelTrainer(object):
         progress.save()
 
     def summarize(self):
+        # this labeling is so weird that it makes no sense adapting this now.
         performance = PerformanceAnalyser(n_classes=self.model.n_classes,
                                           y_expected=self.history['val_targets'],
                                           y_predicted=self.history['val_predictions'],
