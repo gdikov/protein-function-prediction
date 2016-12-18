@@ -35,7 +35,6 @@ class ModelTrainer(object):
                 self.plot_progress()
             self._train(epochs)
             self.monitor.save_train_history(self.history)
-            # FIXME: there are some issues with the comparison of the predicted and the targets
             # self.summarize()
         except (KeyboardInterrupt, SystemExit):
             self.monitor.save_model(msg="interrupted")

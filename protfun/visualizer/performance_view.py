@@ -11,8 +11,8 @@ from scipy import interp
 class PerformanceAnalyser(object):
     def __init__(self, n_classes, y_expected, y_predicted, model_name='dummy_model'):
         self.n_classes = n_classes
-        self.y_expected = y_expected
-        self.y_predicted = y_predicted
+        self.y_expected = np.asarray(y_expected)
+        self.y_predicted = np.asarray(y_predicted)
         self.model_name = model_name
 
     def plot_ROC(self, export_figure=True):

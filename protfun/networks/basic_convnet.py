@@ -28,7 +28,6 @@ def add_deep_conv_maxpool(network):
                                                    stride=2)
 
     for i in range(0, 6):
-        # NOTE: we start with a very poor filter count.
         network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
                                                     num_filters=2 ** (5 + i // 2),
                                                     filter_size=filter_size,
