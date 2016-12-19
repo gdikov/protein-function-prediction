@@ -89,7 +89,8 @@ class MemmapsDisjointClassifier(DisjointClassModel):
         natoms_input = lasagne.layers.InputLayer(shape=(self.minibatch_size,),
                                                  input_var=n_atoms)
         grids = MoleculeMapLayer(incomings=[coords_input, charges_input, vdwradii_input, natoms_input],
-                                 minibatch_size=self.minibatch_size)
+                                 minibatch_size=self.minibatch_size,
+                                 use_esp=False)
 
         # apply the network to the preprocessed input
         self.output_layers = network(grids, n_outputs=n_classes)

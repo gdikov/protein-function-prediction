@@ -18,7 +18,9 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
     electron density estimated from VdW radii) of molecules (using Theano, i.e. on the GPU if the user wishes so).
     """
 
-    def __init__(self, incomings, minibatch_size=None, grid_side=126.0, resolution=2.0, rotate=True, **kwargs):
+    def __init__(self, incomings, minibatch_size=None,
+                 grid_side=126.0, resolution=2.0,
+                 rotate=True, use_esp=True, **kwargs):
         """
         :param incomings: list of lasagne InputLayers for coords, charges, vdwradii and n_atoms for the molecules
                           int the minibatch.
@@ -35,6 +37,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
 
         self.minibatch_size = minibatch_size
         self.rotate = rotate
+        self.use_esp = use_esp
 
         # Set the grid side length and resolution in Angstroms.
         self.endx = grid_side / 2
@@ -56,7 +59,9 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         :param input_shape: not needed
         :return: the shape of the two computed grids (electron density, esp), stacked along axis 1
         """
-        return self.minibatch_size, 2, self.side_points_count, self.side_points_count, self.side_points_count
+        channel_count = 2 if self.use_esp else 1
+        return self.minibatch_size, channel_count, self.side_points_count, \
+               self.side_points_count, self.side_points_count
 
     def get_output_for(self, mols_info, **kwargs):
         """
@@ -134,11 +139,13 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
                 # grid point distances should not be smaller then vwd radius when computing ESP
                 capped_distances_i = T.maximum(distances_i, mol_vdwradii)
 
-                esp_i = T.sum(mol_charges / capped_distances_i, axis=0, keepdims=True)
+                if self.use_esp:
+                    esp_i = T.sum(mol_charges / capped_distances_i, axis=0, keepdims=True)
                 density_i = T.sum(T.exp((-distances_i ** 2) / mol_vdwradii ** 2), axis=0, keepdims=True)
 
                 grid_density = T.set_subtensor(grid_density[i, :, grid_idx_start:grid_idx_end], density_i)
-                grid_esp = T.set_subtensor(grid_esp[i, :, grid_idx_start:grid_idx_end], esp_i)
+                if self.use_esp:
+                    grid_esp = T.set_subtensor(grid_esp[i, :, grid_idx_start:grid_idx_end], esp_i)
                 return grid_esp, grid_density
 
             partial_result, _ = theano.scan(fn=compute_grid_part,
@@ -165,15 +172,19 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
                                 n_steps=self.minibatch_size,
                                 allow_gc=True)
 
-        grids_esp = result[0][-1]
-        grids_density = result[1][-1]
+        if self.use_esp:
+            grids_esp = result[0][-1]
+            grids_esp = T.reshape(grids_esp, newshape=(
+                self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
 
-        grids_esp = T.reshape(grids_esp, newshape=(
-            self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
+        grids_density = result[1][-1]
         grids_density = T.reshape(grids_density, newshape=(
             self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
 
-        grids = T.concatenate([grids_esp, grids_density], axis=1)
+        if self.use_esp:
+            grids = T.concatenate([grids_esp, grids_density], axis=1)
+        else:
+            grids = grids_density
         return grids
 
     @staticmethod
