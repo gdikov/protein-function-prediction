@@ -58,20 +58,20 @@ def visualize():
         # viewer.potential3d()
 
 
-def train_enz_from_memmaps():
-    data_feeder = EnzymesMolDataFeeder(minibatch_size=8,
-                                       init_samples_per_class=1)
-    model = MemmapsDisjointClassifier(n_classes=2, network=basic_convnet, minibatch_size=8)
-    trainer = ModelTrainer(model=model, data_feeder=data_feeder)
-    trainer.train(epochs=100)
+# def train_enz_from_memmaps():
+#     data_feeder = EnzymesMolDataFeeder(minibatch_size=8,
+#                                        init_samples_per_class=1)
+#     model = MemmapsDisjointClassifier(n_classes=2, network=basic_convnet, minibatch_size=8)
+#     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
+#     trainer.train(epochs=100)
 
 
 def train_enz_from_grids():
-    data_feeder = EnzymesGridFeeder(minibatch_size=8,
+    data_feeder = EnzymesGridFeeder(minibatch_size=6,
                                     init_samples_per_class=3000,
                                     prediction_depth=3,
                                     enzyme_classes=['3.5'])
-    model = GridsDisjointClassifier(n_classes=5, network=regularized_convnet, grid_size=64, minibatch_size=8)
+    model = GridsDisjointClassifier(n_classes=5, network=regularized_convnet, grid_size=64, minibatch_size=6)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder, val_frequency=20)
     trainer.train(epochs=1000)
 

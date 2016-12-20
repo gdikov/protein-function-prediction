@@ -30,7 +30,7 @@ def add_regularized_conv_maxpool(network):
 
     for i in range(0, 9):
         network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='valid',
-                                                    num_filters=2 ** min((5 + i // 2), 256),
+                                                    num_filters=2 ** min((5 + i // 2), 128),
                                                     filter_size=filter_size,
                                                     nonlinearity=lasagne.nonlinearities.leaky_rectify)
         if i % 3 == 2:

@@ -59,7 +59,7 @@ class EnzymeDataFeeder(DataFeeder):
         return tree_at_max_hdepth
 
     def _TODO_refactor_me_asap(self, stacked_1hot_labels):
-        return [stacked_1hot_labels[:, i:i+1][0] for i in range(stacked_1hot_labels.shape[1])]
+        return [stacked_1hot_labels[:, i] for i in range(stacked_1hot_labels.shape[1])]
 
     def _iter_minibatches(self, iter_mode='train'):
         if iter_mode == "train":
@@ -188,6 +188,6 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
             # if the esp channel should be used too
             grids.append(
                 np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX)
-                    .reshape((1, 2, 64, 64, 64))[:, 1, :, :, :])
+                    .reshape((1, 2, 64, 64, 64))[:, 1, :, :, :].reshape((1, 1, 64, 64, 64)))
 
         return [np.vstack(grids)]

@@ -80,7 +80,7 @@ class GridRotationLayer(lasagne.layers.Layer):
             # NOTE: change it to
             # output = grids[:, :, T.iround(x_indices), T.iround(y_indices), T.iround(z_indices)]
             # if esp should be calculated too.
-            output = grids[:, 1, T.iround(x_indices), T.iround(y_indices), T.iround(z_indices)]
+            output = grids[:, 1, T.iround(x_indices), T.iround(y_indices), T.iround(z_indices)].reshape((1, 1, 64, 64, 64))
         else:
             # For linear interpolation, we use the transformed indices x_indices, y_indices and z_indices
             # to linearly calculate the desired values at each of the original indices in each dimension.
