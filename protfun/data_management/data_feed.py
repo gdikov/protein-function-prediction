@@ -37,7 +37,8 @@ class EnzymeDataFeeder(DataFeeder):
     def __init__(self, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
         super(EnzymeDataFeeder, self).__init__(minibatch_size, init_samples_per_class)
 
-        self.data_manager = EnzymeDataManager(enzyme_classes=enzyme_classes,
+        self.data_manager = EnzymeDataManager(data_dirname='data_new',
+                                              enzyme_classes=enzyme_classes,
                                               force_download=False,
                                               force_memmaps=False,
                                               force_grids=False,
@@ -58,7 +59,7 @@ class EnzymeDataFeeder(DataFeeder):
         return tree_at_max_hdepth
 
     def _TODO_refactor_me_asap(self, stacked_1hot_labels):
-        return [stacked_1hot_labels[:, i:i+1][0] for i in range(stacked_1hot_labels.shape[1])]
+        return [stacked_1hot_labels[:, i] for i in range(stacked_1hot_labels.shape[1])]
 
     def _iter_minibatches(self, iter_mode='train'):
         if iter_mode == "train":
