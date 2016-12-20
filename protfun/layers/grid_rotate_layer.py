@@ -21,7 +21,9 @@ class GridRotationLayer(lasagne.layers.Layer):
         self.angle = avg_rotation_angle
 
     def get_output_shape_for(self, input_shape):
-        return None, 2, self.grid_side, self.grid_side, self.grid_side
+        # NOTE: change channel_count to 2 if esp is passed too.
+        channel_count = 1
+        return None, channel_count, self.grid_side, self.grid_side, self.grid_side
 
     def get_output_for(self, grids, **kwargs):
         height = width = depth = self.grid_side
@@ -74,7 +76,11 @@ class GridRotationLayer(lasagne.layers.Layer):
             # and than index the original input grid with the 3 indices train_grids (numpy style indexing with arrays)
             # to obtain the final result. Note that here, as usual, the multi-dim array that you index with has the
             # same spatial dimensionality as the multi-dim array being index.
-            output = grids[:, :, T.iround(x_indices), T.iround(y_indices), T.iround(z_indices)]
+
+            # NOTE: change it to
+            # output = grids[:, :, T.iround(x_indices), T.iround(y_indices), T.iround(z_indices)]
+            # if esp should be calculated too.
+            output = grids[:, 1, T.iround(x_indices), T.iround(y_indices), T.iround(z_indices)]
         else:
             # For linear interpolation, we use the transformed indices x_indices, y_indices and z_indices
             # to linearly calculate the desired values at each of the original indices in each dimension.

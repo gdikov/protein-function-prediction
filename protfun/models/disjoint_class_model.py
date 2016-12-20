@@ -106,7 +106,10 @@ class GridsDisjointClassifier(DisjointClassModel):
 
         self.minibatch_size = minibatch_size
         grids = T.TensorType(floatX, (False,) * 5)()
-        input_layer = lasagne.layers.InputLayer(shape=(self.minibatch_size, 2, grid_size, grid_size, grid_size),
+        # NOTE: change channel_count to 2 if esp is passed too.
+        channel_count = 1
+        input_layer = lasagne.layers.InputLayer(shape=(self.minibatch_size, channel_count,
+                                                       grid_size, grid_size, grid_size),
                                                 input_var=grids)
         rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size)
 

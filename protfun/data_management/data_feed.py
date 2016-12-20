@@ -37,7 +37,8 @@ class EnzymeDataFeeder(DataFeeder):
     def __init__(self, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
         super(EnzymeDataFeeder, self).__init__(minibatch_size, init_samples_per_class)
 
-        self.data_manager = EnzymeDataManager(enzyme_classes=enzyme_classes,
+        self.data_manager = EnzymeDataManager(data_dirname='data_new',
+                                              enzyme_classes=enzyme_classes,
                                               force_download=False,
                                               force_memmaps=False,
                                               force_grids=False,
@@ -182,7 +183,11 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
         for i, prot_id in enumerate(prot_codes):
             path_to_prot = path.join(from_dir, prot_id.upper())
             # TODO: refactor this hardcoded resolution reshape
+            # NOTE: change to
+            # ....reshape((1, 2, 64, 64, 64)
+            # if the esp channel should be used too
             grids.append(
-                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64)))
+                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX)
+                    .reshape((1, 2, 64, 64, 64))[:, 1, :, :, :])
 
         return [np.vstack(grids)]
