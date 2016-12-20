@@ -37,7 +37,7 @@ class ModelTrainer(object):
                 self.plot_progress()
             self._train(epochs)
             self.monitor.save_history_and_model(self.history, epoch_count=epochs)
-            # self.summarize()
+            self.summarize()
         except (KeyboardInterrupt, SystemExit):
             log.warning("Training is interrupted")
             self.monitor.save_history_and_model(self.history, msg='interrupted')
@@ -123,8 +123,8 @@ class ModelTrainer(object):
             epoch_losses.append(losses)
             epoch_accs.append(accuracies)
             epoch_predictions.append(predictions)
-            # TODO: this will break when the DataFeeder is refactored, so refactor too.
-            epoch_targets.append(inputs[-2:])
+            # TODO: this will break when the DataFeeder is different, so refactor too.
+            epoch_targets.append(inputs[-len(inputs)+1:])
 
         epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
         epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
@@ -139,11 +139,40 @@ class ModelTrainer(object):
         progress.save()
 
     def summarize(self):
-        # this labeling is so weird that it makes no sense adapting this now.
-        performance = PerformanceAnalyser(n_classes=self.model.n_classes,
-                                          y_expected=self.history['val_targets'],
-                                          y_predicted=self.history['val_predictions'],
+        # TODO: some very ugly hacks follow. Refactor later
+
+        val_predictions = self.history['val_predictions']
+        val_targets = self.history['val_targets']
+
+        # transform the shape of the predictions
+        stacked_all_epochs = []
+        for vp_in_epoch in val_predictions:
+            lst = []
+            for sample in vp_in_epoch:
+                sample_reshaped = np.exp(np.max(sample, axis=-1))
+                lst.append(sample_reshaped)
+            stacked_in_epoch = np.hstack(lst)
+            stacked_all_epochs.append(stacked_in_epoch)
+        stacked_all_epochs = np.hstack(stacked_all_epochs)
+        predictions = stacked_all_epochs.T
+
+        # transform the shape of the targets
+        stacked_all_epochs = []
+        for vt_in_epoch in val_targets:
+            lst = []
+            for sample in vt_in_epoch:
+                sample = np.hstack(sample)
+                lst.append(sample)
+            stacked_in_epoch = np.vstack(lst)
+            stacked_all_epochs.append(stacked_in_epoch)
+        stacked_all_epochs = np.vstack(stacked_all_epochs)
+        targets = stacked_all_epochs
+
+        performance = PerformanceAnalyser(n_classes=targets.shape[1],
+                                          y_expected=targets,
+                                          y_predicted=predictions,
                                           model_name=self.model.get_name())
         performance.plot_ROC()
+        # TODO: softcode the path to figures!
         log.info("The network has been tremendously successful! "
                  "Check out the ROC curves in data/figures")

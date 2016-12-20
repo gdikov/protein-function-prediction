@@ -3,7 +3,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from itertools import cycle
-
+import cPickle
+import os
 
 from sklearn.metrics import roc_curve, auc
 from scipy import interp
@@ -23,7 +24,9 @@ class PerformanceAnalyser(object):
         false_positive_rate, true_positive_rate, roc_auc = self._compute_ROC()
         if export_figure:
             fig = self._plot_ROC(false_positive_rate, true_positive_rate, roc_auc)
-            fig.savefig(filename='../../data/figures/{0}_ROC.png'.format(self.model_name))
+            path_to_fig = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                       '../../data/figures/{0}_ROC.png'.format(self.model_name))
+            fig.savefig(filename=path_to_fig)
 
 
     def _plot_ROC(self, false_positive_rate, true_positive_rate, roc_auc):
@@ -31,6 +34,7 @@ class PerformanceAnalyser(object):
         # TODO: make variable number of colors, according to the class number
         lw = 2
         fig = plt.figure()
+        ax = plt.subplot(111)
         plt.plot(false_positive_rate["micro"], true_positive_rate["micro"],
                  label='micro-average ROC curve (area = {0:0.2f})'
                        ''.format(roc_auc["micro"]),
@@ -53,7 +57,16 @@ class PerformanceAnalyser(object):
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         plt.title('Some extension of Receiver operating characteristic to multi-class')
-        plt.legend(loc="lower right")
+
+        # Shrink current axis's height by 10% on the bottom
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0 + box.height * 0.1,
+                         box.width, box.height * 0.9])
+
+        # Put a legend below current axis
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
+                  fancybox=False, shadow=False, ncol=3, prop={'size':8})
+        # plt.legend(loc="lower right")
 
         return fig
 
@@ -92,3 +105,44 @@ class PerformanceAnalyser(object):
         roc_auc["macro"] = auc(false_positive_rate["macro"], true_positive_rate["macro"])
 
         return false_positive_rate, true_positive_rate, roc_auc
+
+if __name__ == "__main__":
+    path_to_hist_dict = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                     '../../data/models/from_grids_disjoint_classifier/',
+                                     'train_history_from_grids_disjoint_classifier.pickle')
+    with open(path_to_hist_dict, 'rb') as f:
+        history_dict = cPickle.load(f)
+    print(history_dict.keys())
+    val_predictions = history_dict['val_predictions']
+    val_targets = history_dict['val_targets']
+
+    # transform the shape of the predictions
+    stacked_all_epochs = []
+    for vp_in_epoch in val_predictions:
+        lst = []
+        for sample in vp_in_epoch:
+            sample_reshaped = np.exp(np.max(sample, axis=-1))
+            lst.append(sample_reshaped)
+        stacked_in_epoch = np.hstack(lst)
+        stacked_all_epochs.append(stacked_in_epoch)
+    stacked_all_epochs = np.hstack(stacked_all_epochs)
+    predictions = stacked_all_epochs.T
+    print(stacked_all_epochs.shape)
+
+    # transform the shape of the targets
+    stacked_all_epochs = []
+    for vt_in_epoch in val_targets:
+        lst = []
+        for sample in vt_in_epoch:
+            sample = np.hstack(sample)
+            lst.append(sample)
+        stacked_in_epoch = np.vstack(lst)
+        stacked_all_epochs.append(stacked_in_epoch)
+    stacked_all_epochs = np.vstack(stacked_all_epochs)
+    targets = stacked_all_epochs
+    print(stacked_all_epochs.shape)
+
+    # dummy_data_pred = np.array([[1, 1], [1, 0], [0, 1]])
+    # dummy_data_actu = np.array([[1, 1], [0, 1], [1, 0]])
+    pa = PerformanceAnalyser(n_classes=5, y_expected=targets, y_predicted=predictions)
+    pa.plot_ROC()
