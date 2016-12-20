@@ -9,7 +9,7 @@ def shallow_convnet(input, n_outputs):
     # branch out for each class
     branches = [network,] * n_outputs
     # add deep dense fully connected layers on each branch
-    branches = [add_dense_layers(branch, n_layers=2, n_units=256) for branch in branches]
+    branches = [add_dense_layers(branch, n_layers=4, n_units=256) for branch in branches]
     # end each branch with a softmax
     outputs = [add_softmax_layer(branch) for branch in branches]
 
@@ -28,12 +28,12 @@ def add_regularized_conv_maxpool(network):
     #                                                pool_size=(2, 2, 2),
     #                                                stride=2)
 
-    for i in range(0, 8):
+    for i in range(0, 9):
         network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='valid',
-                                                    num_filters=2 ** (5 + i // 2),
+                                                    num_filters=2 ** min((5 + i // 2), 256),
                                                     filter_size=filter_size,
                                                     nonlinearity=lasagne.nonlinearities.leaky_rectify)
-        if i % 2 == 1:
+        if i % 3 == 2:
             network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network,
                                                            pool_size=(2, 2, 2),
                                                            stride=2)
@@ -46,6 +46,8 @@ def add_dense_layers(network, n_layers, n_units):
     for i in range(0, n_layers):
         network = lasagne.layers.DenseLayer(incoming=network, num_units=n_units,
                                             nonlinearity=lasagne.nonlinearities.leaky_rectify)
+        network = lasagne.layers.DropoutLayer(incoming=network,
+                                              p=0.5)
     return network
 
 
