@@ -3,6 +3,8 @@ import colorlog as log
 import logging
 import threading
 
+from utils.np_utils import pp_array
+
 from protfun.visualizer.progressview import ProgressView
 from protfun.visualizer.performance_view import PerformanceAnalyser
 from protfun.models.model_monitor import ModelMonitor
@@ -34,11 +36,11 @@ class ModelTrainer(object):
             if generate_progress_plot:
                 self.plot_progress()
             self._train(epochs)
-            self.monitor.save_train_history(self.history)
+            self.monitor.save_history_and_model(self.history, epoch_count=epochs)
             # self.summarize()
         except (KeyboardInterrupt, SystemExit):
-            self.monitor.save_model(msg="interrupted")
-            log.info("Training is interrupted and weights have been saved")
+            log.warning("Training is interrupted")
+            self.monitor.save_history_and_model(self.history, msg='interrupted')
             exit(0)
 
     def _train(self, epochs=100):
@@ -87,7 +89,7 @@ class ModelTrainer(object):
         # save parameters if an improvement is observed
         if np.alltrue(val_acc_means > self.current_max_val_acc):
             self.current_max_val_acc = val_acc_means
-            self.monitor.save_model(epoch, "meanvalacc{0}".format(self.current_max_val_acc))
+            self.monitor.save_model(epoch, "meanvalacc{0}".format(pp_array(self.current_max_val_acc)))
 
     def test(self):
         log.warning(
@@ -133,7 +135,7 @@ class ModelTrainer(object):
         t = threading.Timer(5.0, self.plot_progress)
         t.daemon = True
         t.start()
-        progress = ProgressView(model_name="prot_predictor", history_dict=self.history)
+        progress = ProgressView(model_name=self.model.get_name(), history_dict=self.history)
         progress.save()
 
     def summarize(self):

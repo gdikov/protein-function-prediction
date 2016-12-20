@@ -3,6 +3,7 @@ import os
 import lasagne
 import colorlog as log
 import logging
+import cPickle
 
 log.basicConfig(level=logging.DEBUG)
 
@@ -30,7 +31,7 @@ class ModelMonitor(object):
         :param epoch_count: the number of epochs that the model is trained
         :return:
         """
-        log.info("Saving {0} model parameters...".format(lasagne.layers.count_params(self.network_outputs,
+        log.info("Saving {0} model parameters".format(lasagne.layers.count_params(self.network_outputs,
                                                                                      trainable=True)))
         filename = 'params'
         if epoch_count >= 0:
@@ -57,14 +58,26 @@ class ModelMonitor(object):
 
         lasagne.layers.set_all_param_values(network, param_values, trainable=True)
 
-    def save_train_history(self, history):
-        with open(os.path.join(self.path_to_model_dir, "train_history.tsv"), mode='w') as f:
-            f.write("# train_loss21 train_loss24 train_acc21 train_acc24 "
-                    "val_loss21 val_loss24 val_acc21 val_acc24 time_in_epochs")
-            for tl, ta, vl, va, t in zip(history['train_loss'],
-                                         history['train_accuracy'],
-                                         history['val_loss'],
-                                         history['val_accuracy'],
-                                         history['time_epoch']):
-                f.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\n".
-                        format(tl[0], tl[1], ta[0], ta[1], vl[0], vl[1], va[0], va[1], t))
+    def save_train_history(self, history, save_human_readable=False, msg=''):
+        log.info("Saving training history")
+        # Refactored: instead of saving in a text file, dump the history as a pickle and provide
+        # the saving to a human-readable format as an option
+        filename = 'train_history_{0}'.format(self.name)
+        if msg != '':
+            filename += '_' + msg
+        with open(os.path.join(self.path_to_model_dir, "{0}.pickle".format(filename)), mode='wb') as f:
+            cPickle.dump(history, f)
+
+        if save_human_readable:
+            # TODO: save in a plain text, tsv, csv, or something better
+            with open(os.path.join(self.path_to_model_dir, "train_history.tsv"), mode='w') as f:
+                f.write("# BEGIN PREAMBLE")
+                f.write("# {}".format(history.keys()))
+                f.write("# END PREAMBLE")
+                f.write("# BEGIN DATA")
+                # TODO: fill in with the formatted data
+                f.write("# END DATA")
+
+    def save_history_and_model(self, history, epoch_count=-1, msg='', save_human_readable=False):
+        self.save_model(epoch_count, msg)
+        self.save_train_history(history, save_human_readable, msg)
