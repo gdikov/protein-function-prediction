@@ -2,7 +2,7 @@ import theano.tensor as T
 import lasagne
 
 
-def shallow_convnet(input, n_outputs):
+def regularized_convnet(input, n_outputs):
     network = input
     # add deep convolutional structure
     network = add_regularized_conv_maxpool(network)
