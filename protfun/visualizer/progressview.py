@@ -43,13 +43,23 @@ class ProgressView(object):
                 empty = False
                 for i in range(values.shape[1]):
                     running_mean_vals = self.running_mean(values[:, i], self.mean_window)
-                    ax.plot(running_mean_vals, label='{} {}'.format(artifact, i))
+                    if artifact.startswith('train'):
+                        ax.plot(running_mean_vals, label='{} {}'.format(artifact, i))
+                    else:
+                        ax.plot(running_mean_vals, '--', label='{} {}'.format(artifact, i))
             else:
                 log.warning("No history for {}".format(artifact))
                 continue
         if not empty:
             ax.set_ylim(y_range)
-            ax.legend()
+            box = ax.get_position()
+            ax.set_position([box.x0, box.y0 + box.height * 0.1,
+                             box.width, box.height * 0.9])
+
+            # Put a legend below current axis
+            ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
+                      fancybox=False, shadow=False, ncol=5, prop={'size': 8})
+            # ax.legend()
             if not os.path.exists(self.model_figures_path):
                 os.makedirs(self.model_figures_path)
             fig.savefig(os.path.join(self.model_figures_path, filename))
