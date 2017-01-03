@@ -13,7 +13,8 @@ intX = np.int32
 
 
 class DataFeeder(object):
-    def __init__(self, minibatch_size, init_samples_per_class):
+    def __init__(self, data_dir, minibatch_size, init_samples_per_class):
+        self.data_dir = data_dir
         self.samples_per_class = init_samples_per_class
         self.minibatch_size = minibatch_size
 
@@ -32,12 +33,15 @@ class DataFeeder(object):
     def get_samples_per_class(self):
         return self.samples_per_class
 
+    def get_data_dir(self):
+        return self.data_dir
+
 
 class EnzymeDataFeeder(DataFeeder):
-    def __init__(self, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
-        super(EnzymeDataFeeder, self).__init__(minibatch_size, init_samples_per_class)
+    def __init__(self, data_dir, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
+        super(EnzymeDataFeeder, self).__init__(data_dir, minibatch_size, init_samples_per_class)
 
-        self.data_manager = EnzymeDataManager(data_dirname='data_new',
+        self.data_manager = EnzymeDataManager(data_dir=data_dir,
                                               enzyme_classes=enzyme_classes,
                                               force_download=False,
                                               force_memmaps=False,
@@ -104,7 +108,7 @@ class EnzymeDataFeeder(DataFeeder):
 
             # labels are accessed at a fixed hierarchical depth counting from the root
             next_targets = self._TODO_refactor_me_asap(
-                np.vstack([labels[prot_code][self.prediction_depth-1][0].astype(intX)
+                np.vstack([labels[prot_code][self.prediction_depth - 1][0].astype(intX)
                            for prot_code in prots_in_minibatch]))
 
             yield next_samples + next_targets
@@ -115,8 +119,8 @@ class EnzymeDataFeeder(DataFeeder):
 
 
 class EnzymesMolDataFeeder(EnzymeDataFeeder):
-    def __init__(self, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
-        super(EnzymesMolDataFeeder, self).__init__(minibatch_size, init_samples_per_class,
+    def __init__(self, data_dir, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
+        super(EnzymesMolDataFeeder, self).__init__(data_dir, minibatch_size, init_samples_per_class,
                                                    prediction_depth, enzyme_classes)
 
     def iterate_test_data(self):
@@ -160,8 +164,8 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
 
 
 class EnzymesGridFeeder(EnzymeDataFeeder):
-    def __init__(self, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
-        super(EnzymesGridFeeder, self).__init__(minibatch_size, init_samples_per_class,
+    def __init__(self, data_dir, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
+        super(EnzymesGridFeeder, self).__init__(data_dir, minibatch_size, init_samples_per_class,
                                                 prediction_depth, enzyme_classes)
 
     def iterate_test_data(self):

@@ -1,0 +1,13 @@
+data:
+  dir: data_new
+proteins:
+  enzyme_trees:
+    - 4
+    - 3.5
+  n_classes: 5
+  prediction_depth: 3
+training:
+  init_samples_per_class: 2000
+  minibatch_size: 8
+
+

@@ -17,7 +17,8 @@ class ModelTrainer(object):
         self.model = model
         self.data_feeder = data_feeder
         self.val_frequency = val_frequency
-        self.monitor = ModelMonitor(model.get_output_layers(), name=model.get_name())
+        self.monitor = ModelMonitor(outputs=model.get_output_layers(), data_dir=data_feeder.get_data_dir(),
+                                    name=model.get_name())
         self.current_max_train_acc = np.array(0.85)
         self.current_max_val_acc = np.array(0.0)
         # save training history data
@@ -70,7 +71,8 @@ class ModelTrainer(object):
 
             if np.alltrue(epoch_acc_means >= self.current_max_train_acc):
                 samples_per_class = self.data_feeder.get_samples_per_class()
-                log.info("Augmenting dataset: doubling the samples per class ({0})".format(2 * self.data_feeder.get_samples_per_class()))
+                log.info("Augmenting dataset: doubling the samples per class ({0})".format(
+                    2 * self.data_feeder.get_samples_per_class()))
                 self.current_max_train_acc = epoch_acc_means
                 samples_per_class *= 2
                 self.data_feeder.set_samples_per_class(samples_per_class)
@@ -124,7 +126,7 @@ class ModelTrainer(object):
             epoch_accs.append(accuracies)
             epoch_predictions.append(predictions)
             # TODO: this will break when the DataFeeder is different, so refactor too.
-            epoch_targets.append(inputs[-len(inputs)+1:])
+            epoch_targets.append(inputs[-len(inputs) + 1:])
 
         epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
         epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
@@ -135,7 +137,8 @@ class ModelTrainer(object):
         t = threading.Timer(5.0, self.plot_progress)
         t.daemon = True
         t.start()
-        progress = ProgressView(model_name=self.model.get_name(), history_dict=self.history)
+        progress = ProgressView(model_name=self.model.get_name(),
+                                data_dir=self.data_feeder.get_data_dir(), history_dict=self.history)
         progress.save()
 
     def summarize(self):
@@ -171,8 +174,8 @@ class ModelTrainer(object):
         performance = PerformanceAnalyser(n_classes=targets.shape[1],
                                           y_expected=targets,
                                           y_predicted=predictions,
+                                          data_dir=self.data_feeder.get_data_dir(),
                                           model_name=self.model.get_name())
         performance.plot_ROC()
-        # TODO: softcode the path to figures!
         log.info("The network has been tremendously successful! "
                  "Check out the ROC curves in data/figures")

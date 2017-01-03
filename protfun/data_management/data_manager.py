@@ -16,19 +16,16 @@ class DataManager(object):
     Each datatype has its own _fetcher and _preprocessor
     """
 
-    def __init__(self, data_dirname='data',
+    def __init__(self, data_dir,
                  force_download=False, force_process=False, force_split=False,
                  percentage_test=10, percentage_val=20):
-        self.data_dirname = data_dirname
+        self.data_dirname = data_dir
         self.force_download = force_download
         self.force_process = force_process or force_download
         self.force_split = force_split or force_process or force_download
         self.p_test = percentage_test
         self.p_val = percentage_val
 
-        # define directories for storing the data
-        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                "../../", data_dirname)
         self.dirs = {'data': data_dir,
                      'data_raw': os.path.join(data_dir, "raw"),
                      'data_processed': os.path.join(data_dir, "processed"),
@@ -98,14 +95,14 @@ class DataManager(object):
 
 
 class EnzymeDataManager(DataManager):
-    def __init__(self, data_dirname='data',
+    def __init__(self, data_dir,
                  force_download=False, force_memmaps=False,
                  force_grids=False, force_split=False,
                  enzyme_classes=None,
                  hierarchical_depth=4,
                  percentage_test=10,
                  percentage_val=20):
-        super(EnzymeDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
+        super(EnzymeDataManager, self).__init__(data_dir=data_dir, force_download=force_download,
                                                 force_process=force_memmaps or force_grids, force_split=force_split,
                                                 percentage_test=percentage_test, percentage_val=percentage_val)
         self.force_grids = force_grids or force_memmaps or force_download
@@ -297,10 +294,10 @@ class EnzymeDataManager(DataManager):
 
 
 class GOProteinsDataManager(DataManager):
-    def __init__(self, data_dirname='data', force_download=False, force_process=False, force_split=False,
+    def __init__(self, data_dir, force_download=False, force_process=False, force_split=False,
                  percentage_test=10,
                  percentage_val=20):
-        super(GOProteinsDataManager, self).__init__(data_dirname=data_dirname, force_download=force_download,
+        super(GOProteinsDataManager, self).__init__(data_dir=data_dir, force_download=force_download,
                                                     force_process=force_process, force_split=force_split,
                                                     percentage_test=percentage_test, percentage_val=percentage_val)
 
@@ -315,7 +312,8 @@ class GOProteinsDataManager(DataManager):
 
 
 if __name__ == "__main__":
-    dm = EnzymeDataManager(data_dirname='data',
+    data_dir = os.path.join(os.path.dirname(__file__), '../../data_new')
+    dm = EnzymeDataManager(data_dir=data_dir,
                            force_download=False,
                            force_memmaps=False,
                            force_grids=False,

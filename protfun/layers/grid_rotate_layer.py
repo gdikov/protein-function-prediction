@@ -134,7 +134,7 @@ if __name__ == "__main__":
     import os
     from protfun.visualizer.molview import MoleculeView
 
-    grid_dir = os.path.join(os.path.dirname(__file__), "../../data/processed/1AWH")
+    grid_dir = os.path.join(os.path.dirname(__file__), "../../data_new/processed/1AWH")
     grid_file = os.path.join(grid_dir, "grid.memmap")
     test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64))
     log.debug(test_grid.shape)

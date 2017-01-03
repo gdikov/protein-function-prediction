@@ -1,5 +1,8 @@
 import os
 import colorlog as log
+import logging
+
+log.basicConfig(level=logging.DEBUG)
 
 
 class EnzymeFetcher(object):
@@ -136,7 +139,7 @@ def download_pdbs(base_dir, protein_codes):
 
 
 if __name__ == "__main__":
-    ep = EnzymeFetcher(['3.4.21', '3.4.24'])
+    ep = EnzymeFetcher(categories=['3.4.21', '3.4.24'])
     ep.fetch_enzymes()
     pdbs21 = []
     pdbs24 = []
@@ -146,9 +149,5 @@ if __name__ == "__main__":
                 pdbs21 += value
             elif key.startswith('3.4.24'):
                 pdbs24 += value
-    file_21 = os.path.join(os.path.dirname(__file__), '../../data/enzymes/3.4.21.proteins')
-    file_24 = os.path.join(os.path.dirname(__file__), '../../data/enzymes/3.4.24.proteins')
-    with open(file_21, mode='w') as f:
-        f.writelines(["%s\n" % item for item in pdbs21])
-    with open(file_24, mode='w') as f:
-        f.writelines(["%s\n" % item for item in pdbs24])
+    log.info(pdbs21)
+    log.info(pdbs24)

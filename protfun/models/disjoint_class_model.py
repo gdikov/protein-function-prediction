@@ -2,7 +2,6 @@ import numpy as np
 import theano
 import theano.tensor as T
 import lasagne
-from os import path
 import colorlog as log
 import logging
 
@@ -73,8 +72,6 @@ class MemmapsDisjointClassifier(DisjointClassModel):
     def __init__(self, n_classes, network, minibatch_size):
         super(MemmapsDisjointClassifier, self).__init__(n_classes)
         self.minibatch_size = minibatch_size
-        self.path_to_moldata = path.join(path.dirname(path.realpath(__file__)), "../../data/moldata")
-        self.max_atoms = np.memmap(path.join(self.path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=intX)[0]
 
         coords = T.tensor3('coords')
         charges = T.matrix('charges')

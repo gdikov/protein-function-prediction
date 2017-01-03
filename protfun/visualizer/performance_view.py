@@ -1,19 +1,22 @@
 import numpy as np
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from itertools import cycle
 import cPickle
 import os
 
+from itertools import cycle
 from sklearn.metrics import roc_curve, auc
 from scipy import interp
 
+
 class PerformanceAnalyser(object):
-    def __init__(self, n_classes, y_expected, y_predicted, model_name='dummy_model'):
+    def __init__(self, n_classes, y_expected, y_predicted, data_dir, model_name):
         self.n_classes = n_classes
         self.y_expected = np.asarray(y_expected)
         self.y_predicted = np.asarray(y_predicted)
+        self.data_dir = data_dir
         self.model_name = model_name
 
     def plot_ROC(self, export_figure=True):
@@ -24,10 +27,8 @@ class PerformanceAnalyser(object):
         false_positive_rate, true_positive_rate, roc_auc = self._compute_ROC()
         if export_figure:
             fig = self._plot_ROC(false_positive_rate, true_positive_rate, roc_auc)
-            path_to_fig = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                       '../../data/figures/{0}_ROC.png'.format(self.model_name))
+            path_to_fig = os.path.join(self.data_dir, 'figures/{0}_ROC.png'.format(self.model_name))
             fig.savefig(filename=path_to_fig)
-
 
     def _plot_ROC(self, false_positive_rate, true_positive_rate, roc_auc):
         # Plot all ROC curves
@@ -65,11 +66,10 @@ class PerformanceAnalyser(object):
 
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
-                  fancybox=False, shadow=False, ncol=3, prop={'size':8})
+                  fancybox=False, shadow=False, ncol=3, prop={'size': 8})
         # plt.legend(loc="lower right")
 
         return fig
-
 
     def _compute_ROC(self):
         """
@@ -106,9 +106,10 @@ class PerformanceAnalyser(object):
 
         return false_positive_rate, true_positive_rate, roc_auc
 
+
 if __name__ == "__main__":
-    path_to_hist_dict = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                     '../../data/models/from_grids_disjoint_classifier/',
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../data_new')
+    path_to_hist_dict = os.path.join(data_dir, '/models', 'from_grids_disjoint_classifier',
                                      'train_history_from_grids_disjoint_classifier.pickle')
     with open(path_to_hist_dict, 'rb') as f:
         history_dict = cPickle.load(f)
@@ -142,7 +143,6 @@ if __name__ == "__main__":
     targets = stacked_all_epochs
     print(stacked_all_epochs.shape)
 
-    # dummy_data_pred = np.array([[1, 1], [1, 0], [0, 1]])
-    # dummy_data_actu = np.array([[1, 1], [0, 1], [1, 0]])
-    pa = PerformanceAnalyser(n_classes=5, y_expected=targets, y_predicted=predictions)
+    pa = PerformanceAnalyser(n_classes=5, y_expected=targets, y_predicted=predictions, data_dir=data_dir,
+                             model_name="test")
     pa.plot_ROC()

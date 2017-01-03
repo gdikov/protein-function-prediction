@@ -9,32 +9,37 @@ from protfun.models import ModelTrainer
 from protfun.models import MemmapsDisjointClassifier, GridsDisjointClassifier
 from protfun.networks import basic_convnet
 
+data_dir = os.path.join(os.path.dirname(__file__), "../data_new")
+
 
 def train_enz_from_memmaps():
-    data_feeder = EnzymesMolDataFeeder(minibatch_size=8,
+    data_feeder = EnzymesMolDataFeeder(data_dir=data_dir,
+                                       minibatch_size=8,
                                        init_samples_per_class=2000,
                                        prediction_depth=3,
-                                       enzyme_classes=['3.5', '4.0'])
-    model = MemmapsDisjointClassifier(n_classes=2, network=basic_convnet, minibatch_size=8)
+                                       enzyme_classes=['3.5', '4'])
+    model = MemmapsDisjointClassifier(n_classes=5, network=basic_convnet, minibatch_size=8)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
     trainer.train(epochs=1000)
 
 
 def train_enz_from_grids():
-    data_feeder = EnzymesGridFeeder(minibatch_size=8,
+    data_feeder = EnzymesGridFeeder(data_dir=data_dir,
+                                    minibatch_size=8,
                                     init_samples_per_class=2000,
                                     prediction_depth=3,
-                                    enzyme_classes=['3.5', '4.0'])
+                                    enzyme_classes=['3.5', '4'])
     model = GridsDisjointClassifier(n_classes=5, network=basic_convnet, grid_size=64, minibatch_size=8)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
     trainer.train(epochs=1000)
 
 
 def test_enz_from_grids():
-    data_feeder = EnzymesGridFeeder(minibatch_size=8,
+    data_feeder = EnzymesGridFeeder(data_dir=data_dir,
+                                    minibatch_size=8,
                                     init_samples_per_class=2000,
                                     prediction_depth=3,
-                                    enzyme_classes=['3.5', '4.0'])
+                                    enzyme_classes=['3.5', '4'])
     model = GridsDisjointClassifier(n_classes=5, network=basic_convnet, grid_size=64, minibatch_size=8)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
     trainer.monitor.load_model(model_name="params_54ep_meanvalacc[ 0.90322578  0.88306451].npz",

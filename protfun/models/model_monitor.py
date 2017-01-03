@@ -15,11 +15,10 @@ class ModelMonitor(object):
     Optionally dumps the model status on KeyInterrupt.
     """
 
-    def __init__(self, outputs, name='dummy_model'):
+    def __init__(self, outputs, data_dir, name):
         self.network_outputs = outputs
         self.name = name
-        self.path_to_model_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                              "../../data/models/", self.name)
+        self.path_to_model_dir = os.path.join(data_dir, "models", self.name)
         if not os.path.exists(self.path_to_model_dir):
             os.makedirs(self.path_to_model_dir)
         pass
