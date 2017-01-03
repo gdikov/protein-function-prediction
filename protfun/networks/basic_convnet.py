@@ -1,5 +1,6 @@
 import theano.tensor as T
 import lasagne
+import lasagne.layers.dnn
 
 
 def basic_convnet(input, n_outputs):

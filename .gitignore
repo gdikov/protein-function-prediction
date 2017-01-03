@@ -94,4 +94,5 @@ ENV/
 # simple tests
 test.py
 data_old
+data_new
 

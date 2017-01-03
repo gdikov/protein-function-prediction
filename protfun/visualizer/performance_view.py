@@ -109,8 +109,8 @@ class PerformanceAnalyser(object):
 
 if __name__ == "__main__":
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../data_new')
-    path_to_hist_dict = os.path.join(data_dir, '/models', 'from_grids_disjoint_classifier',
-                                     'train_history_from_grids_disjoint_classifier.pickle')
+    path_to_hist_dict = os.path.join(data_dir, 'models', 'from_grids_disjoint_classifier',
+                                     'train_history_from_grids_disjoint_classifier_interrupted.pickle')
     with open(path_to_hist_dict, 'rb') as f:
         history_dict = cPickle.load(f)
     print(history_dict.keys())
