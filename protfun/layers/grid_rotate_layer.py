@@ -13,7 +13,7 @@ floatX = theano.config.floatX
 class GridRotationLayer(lasagne.layers.Layer):
     min_dist_from_border = 5
 
-    def __init__(self, incoming, grid_side=64, interpolation='linear', avg_rotation_angle=1.57,
+    def __init__(self, incoming, grid_side=64, interpolation='linear', avg_rotation_angle=np.pi,
                  **kwargs):  # 0.392 = pi/8
         super(GridRotationLayer, self).__init__(incoming, **kwargs)
         self.grid_side = grid_side
@@ -105,7 +105,7 @@ class GridRotationLayer(lasagne.layers.Layer):
         random_streams = T.shared_randomstreams.RandomStreams()
 
         # random givens rotations in all 3 spatial dimensions
-        angle = random_streams.normal((3,), avg=0., std=self.angle, ndim=1, dtype=floatX)
+        angle = random_streams.uniform((3,), low=-self.angle, high=self.angle, ndim=1, dtype=floatX)
         R_X = T.as_tensor([1, 0, 0,
                            0, T.cos(angle[0]), -T.sin(angle[0]),
                            0, T.sin(angle[0]), T.cos(angle[0])]).reshape((3, 3))

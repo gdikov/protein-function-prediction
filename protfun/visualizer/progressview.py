@@ -9,7 +9,7 @@ log.basicConfig(level=logging.DEBUG)
 
 class ProgressView(object):
     """
-    Plot train, validation and test error and accuracy over time (epoches).
+    Plot train, validation and test error and accuracy over time (epochs).
     """
 
     def __init__(self, model_name, data_dir, history_file=None, history_dict=None, mean_window=5):
@@ -27,7 +27,7 @@ class ProgressView(object):
 
     def save(self):
         self._save(artifacts=['train_loss', 'val_loss'], y_range=[-0.5, 3], filename='loss_history.png')
-        self._save(artifacts=['train_accuracy', 'val_accuracy'], y_range=[0, 2], filename='accuracy_history.png')
+        self._save(artifacts=['train_accuracy', 'val_accuracy'], y_range=[-1, 2], filename='accuracy_history.png')
 
     def _save(self, artifacts=list(['train_loss', 'val_loss']), y_range=list([-1, 1]), filename='loss_history.png'):
         import matplotlib
