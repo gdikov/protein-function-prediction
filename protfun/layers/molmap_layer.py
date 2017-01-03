@@ -6,6 +6,8 @@ import theano.tensor.nlinalg
 import colorlog as log
 import logging
 
+from protfun.visualizer.molview import MoleculeView
+
 log.basicConfig(level=logging.DEBUG)
 
 floatX = theano.config.floatX
@@ -246,3 +248,42 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         rand_translation = rand01 * (transl_max - transl_min) + transl_min
         perturbated_coords += rand_translation
         return perturbated_coords
+
+
+if __name__ == "__main__":
+    import os
+
+    floatX = theano.config.floatX
+    coords_var = T.tensor3('coords')
+    charges_var = T.matrix('charges')
+    vdwradii_var = T.matrix('vdwradii')
+    n_atoms_var = T.ivector('n_atoms')
+    coords_input = lasagne.layers.InputLayer(shape=(1, None, None),
+                                             input_var=coords_var)
+    charges_input = lasagne.layers.InputLayer(shape=(1, None),
+                                              input_var=charges_var)
+    vdwradii_input = lasagne.layers.InputLayer(shape=(1, None),
+                                               input_var=vdwradii_var)
+    natoms_input = lasagne.layers.InputLayer(shape=(1,),
+                                             input_var=n_atoms_var)
+    preprocess = MoleculeMapLayer(incomings=[coords_input, charges_input, vdwradii_input, natoms_input],
+                                  minibatch_size=1,
+                                  rotate=False)
+
+    path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data_new/processed")
+    for i in ['1DJC']:
+        coords = np.memmap(os.path.join(path_to_moldata, i, 'coords.memmap'),
+                           mode='r', dtype=floatX).reshape(1, -1, 3)
+        charges = np.memmap(os.path.join(path_to_moldata, i, 'charges.memmap'),
+                            mode='r', dtype=floatX).reshape(1, -1)
+        vdwradii = np.memmap(os.path.join(path_to_moldata, i, 'vdwradii.memmap'),
+                             mode='r', dtype=floatX).reshape(1, -1)
+        n_atoms = np.array(vdwradii.shape[1], dtype=np.int32).reshape(1, )
+
+        mol_info = [theano.shared(coords), theano.shared(charges),
+                    theano.shared(vdwradii), theano.shared(n_atoms)]
+
+        grids = preprocess.get_output_for(mols_info=mol_info).eval()
+        viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": i})
+        viewer.density3d()
+        viewer.potential3d()
