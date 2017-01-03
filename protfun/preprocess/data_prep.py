@@ -18,7 +18,7 @@ class DataSetup(object):
     Sets up the data set by downloading PDB proteins and doing initial processing into memmaps.
     """
 
-    def __init__(self, foldername='data',
+    def __init__(self, foldername='data_old',
                  force_download=False, force_process=True,
                  prot_codes=list(), label_type='enzyme_classes', enzyme_classes=None,
                  split_test=0.1):
@@ -63,7 +63,7 @@ class DataSetup(object):
                             pdb_ids += value
                     if len(pdb_ids) is not 0:
                         with open(os.path.join(os.path.dirname(__file__),
-                                               '../../data/enzymes/' + cl + '.proteins'),
+                                               '../../data_old/enzymes/' + cl + '.proteins'),
                                   mode='w') as f:
                             f.writelines(["%s\n" % item for item in pdb_ids])
                     self.prot_codes += pdb_ids
@@ -73,7 +73,7 @@ class DataSetup(object):
             else:
                 for cl in self.enzyme_classes:
                     with open(os.path.join(os.path.dirname(__file__),
-                                           '../../data/enzymes/' + cl + '.proteins'),
+                                           '../../data_old/enzymes/' + cl + '.proteins'),
                               mode='r') as f:
                         self.prot_codes += [e.strip() for e in f.readlines()]
 
@@ -131,7 +131,7 @@ class DataSetup(object):
         # as removing is not allowed during iteration
         for pc in self.prot_codes[:]:
             f_path = os.path.join(os.path.dirname(__file__),
-                                  '../../data/pdb/pdb' + pc.lower() + '.ent')
+                                  '../../data_old/pdb/pdb' + pc.lower() + '.ent')
             # process molecule from file
             mol = molecule_processor.process_molecule(f_path)
             if mol is None:
@@ -269,7 +269,7 @@ class DataSetup(object):
         prots = []
         for i, cls in enumerate(self.enzyme_classes):
             path_to_enz = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                       "../../data/enzymes/" + cls + ".proteins")
+                                       "../../data_old/enzymes/" + cls + ".proteins")
             with open(path_to_enz, 'r') as f:
                 prots.append(set([e.strip().lower() for e in f.readlines()]))
 

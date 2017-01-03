@@ -11,7 +11,7 @@ log.basicConfig(level=logging.DEBUG)
 
 class GridProcessor(object):
     def __init__(self, folder_name='grids', force_process=False):
-        self.grid_dir = os.path.join(os.path.dirname(__file__), '../../data', folder_name)
+        self.grid_dir = os.path.join(os.path.dirname(__file__), '../../data_old', folder_name)
         if not os.path.exists(self.grid_dir):
             os.makedirs(self.grid_dir)
         self.force_process = force_process
@@ -19,7 +19,7 @@ class GridProcessor(object):
         dummy = lasagne.layers.InputLayer(shape=(None,))
         self.processor = MoleculeMapLayer(incomings=[dummy, dummy], minibatch_size=1, rotate=False)
 
-        path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/moldata")
+        path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data_old/moldata")
         max_atoms = np.memmap(os.path.join(path_to_moldata, 'max_atoms.memmap'), mode='r', dtype=np.int32)[0]
         self.coords = np.memmap(os.path.join(path_to_moldata, 'coords.memmap'), mode='r', dtype=np.float32).reshape(
             (-1, max_atoms, 3))

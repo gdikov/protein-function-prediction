@@ -18,7 +18,7 @@ class ModelMonitor(object):
         self.network_outputs = outputs
         self.name = name
         self.path_to_model_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                              "../../data/models/", self.name)
+                                              "../../data_old/models/", self.name)
         if not os.path.exists(self.path_to_model_dir):
             os.makedirs(self.path_to_model_dir)
         pass

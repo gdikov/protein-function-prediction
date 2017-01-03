@@ -13,7 +13,7 @@ floatX = theano.config.floatX
 class GridRotationLayer(lasagne.layers.Layer):
     min_dist_from_border = 5
 
-    def __init__(self, incoming, grid_side=64, interpolation='linear', avg_rotation_angle=0.392,
+    def __init__(self, incoming, grid_side=64, interpolation='linear', avg_rotation_angle=np.pi / 2,
                  **kwargs):  # 0.392 = pi/8
         super(GridRotationLayer, self).__init__(incoming, **kwargs)
         self.grid_side = grid_side
@@ -105,7 +105,7 @@ class GridRotationLayer(lasagne.layers.Layer):
         random_streams = T.shared_randomstreams.RandomStreams()
 
         # random givens rotations in all 3 spatial dimensions
-        angle = random_streams.normal((3,), avg=0., std=self.angle, ndim=1, dtype=floatX)
+        angle = random_streams.uniform((3,), low=-self.angle, high=self.angle, ndim=1, dtype=floatX)
         R_X = T.as_tensor([1, 0, 0,
                            0, T.cos(angle[0]), -T.sin(angle[0]),
                            0, T.sin(angle[0]), T.cos(angle[0])]).reshape((3, 3))
@@ -122,8 +122,8 @@ class GridRotationLayer(lasagne.layers.Layer):
     @staticmethod
     def _translation_vector():
         # TODO: make min and max dependent on the molecule being translated
-        min = -2.5
-        max = 2.5
+        min = -2
+        max = 2
         random_streams = T.shared_randomstreams.RandomStreams()
         rand01 = random_streams.uniform((3, 1, 1, 1), dtype=floatX)  # unifom random in open interval ]0;1[
         rand_translation = rand01 * (max - min) + min
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     import os
     from protfun.visualizer.molview import MoleculeView
 
-    grid_dir = os.path.join(os.path.dirname(__file__), "../../data/grids")
+    grid_dir = os.path.join(os.path.dirname(__file__), "../../data_old/grids")
     grid_file = os.path.join(grid_dir, "grid2.memmap")
     test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64))
     log.debug(test_grid.shape)

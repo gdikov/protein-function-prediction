@@ -105,7 +105,7 @@ class GridsDisjointClassifier(DisjointClassModel):
         grids = T.TensorType(floatX, (False,) * 5)()
         input_layer = lasagne.layers.InputLayer(shape=(self.minibatch_size, 2, grid_size, grid_size, grid_size),
                                                 input_var=grids)
-        rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size)
+        rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size, avg_rotation_angle=np.pi)
 
         # apply the network to the preprocessed input
         self.output_layers = network(rotated_grids, n_outputs=n_classes)

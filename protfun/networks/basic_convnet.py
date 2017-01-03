@@ -7,7 +7,7 @@ def basic_convnet(input, n_outputs):
     # add deep convolutional structure
     network = add_deep_conv_maxpool(network)
     # branch out for each class
-    branches = [network,] * n_outputs
+    branches = [network, ] * n_outputs
     # add deep dense fully connected layers on each branch
     branches = [add_dense_layers(branch, n_layers=2, n_units=256) for branch in branches]
     # end each branch with a softmax

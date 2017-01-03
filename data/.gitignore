@@ -1,8 +1,9 @@
 # Large input data files
-*.sdf
-*.pdb
-*.ent
-*.memmap
-*.npy
-*.csv
+**/*.pdb
+**/*.ent
+**/*.memmap
+**/*.npz
+**/*.pickle
+**/*.proteins
+**/*.csv
 test/

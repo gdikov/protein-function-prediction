@@ -36,7 +36,9 @@ class EnzymeDataFeeder(DataFeeder):
     def __init__(self, minibatch_size, init_samples_per_class, enzyme_classes, force_download=False,
                  force_process=False):
         super(EnzymeDataFeeder, self).__init__(minibatch_size, init_samples_per_class)
-        data = DataSetup(enzyme_classes=enzyme_classes,
+        data = DataSetup(
+
+                         enzyme_classes=enzyme_classes,
                          label_type='enzyme_classes',
                          force_download=force_download,
                          force_process=force_process)
@@ -51,14 +53,12 @@ class EnzymeDataFeeder(DataFeeder):
                         format(mode, np.arange(num_classes)[self.data['class_distribution_' + mode] <= 0.]))
 
         effective_datasize = self.samples_per_class * represented_classes.shape[0]
-        if effective_datasize > data_size:
-            minibatch_count = data_size / self.minibatch_size
-            if data_size % self.minibatch_size != 0:
-                minibatch_count += 1
-        else:
-            minibatch_count = effective_datasize / self.minibatch_size
-            if effective_datasize % self.minibatch_size != 0:
-                minibatch_count += 1
+        if effective_datasize < data_size:
+            data_size = effective_datasize
+
+        minibatch_count = data_size / self.minibatch_size
+        if data_size % self.minibatch_size != 0:
+            minibatch_count += 1
 
         ys = self.data['y_' + mode]
         # one hot encoding of labels which are present in the current set of samples

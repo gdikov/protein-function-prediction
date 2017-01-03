@@ -1,6 +1,6 @@
 import os
 
-os.environ["THEANO_FLAGS"] = "device=gpu7,lib.cnmem=0"
+os.environ["THEANO_FLAGS"] = "device=gpu6,lib.cnmem=1"
 # enable if you want to profile the forward pass
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import lasagne
@@ -56,20 +56,35 @@ def train_enz_from_memmaps():
 
 
 def train_enz_from_grids():
-    grids_dir = os.path.join(os.path.dirname(__file__), "../data/grids")
+    grids_dir = os.path.join(os.path.dirname(__file__), "../data_old/grids")
     data_feeder = EnzymesGridFeeder(grids_dir=grids_dir,
                                     grid_size=64,
                                     enzyme_classes=['3.4.21', '3.4.24'],
-                                    minibatch_size=8,
-                                    init_samples_per_class=1)
-    model = GridsDisjointClassifier(n_classes=2, network=basic_convnet, grid_size=64, minibatch_size=8)
+                                    minibatch_size=32,
+                                    init_samples_per_class=2000)
+    model = GridsDisjointClassifier(n_classes=2, network=basic_convnet, grid_size=64, minibatch_size=32)
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
-    trainer.train(epochs=100)
+    trainer.train(epochs=1000)
+
+
+# def test_enz_from_grids():
+#     grids_dir = os.path.join(os.path.dirname(__file__), "../data_old/grids")
+#     data_feeder = EnzymesGridFeeder(grids_dir=grids_dir,
+#                                     grid_size=64,
+#                                     enzyme_classes=['3.4.21', '3.4.24'],
+#                                     minibatch_size=8,
+#                                     init_samples_per_class=1)
+#
+#     model = GridsDisjointClassifier(n_classes=2, network=basic_convnet, grid_size=64, minibatch_size=8)
+#     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
+#     trainer.monitor.load_model("params_90.npz", network=model.get_output_layers())
+#     trainer.test()
 
 
 def preprocess_grids():
     data = DataSetup(enzyme_classes=['3.4.21', '3.4.24'],
                      label_type='enzyme_classes',
+                     foldername="data_old",
                      force_download=False,
                      force_process=False)
     data = data.load_dataset()
@@ -80,6 +95,7 @@ def preprocess_grids():
         gridder.process(i)
     for i in data['x_val']:
         gridder.process(i)
+
 
 if __name__ == "__main__":
     # train_enz_from_memmaps()
