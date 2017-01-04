@@ -14,3 +14,10 @@ Here are notes on the actual setup and some peculiarities:
     * 2 x 64-conv, max-pool
     * 2 x 128-conv, max-pool
     * for each class a branch: 2 x 256-dense, then sigmoid (or 2-way softmax)
+
+#### Notes on generalization
+
+The 90% accuracy on the validation set does not translate to 90% accuracy on the test set, rather to 70%.
+This is a bit surprising ... The network has definitely learned something, as with no training it predicts at random on the test set (50% accuracy), but on the other hand the test set performance should be very similar to the validation set performance.
+* Try averaging the predictions per protein over a range of rotated versions.
+* Try a different data split and see if the problem is exactly the same there ... I suspect there are some stubborn proteins in the data.

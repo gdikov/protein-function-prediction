@@ -312,15 +312,15 @@ class GOProteinsDataManager(DataManager):
 
 
 if __name__ == "__main__":
-    data_dir = os.path.join(os.path.dirname(__file__), '../../data_new')
+    data_dir = os.path.join(os.path.dirname(__file__), '../../data')
     dm = EnzymeDataManager(data_dir=data_dir,
                            force_download=False,
                            force_memmaps=False,
                            force_grids=False,
                            force_split=True,
                            percentage_test=20,
-                           percentage_val=15,
-                           hierarchical_depth=4,
+                           percentage_val=30,
+                           hierarchical_depth=3,
                            enzyme_classes=['3.4.21', '3.4.24'])
     print(dm.train_dataset)
     print(dm.train_labels)

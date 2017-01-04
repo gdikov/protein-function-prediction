@@ -1,6 +1,6 @@
 import os
 
-os.environ["THEANO_FLAGS"] = "device=gpu2,lib.cnmem=0"
+os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=0"
 # enable if you want to profile the forward pass
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 from protfun.data_management.data_feed import EnzymesMolDataFeeder, EnzymesGridFeeder
@@ -45,12 +45,13 @@ def test_enz_from_grids():
     model = GridsDisjointClassifier(n_classes=config['proteins']['n_classes'], network=basic_convnet, grid_size=64,
                                     minibatch_size=config['training']['minibatch_size'])
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
-    trainer.monitor.load_model(model_name="params_54ep_meanvalacc[ 0.90322578  0.88306451].npz",
+    trainer.monitor.load_model(model_name="params_0ep_meanvalacc[|0.521|0.521].npz",
                                network=model.get_output_layers())
     trainer.test()
 
 
 if __name__ == "__main__":
     # train_enz_from_memmaps()
-    train_enz_from_grids()
+    # train_enz_from_grids()
+    test_enz_from_grids()
     # visualize()

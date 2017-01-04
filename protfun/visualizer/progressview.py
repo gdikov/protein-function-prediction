@@ -41,16 +41,19 @@ class ProgressView(object):
             if values.size != 0:
                 empty = False
                 for i in range(values.shape[1]):
-                    running_mean_vals = self.running_mean(values[:, i], self.mean_window)
+                    vals = values[:, i]
+                    if artifact in ['train_loss', 'train_accuracy']:
+                        vals = self.running_mean(vals, self.mean_window)
                     if artifact.startswith('train'):
-                        ax.plot(running_mean_vals, label='{} {}'.format(artifact, i))
+                        ax.plot(vals, label='{} {}'.format(artifact, i))
                     else:
-                        ax.plot(running_mean_vals, '--', label='{} {}'.format(artifact, i))
+                        ax.plot(vals, '--', label='{} {}'.format(artifact, i))
             else:
                 log.warning("No history for {}".format(artifact))
                 continue
         if not empty:
             ax.set_ylim(y_range)
+            ax.set_xlim([0, 10000])
             box = ax.get_position()
             ax.set_position([box.x0, box.y0 + box.height * 0.1,
                              box.width, box.height * 0.9])

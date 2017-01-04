@@ -31,7 +31,7 @@ class ModelMonitor(object):
         :return:
         """
         log.info("Saving {0} model parameters".format(lasagne.layers.count_params(self.network_outputs,
-                                                                                     trainable=True)))
+                                                                                  trainable=True)))
         filename = 'params'
         if epoch_count >= 0:
             filename += '_{0}ep'.format(epoch_count)
