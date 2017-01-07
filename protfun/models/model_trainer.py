@@ -126,7 +126,7 @@ class ModelTrainer(object):
             epoch_accs.append(accuracies)
             epoch_predictions.append(predictions)
             # TODO: this will break when the DataFeeder is different, so refactor too.
-            epoch_targets.append(inputs[-len(inputs) + 1:])
+            epoch_targets.append(inputs[1:])
 
         epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
         epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
