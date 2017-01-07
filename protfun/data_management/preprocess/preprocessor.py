@@ -60,7 +60,6 @@ class EnzymeDataProcessor(DataProcessor):
                     if mol is None:
                         log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
                         continue
-
                     # persist the molecule and add the resulting memmaps to mol_info if processing was successful
                     self._persist_processed(prot_dir=prot_dir, mol=mol)
 
@@ -72,10 +71,12 @@ class EnzymeDataProcessor(DataProcessor):
                         continue
                     if not os.path.exists(prot_dir):
                         os.makedirs(prot_dir)
+                    # persist the computed grid as a memmap file
                     self.save_to_memmap(file_path=os.path.join(prot_dir, "grid.memmap"), data=grid, dtype=floatX)
 
                 # copy the PDB file to the target directory
-                os.system("cp %s %s" % (f_path, os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')))
+                if not os.path.exists(os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')):
+                    os.system("cp %s %s" % (f_path, os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')))
 
                 valid_codes[cls].append(pc)
 
