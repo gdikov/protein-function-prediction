@@ -106,7 +106,6 @@ class PerformanceAnalyser(object):
 
         return false_positive_rate, true_positive_rate, roc_auc
 
-
 if __name__ == "__main__":
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../data')
     path_to_hist_dict = os.path.join(data_dir, 'models', 'from_grids_disjoint_classifier',
@@ -131,5 +130,5 @@ if __name__ == "__main__":
     val_targets = np.reshape(val_targets, (-1, val_targets.shape[-1]))
 
     pa = PerformanceAnalyser(n_classes=2, y_expected=val_targets, y_predicted=val_predictions, data_dir=data_dir,
-                             model_name="test")
+                             model_name="grids_val")
     pa.plot_ROC()
