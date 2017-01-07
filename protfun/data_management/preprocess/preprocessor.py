@@ -33,11 +33,13 @@ class EnzymeDataProcessor(DataProcessor):
     numpy.memmap's are created for molecules (from the PDB files with no errors)
     """
 
-    def __init__(self, from_dir, target_dir, protein_codes, process_grids=True, process_memmaps=True):
+    def __init__(self, from_dir, target_dir, protein_codes, process_grids=True, process_memmaps=True,
+                 force_recreate=False):
         super(EnzymeDataProcessor, self).__init__(from_dir=from_dir, target_dir=target_dir)
         self.prot_codes = protein_codes
         self.process_grids = process_grids
         self.process_memmaps = process_memmaps
+        self.force_recreate = force_recreate
         self.molecule_processor = PDBMoleculeProcessor()
         self.grid_processor = GridProcessor()
 
@@ -52,7 +54,7 @@ class EnzymeDataProcessor(DataProcessor):
                 f_path = os.path.join(self.from_dir, pc.upper(), 'pdb' + pc.lower() + '.ent')
 
                 # if required, process the memmaps for the molecules again
-                if self.process_memmaps:
+                if self.process_memmaps and (not self.memmaps_exists(prot_dir) or self.force_recreate):
                     # attempt to process the molecule from the PDB file
                     mol = self.molecule_processor.process_molecule(f_path)
                     if mol is None:
@@ -63,7 +65,7 @@ class EnzymeDataProcessor(DataProcessor):
                     self._persist_processed(prot_dir=prot_dir, mol=mol)
 
                 # if required, process the molecule grids as well
-                if self.process_grids:
+                if self.process_grids and (not self.grid_exists(prot_dir) or self.force_recreate):
                     grid = self.grid_processor.process(prot_dir)
                     if grid is None:
                         log.warning("Ignoring PDB file {}, grid could not be processed".format(pc))
@@ -101,6 +103,16 @@ class EnzymeDataProcessor(DataProcessor):
         tmp[:] = data[:]
         tmp.flush()
         del tmp
+
+    @staticmethod
+    def memmaps_exists(prot_dir):
+        return os.path.exists(os.path.join(prot_dir, 'coords.memmap')) and \
+               os.path.exists(os.path.join(prot_dir, 'charges.memmap')) and \
+               os.path.exists(os.path.join(prot_dir, 'vdwradii.memmap'))
+
+    @staticmethod
+    def grid_exists(prot_dir):
+        return os.path.exists(os.path.join(prot_dir, "grid.memmap"))
 
 
 class GODataProcessor(DataProcessor):
