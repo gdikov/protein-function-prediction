@@ -117,32 +117,19 @@ if __name__ == "__main__":
     val_predictions = history_dict['val_predictions']
     val_targets = history_dict['val_targets']
 
-    # transform the shape of the predictions
-    stacked_all_epochs = []
-    for vp_in_epoch in val_predictions:
-        lst = []
-        for sample in vp_in_epoch:
-            sample_reshaped = np.exp(np.max(sample, axis=-1))
-            lst.append(sample_reshaped)
-        stacked_in_epoch = np.hstack(lst)
-        stacked_all_epochs.append(stacked_in_epoch)
-    stacked_all_epochs = np.hstack(stacked_all_epochs)
-    predictions = stacked_all_epochs.T
-    print(stacked_all_epochs.shape)
+    val_predictions = np.asarray(val_predictions)
+    # take the score of predicting 1, since it's a softmax per class and not sigmoid
+    val_predictions = np.exp(val_predictions[:, :, :, :, 1])
+    # transpose to (epochs x mini_batches x samples in mini_batch x classes)
+    val_predictions = np.transpose(val_predictions, (0, 1, 3, 2))
+    # reshape to a flattened version, N x num_classes
+    val_predictions = np.reshape(val_predictions, (-1, val_predictions.shape[-1]))
 
-    # transform the shape of the targets
-    stacked_all_epochs = []
-    for vt_in_epoch in val_targets:
-        lst = []
-        for sample in vt_in_epoch:
-            sample = np.hstack(sample)
-            lst.append(sample)
-        stacked_in_epoch = np.vstack(lst)
-        stacked_all_epochs.append(stacked_in_epoch)
-    stacked_all_epochs = np.vstack(stacked_all_epochs)
-    targets = stacked_all_epochs
-    print(stacked_all_epochs.shape)
+    # transform the shape of the targets in the same way
+    val_targets = np.asarray(val_targets)
+    val_targets = np.transpose(val_targets, (0, 1, 3, 2))
+    val_targets = np.reshape(val_targets, (-1, val_targets.shape[-1]))
 
-    pa = PerformanceAnalyser(n_classes=5, y_expected=targets, y_predicted=predictions, data_dir=data_dir,
+    pa = PerformanceAnalyser(n_classes=2, y_expected=val_targets, y_predicted=val_predictions, data_dir=data_dir,
                              model_name="test")
     pa.plot_ROC()
