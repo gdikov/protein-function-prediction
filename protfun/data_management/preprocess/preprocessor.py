@@ -6,6 +6,7 @@ import csv
 import StringIO
 import theano
 import lasagne
+import cPickle
 
 from protfun.layers import MoleculeMapLayer
 
@@ -46,28 +47,39 @@ class EnzymeDataProcessor(DataProcessor):
     def process(self):
         # will store the valid proteins for each enzyme class, which is the key in the dict()
         valid_codes = dict()
+        invalid_codes = set()
+        invalid_codes_path = os.path.join(self.from_dir, 'invalid_codes.pickle')
+        if os.path.exists(invalid_codes_path):
+            with open(invalid_codes_path, 'r') as f:
+                invalid_codes = cPickle.load(f)
 
         for cls in self.prot_codes.keys():
             valid_codes[cls] = []
             for pc in self.prot_codes[cls]:
+                # skip if we know this protein cannot be processed
+                if pc in invalid_codes:
+                    continue
+
                 prot_dir = os.path.join(self.target_dir, pc.upper())
                 f_path = os.path.join(self.from_dir, pc.upper(), 'pdb' + pc.lower() + '.ent')
 
-                # if required, process the memmaps for the molecules again
+                # if required, process the memmaps for the protein again
                 if self.process_memmaps and (not self.memmaps_exists(prot_dir) or self.force_recreate):
                     # attempt to process the molecule from the PDB file
                     mol = self.molecule_processor.process_molecule(f_path)
                     if mol is None:
                         log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
+                        invalid_codes.add(pc)
                         continue
                     # persist the molecule and add the resulting memmaps to mol_info if processing was successful
                     self._persist_processed(prot_dir=prot_dir, mol=mol)
 
-                # if required, process the molecule grids as well
+                # if required, process the ESP and density grids as well
                 if self.process_grids and (not self.grid_exists(prot_dir) or self.force_recreate):
                     grid = self.grid_processor.process(prot_dir)
                     if grid is None:
                         log.warning("Ignoring PDB file {}, grid could not be processed".format(pc))
+                        invalid_codes.add(pc)
                         continue
                     if not os.path.exists(prot_dir):
                         os.makedirs(prot_dir)
@@ -79,6 +91,10 @@ class EnzymeDataProcessor(DataProcessor):
                     os.system("cp %s %s" % (f_path, os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')))
 
                 valid_codes[cls].append(pc)
+
+        # persist the invalid codes for next time
+        with open(invalid_codes_path, 'wb') as f:
+            cPickle.dump(invalid_codes, f)
 
         return valid_codes
 
