@@ -1,8 +1,7 @@
 import os
 import numpy as np
 
-os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=0"
-
+os.environ["THEANO_FLAGS"] = "device=gpu2,lib.cnmem=0"
 # enable if you want to profile the forward pass
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
@@ -28,7 +27,7 @@ def train_enz_from_memmaps():
     trainer.train(epochs=config['training']['epochs'])
 
 
-def train_enz_from_grids():
+def _build_enz_feeder_model_trainer():
     data_feeder = EnzymesGridFeeder(data_dir=config['data']['dir'],
                                     minibatch_size=config['training']['minibatch_size'],
                                     init_samples_per_class=config['training']['init_samples_per_class'],
@@ -37,18 +36,16 @@ def train_enz_from_grids():
     model = GridsDisjointClassifier(n_classes=config['proteins']['n_classes'], network=basic_convnet, grid_size=64,
                                     minibatch_size=config['training']['minibatch_size'])
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
+    return data_feeder, model, trainer
+
+
+def train_enz_from_grids():
+    _, _, trainer = _build_enz_feeder_model_trainer()
     trainer.train(epochs=config['training']['epochs'])
 
 
 def test_enz_from_grids():
-    data_feeder = EnzymesGridFeeder(data_dir=config['data']['dir'],
-                                    minibatch_size=config['training']['minibatch_size'],
-                                    init_samples_per_class=config['training']['init_samples_per_class'],
-                                    prediction_depth=config['proteins']['prediction_depth'],
-                                    enzyme_classes=config['proteins']['enzyme_trees'])
-    model = GridsDisjointClassifier(n_classes=config['proteins']['n_classes'], network=basic_convnet, grid_size=64,
-                                    minibatch_size=config['training']['minibatch_size'])
-    trainer = ModelTrainer(model=model, data_feeder=data_feeder)
+    _, model, trainer = _build_enz_feeder_model_trainer()
     trainer.monitor.load_model(model_name="params_160ep_meanvalacc[|0.953|0.964].npz",
                                network=model.get_output_layers())
 

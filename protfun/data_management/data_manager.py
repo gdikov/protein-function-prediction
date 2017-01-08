@@ -165,6 +165,9 @@ class EnzymeDataManager(DataManager):
                 test_dataset, trainval_data = self.split_data(self.valid_proteins, percentage=self.p_test)
                 val_dataset, train_dataset = self.split_data(trainval_data, percentage=self.p_val)
 
+                self.validator.check_splitting(self.valid_proteins, trainval_data, test_dataset)
+                self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
+
                 # recreate the train and test dirs
                 shutil.rmtree(self.dirs['data_train'])
                 os.makedirs(self.dirs['data_train'])
@@ -183,8 +186,6 @@ class EnzymeDataManager(DataManager):
                 self._save_enzyme_list(target_dir=self.dirs["data_test"], proteins_dict=test_dataset)
                 self._save_pickle(file_path=os.path.join(self.dirs["data_test"], "test_prot_codes.pickle"),
                                   data=test_dataset)
-
-                self.validator.check_splitting(self.valid_proteins, trainval_data, test_dataset)
             else:
                 # only reinitialize the train and validation sets
                 # the existing train and val pickles need to be merged and split again
@@ -196,6 +197,9 @@ class EnzymeDataManager(DataManager):
 
                 # split them again
                 val_dataset, train_dataset = self.split_data(trainval_data, percentage=self.p_val)
+
+                self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
+
                 self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
                                              os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
                                   data=[train_dataset, val_dataset])
@@ -318,7 +322,7 @@ if __name__ == "__main__":
                            force_memmaps=False,
                            force_grids=False,
                            force_split=True,
-                           percentage_test=20,
+                           percentage_test=10,
                            percentage_val=30,
                            hierarchical_depth=3,
                            enzyme_classes=['3.4.21', '3.4.24'])

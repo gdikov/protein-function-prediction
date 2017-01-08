@@ -51,14 +51,14 @@ class EnzymeValidator(object):
 
         return missing_enzymes, successful, failed
 
-    def check_class_representation(self, data_dict, clean_dict=True, clean_diplicates=True):
+    def check_class_representation(self, data_dict, clean_dict=True, clean_duplicates=True):
         bad_keys = []
         duplicates = set()
         checked_classes = set()
         for cls, first_prots in data_dict.items():
             duplicates |= set(first_prots)
             checked_classes.add(cls)
-            if clean_diplicates:
+            if clean_duplicates:
                 for c, prots in data_dict.items():
                     if c not in checked_classes:
                         for p in prots[:]:
@@ -77,27 +77,28 @@ class EnzymeValidator(object):
                 if k in bad_keys:
                     del data_dict[k]
 
-    def check_splitting(self, valid_proteins, test_proteins, train_proteins):
+    def check_splitting(self, all_proteins, first_partition, second_partition):
         # log.info("Checking the data splits for consistency and completeness")
         # leaf_classes = [x for x in os.listdir(self.dirs['data_processed']) if x.endswith('.proteins')]
-        for cls in valid_proteins.keys():
+        for cls in all_proteins.keys():
             # path_to_valid_cls = os.path.join(self.dirs['data_processed'], cls)
             # with open(path_to_valid_cls, 'r') as f:
-            valid_prot_codes_in_cls = valid_proteins[cls]
+            all_prot_codes_in_cls = all_proteins[cls]
 
             # path_to_train_cls = os.path.join(self.dirs['data_train'], cls)
             # with open(path_to_train_cls, 'r') as f:
-            train_prot_codes_in_cls = train_proteins[cls]
+            second_partition_prot_codes_in_cls = second_partition[cls]
 
             # path_to_test_cls = os.path.join(self.dirs['data_test'], cls)
             # with open(path_to_test_cls, 'r') as f:
-            test_prot_codes_in_cls = test_proteins[cls]
+            first_partition_prot_codes_in_cls = first_partition[cls]
 
-            assert len(set(train_prot_codes_in_cls)) + len(set(test_prot_codes_in_cls)) == \
-                   len(set(train_prot_codes_in_cls + test_prot_codes_in_cls)), "Train and test set are not disjoint!"
+            assert len(set(second_partition_prot_codes_in_cls)) + len(set(first_partition_prot_codes_in_cls)) == \
+                   len(set(second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls)), \
+                "The splits are not disjoint!"
 
-            assert set(train_prot_codes_in_cls + test_prot_codes_in_cls) == \
-                   set(valid_prot_codes_in_cls), "Train and test set are not a partition of all processed proteins "
+            assert set(second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls) == \
+                   set(all_prot_codes_in_cls), "The splits are not a partition of all proteins!"
 
     def check_labels(self, train_labels=None, val_labels=None, test_lables=None):
         log.warning("Label checking is not implemented yet")
