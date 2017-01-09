@@ -7,6 +7,7 @@ import StringIO
 import theano
 import lasagne
 import cPickle
+import itertools
 
 from protfun.layers import MoleculeMapLayer
 
@@ -53,48 +54,52 @@ class EnzymeDataProcessor(DataProcessor):
             with open(invalid_codes_path, 'r') as f:
                 invalid_codes = cPickle.load(f)
 
-        for cls in self.prot_codes.keys():
-            valid_codes[cls] = []
-            for pc in self.prot_codes[cls]:
-                # skip if we know this protein cannot be processed
-                if pc in invalid_codes:
+        prot_codes = list(itertools.chain.from_iterable(self.prot_codes.values()))
+        prot_codes = list(set(prot_codes))
+        prot_codes = sorted(prot_codes)
+        for i, pc in enumerate(prot_codes):
+            # skip if we know this protein cannot be processed
+            if pc in invalid_codes:
+                continue
+
+            prot_dir = os.path.join(self.target_dir, pc.upper())
+            f_path = os.path.join(self.from_dir, pc.upper(), 'pdb' + pc.lower() + '.ent')
+
+            # if required, process the memmaps for the protein again
+            if self.process_memmaps and (not self.memmaps_exists(prot_dir) or self.force_recreate):
+                # attempt to process the molecule from the PDB file
+                mol = self.molecule_processor.process_molecule(f_path)
+                if mol is None:
+                    log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
+                    invalid_codes.add(pc)
                     continue
+                # persist the molecule and add the resulting memmaps to mol_info if processing was successful
+                self._persist_processed(prot_dir=prot_dir, mol=mol)
+            else:
+                log.info("Skipping already processed PDB file: {}".format(pc))
 
-                prot_dir = os.path.join(self.target_dir, pc.upper())
-                f_path = os.path.join(self.from_dir, pc.upper(), 'pdb' + pc.lower() + '.ent')
+            # if required, process the ESP and density grids as well
+            if self.process_grids and (not self.grid_exists(prot_dir) or self.force_recreate):
+                grid = self.grid_processor.process(prot_dir)
+                if grid is None:
+                    log.warning("Ignoring PDB file {}, grid could not be processed".format(pc))
+                    invalid_codes.add(pc)
+                    continue
+                if not os.path.exists(prot_dir):
+                    os.makedirs(prot_dir)
+                # persist the computed grid as a memmap file
+                self.save_to_memmap(file_path=os.path.join(prot_dir, "grid.memmap"), data=grid, dtype=floatX)
 
-                # if required, process the memmaps for the protein again
-                if self.process_memmaps and (not self.memmaps_exists(prot_dir) or self.force_recreate):
-                    # attempt to process the molecule from the PDB file
-                    mol = self.molecule_processor.process_molecule(f_path)
-                    if mol is None:
-                        log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
-                        invalid_codes.add(pc)
-                        continue
-                    # persist the molecule and add the resulting memmaps to mol_info if processing was successful
-                    self._persist_processed(prot_dir=prot_dir, mol=mol)
-
-                # if required, process the ESP and density grids as well
-                if self.process_grids and (not self.grid_exists(prot_dir) or self.force_recreate):
-                    grid = self.grid_processor.process(prot_dir)
-                    if grid is None:
-                        log.warning("Ignoring PDB file {}, grid could not be processed".format(pc))
-                        invalid_codes.add(pc)
-                        continue
-                    if not os.path.exists(prot_dir):
-                        os.makedirs(prot_dir)
-                    # persist the computed grid as a memmap file
-                    self.save_to_memmap(file_path=os.path.join(prot_dir, "grid.memmap"), data=grid, dtype=floatX)
-
-                # copy the PDB file to the target directory
-                if not os.path.exists(os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')):
-                    os.system("cp %s %s" % (f_path, os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')))
-
-                valid_codes[cls].append(pc)
+            # copy the PDB file to the target directory
+            if not os.path.exists(os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')):
+                os.system("cp %s %s" % (f_path, os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')))
 
         # persist the invalid codes for next time
         with open(invalid_codes_path, 'wb') as f:
             cPickle.dump(invalid_codes, f)
+
+        for cls, prots in self.prot_codes.items():
+            valid_codes[cls] = [pc for pc in prots if pc not in invalid_codes]
 
         return valid_codes
 

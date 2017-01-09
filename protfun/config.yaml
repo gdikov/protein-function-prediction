@@ -9,6 +9,6 @@ proteins:
 training:
   init_samples_per_class: 2000
   minibatch_size: 8
-  epochs: 1000
+  epochs: 200
 
 

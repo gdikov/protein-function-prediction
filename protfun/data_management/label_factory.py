@@ -27,7 +27,7 @@ class LabelFactory(object):
                 for cls in data_dict.keys():
                     for enz in data_dict[cls]:
                         if enz not in label_dict.keys():
-                            label_dict[enz] = [[] for _ in range(self.h_depth)]
+                            label_dict[enz] = [[]] * self.h_depth
                         label_dict[enz][h].append(label_dict_at_depth_h['.'.join(cls.split('.')[:h + 1])])
 
         return train_labels, val_labels, test_labels, encoding_dict
