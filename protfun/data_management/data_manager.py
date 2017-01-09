@@ -316,19 +316,30 @@ class GOProteinsDataManager(DataManager):
 
 
 if __name__ == "__main__":
-    data_dir = os.path.join(os.path.dirname(__file__), '../../data')
+    # data_dir = os.path.join(os.path.dirname(__file__), '../../data')
+    data_dir = "/usr/data/cvpr_shared/proteins/enzymes_w073"
+    enzyme_classes = list()
+    for i in range(1, 100):
+        enzyme_classes.append('1.%d' % i)
+    for i in range(1, 11):
+        enzyme_classes.append('2.%d' % i)
+    for i in range(1, 14):
+        enzyme_classes.append('3.%d' % i)
+    for i in range(1, 8):
+        enzyme_classes.append('4.%d' % i)
+    enzyme_classes.append('4.99')
+    for i in range(1, 6):
+        enzyme_classes.append('5.%d' % i)
+    enzyme_classes.append('5.99')
+    for i in range(1, 7):
+        enzyme_classes.append('6.%d' % i)
+
     dm = EnzymeDataManager(data_dir=data_dir,
                            force_download=False,
-                           force_memmaps=False,
-                           force_grids=False,
+                           force_memmaps=True,
+                           force_grids=True,
                            force_split=True,
-                           percentage_test=10,
+                           percentage_test=30,
                            percentage_val=30,
                            hierarchical_depth=3,
-                           enzyme_classes=['3.4.21', '3.4.24'])
-    print(dm.train_dataset)
-    print(dm.train_labels)
-    print(dm.val_dataset)
-    print(dm.val_labels)
-    print(dm.test_dataset)
-    print(dm.test_labels)
+                           enzyme_classes=enzyme_classes)
