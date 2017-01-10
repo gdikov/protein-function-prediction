@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-os.environ["THEANO_FLAGS"] = "device=gpu2,lib.cnmem=0"
+os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=0"
 # enable if you want to profile the forward pass
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
@@ -46,10 +46,10 @@ def train_enz_from_grids():
 
 def test_enz_from_grids():
     _, model, trainer = _build_enz_feeder_model_trainer()
-    trainer.monitor.load_model(model_name="params_160ep_meanvalacc[|0.953|0.964].npz",
+    trainer.monitor.load_model(model_name="params_90ep_meanvalacc[|0.853|0.846].npz",
                                network=model.get_output_layers())
 
-    _, _, test_predictions, test_targets = trainer.test()
+    _, _, test_predictions, test_targets, proteins = trainer._test(mode='val')
 
     # make the shapes to be (N x n_classes)
     test_predictions = np.exp(np.asarray(test_predictions)[:, :, :, 1]).transpose((0, 2, 1)).reshape(

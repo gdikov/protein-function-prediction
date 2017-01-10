@@ -14,23 +14,22 @@ class LabelFactory(object):
         train_labels = dict()
         val_labels = dict()
         test_labels = dict()
-        encoding_dict = dict()
 
-        for h in range(self.h_depth):
-            unique_labels_at_depth_h = list(set(['.'.join(x.split('.')[:h + 1]) for x in all_classes]))
-            onehot_labels_at_depth_h = np.eye(len(unique_labels_at_depth_h), dtype=np.int32)
-            label_dict_at_depth_h = {k: v for k, v in
-                                     zip(unique_labels_at_depth_h, onehot_labels_at_depth_h)}
-            encoding_dict[h] = label_dict_at_depth_h
-            for data_dict, label_dict in zip([self.train_dict, self.val_dict, self.test_dict],
-                                             [train_labels, val_labels, test_labels]):
-                for cls in data_dict.keys():
-                    for enz in data_dict[cls]:
-                        if enz not in label_dict.keys():
-                            label_dict[enz] = [[]] * self.h_depth
-                        label_dict[enz][h].append(label_dict_at_depth_h['.'.join(cls.split('.')[:h + 1])])
+        unique_labels_at_depth = [sorted(list(set(['.'.join(x.split('.')[:h + 1]) for x in all_classes]))) for h in
+                                  range(self.h_depth)]
 
-        return train_labels, val_labels, test_labels, encoding_dict
+        for data_dict, label_dict in zip([self.train_dict, self.val_dict, self.test_dict],
+                                         [train_labels, val_labels, test_labels]):
+            for cls, enzymes in data_dict.items():
+                for enz in enzymes:
+                    if enz not in label_dict.keys():
+                        label_dict[enz] = [np.zeros(len(unique_labels_at_depth[h]), dtype=np.int32) for h in
+                                           range(self.h_depth)]
+                    for h in range(self.h_depth):
+                        class_index = unique_labels_at_depth[h].index('.'.join(cls.split('.')[:h + 1]))
+                        label_dict[enz][h][class_index] = 1
+
+        return train_labels, val_labels, test_labels
 
 
 if __name__ == "__main__":

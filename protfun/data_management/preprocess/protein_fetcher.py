@@ -13,7 +13,6 @@ class EnzymeFetcher(object):
         self.enzyme_dir = enzyme_dir
         self.excluded_categories = excluded_categories
         self.leaf_categories = list()
-        self.pdb_files = None
 
         log.info("Evaluating the total categorical hierarchy...")
         for cat in set(categories) - set(excluded_categories):
@@ -58,17 +57,7 @@ class EnzymeFetcher(object):
         if self.leaf_categories is not None:
             log.info("Processing html pages for each enzyme classes ({0} in total). "
                      "This may take a while...".format(len(self.leaf_categories)))
-            self.pdb_files = self._ecs2pdbs()
-        else:
-            log.warning("No leaf enzyme categories found.")
-
-        for cl in self.leaf_categories:
-            pdb_ids = []
-            for key, value in self.pdb_files.items():
-                if key.startswith(cl) and value is not None:
-                    pdb_ids += value
-            if len(pdb_ids) is not 0:
-                self.fetched_prot_codes[cl] = pdb_ids
+            self.fetched_prot_codes = self._ecs2pdbs()
         return self.fetched_prot_codes
 
     def _ecs2pdbs(self):
@@ -77,7 +66,9 @@ class EnzymeFetcher(object):
         for category in self.leaf_categories:
             url = "https://www.ebi.ac.uk/thornton-srv/databases/cgi-bin/enzymes/GetPage.pl?ec_number=" + category
             response = requests.get(url)
-            pdbs[category] = self._extract_pdbs_from_html(response.text, category)
+            prots = self._extract_pdbs_from_html(response.text, category)
+            if prots is not None:
+                pdbs[category] = prots
         return pdbs
 
     @staticmethod

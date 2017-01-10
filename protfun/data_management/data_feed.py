@@ -108,10 +108,10 @@ class EnzymeDataFeeder(DataFeeder):
 
             # labels are accessed at a fixed hierarchical depth counting from the root
             next_targets = self._TODO_refactor_me_asap(
-                np.vstack([labels[prot_code][self.prediction_depth - 1][0].astype(intX)
+                np.vstack([labels[prot_code][self.prediction_depth - 1].astype(intX)
                            for prot_code in prots_in_minibatch]))
 
-            yield next_samples + next_targets
+            yield prots_in_minibatch, next_samples + next_targets
 
     @abc.abstractmethod
     def _form_samples_minibatch(self, prot_codes, from_dir):
@@ -184,7 +184,7 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
         assert len(prot_codes) == self.minibatch_size, \
             "prot_codes must be of the same size as minibatch_size"
         grids = list()
-        for i, prot_id in enumerate(prot_codes):
+        for prot_id in prot_codes:
             path_to_prot = path.join(from_dir, prot_id.upper())
             # TODO: refactor this hardcoded resolution reshape
             grids.append(

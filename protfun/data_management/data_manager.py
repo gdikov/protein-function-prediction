@@ -100,8 +100,8 @@ class EnzymeDataManager(DataManager):
                  force_grids=False, force_split=False,
                  enzyme_classes=None,
                  hierarchical_depth=4,
-                 percentage_test=10,
-                 percentage_val=20):
+                 percentage_test=30,
+                 percentage_val=30):
         super(EnzymeDataManager, self).__init__(data_dir=data_dir, force_download=force_download,
                                                 force_process=force_memmaps or force_grids, force_split=force_split,
                                                 percentage_test=percentage_test, percentage_val=percentage_val)
@@ -203,24 +203,6 @@ class EnzymeDataManager(DataManager):
                 self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
                                              os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
                                   data=[train_dataset, val_dataset])
-
-            test_dataset = self._load_pickle(file_path=os.path.join(self.dirs["data_test"], "test_prot_codes.pickle"))
-
-            # generate labels based on the new splits
-            lf = LabelFactory(train_dataset, val_dataset, test_dataset,
-                              hierarchical_depth=self.max_hierarchical_depth)
-            self.train_labels, self.val_labels, self.test_labels, encoding = lf.generate_hierarchical_labels()
-            self._save_pickle(file_path=os.path.join(self.dirs['misc'], "label_encoding.pickle"),
-                              data=encoding)
-
-            # pickle the generated labels
-            self._save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_labels.pickle"),
-                                         os.path.join(self.dirs["data_train"], "val_labels.pickle"),
-                                         os.path.join(self.dirs["data_test"], "test_labels.pickle")],
-                              data=[self.train_labels, self.val_labels, self.test_labels])
-
-            # final sanity check
-            self.validator.check_labels(self.train_labels, self.val_labels, self.test_labels)
         else:
             log.info("Skipping splitting step")
 
@@ -229,10 +211,13 @@ class EnzymeDataManager(DataManager):
                                          os.path.join(self.dirs["data_train"], "val_prot_codes.pickle"),
                                          os.path.join(self.dirs["data_test"], "test_prot_codes.pickle")])
 
-        self.train_labels, self.val_labels, self.test_labels = \
-            self._load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_labels.pickle"),
-                                         os.path.join(self.dirs["data_train"], "val_labels.pickle"),
-                                         os.path.join(self.dirs["data_test"], "test_labels.pickle")])
+        # generate labels based on the data-sets
+        lf = LabelFactory(self.train_dataset, self.val_dataset, self.test_dataset,
+                          hierarchical_depth=self.max_hierarchical_depth)
+        self.train_labels, self.val_labels, self.test_labels = lf.generate_hierarchical_labels()
+
+        # final sanity check
+        self.validator.check_labels(self.train_labels, self.val_labels, self.test_labels)
 
     def _remove_failed_downloads(self, failed=None):
         # here the protein codes are stored in a dict according to their classes
