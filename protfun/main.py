@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import datetime
 
 os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=0"
 # enable if you want to profile the forward pass
@@ -21,7 +22,9 @@ def train_enz_from_memmaps():
                                        init_samples_per_class=config['training']['init_samples_per_class'],
                                        prediction_depth=config['proteins']['prediction_depth'],
                                        enzyme_classes=config['proteins']['enzyme_trees'])
-    model = MemmapsDisjointClassifier(n_classes=config['proteins']['n_classes'], network=basic_convnet,
+    model_name = "molmap_classifier_{}_classes_{}".format(config["proteins"]["n_classes"],
+                                                          datetime.date.today().strftime("%h_%d_%Y"))
+    model = MemmapsDisjointClassifier(name=model_name, n_classes=config['proteins']['n_classes'], network=basic_convnet,
                                       minibatch_size=config['training']['minibatch_size'])
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
     trainer.train(epochs=config['training']['epochs'])
@@ -33,7 +36,10 @@ def _build_enz_feeder_model_trainer():
                                     init_samples_per_class=config['training']['init_samples_per_class'],
                                     prediction_depth=config['proteins']['prediction_depth'],
                                     enzyme_classes=config['proteins']['enzyme_trees'])
-    model = GridsDisjointClassifier(n_classes=config['proteins']['n_classes'], network=basic_convnet, grid_size=64,
+    model_name = "molmap_classifier_{}_classes_{}".format(config["proteins"]["n_classes"],
+                                                          datetime.date.today().strftime("%h_%d_%Y"))
+    model = GridsDisjointClassifier(name=model_name, n_classes=config['proteins']['n_classes'], network=basic_convnet,
+                                    grid_size=64,
                                     minibatch_size=config['training']['minibatch_size'])
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
     return data_feeder, model, trainer
@@ -46,10 +52,10 @@ def train_enz_from_grids():
 
 def test_enz_from_grids():
     _, model, trainer = _build_enz_feeder_model_trainer()
-    trainer.monitor.load_model(model_name="params_90ep_meanvalacc[|0.853|0.846].npz",
+    trainer.monitor.load_model(model_name="params_180ep_meanvalacc[|0.849|0.849].npz",
                                network=model.get_output_layers())
 
-    _, _, test_predictions, test_targets, proteins = trainer._test(mode='val')
+    _, _, test_predictions, test_targets, proteins = trainer.test()
 
     # make the shapes to be (N x n_classes)
     test_predictions = np.exp(np.asarray(test_predictions)[:, :, :, 1]).transpose((0, 2, 1)).reshape(
@@ -64,6 +70,6 @@ def test_enz_from_grids():
 
 if __name__ == "__main__":
     # train_enz_from_memmaps()
-    # train_enz_from_grids()
-    test_enz_from_grids()
+    train_enz_from_grids()
+    # test_enz_from_grids()
     # visualize()

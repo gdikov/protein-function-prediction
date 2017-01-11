@@ -14,7 +14,8 @@ intX = np.int32
 
 
 class DisjointClassModel(object):
-    def __init__(self, n_classes):
+    def __init__(self, name, n_classes):
+        self.name = name
         self.n_classes = n_classes
         self.train_function = None
         self.validation_function = None
@@ -65,12 +66,12 @@ class DisjointClassModel(object):
         return self.output_layers
 
     def get_name(self):
-        return None
+        return self.name
 
 
 class MemmapsDisjointClassifier(DisjointClassModel):
-    def __init__(self, n_classes, network, minibatch_size):
-        super(MemmapsDisjointClassifier, self).__init__(n_classes)
+    def __init__(self, name, n_classes, network, minibatch_size):
+        super(MemmapsDisjointClassifier, self).__init__(name, n_classes)
         self.minibatch_size = minibatch_size
 
         coords = T.tensor3('coords')
@@ -93,13 +94,10 @@ class MemmapsDisjointClassifier(DisjointClassModel):
         self.output_layers = network(grids, n_outputs=n_classes)
         self.define_forward_pass(input_vars=[coords, charges, vdwradii, n_atoms], output_layers=self.output_layers)
 
-    def get_name(self):
-        return "from_memmaps_disjoint_classifier"
-
 
 class GridsDisjointClassifier(DisjointClassModel):
-    def __init__(self, n_classes, network, grid_size, minibatch_size):
-        super(GridsDisjointClassifier, self).__init__(n_classes)
+    def __init__(self, name, n_classes, network, grid_size, minibatch_size):
+        super(GridsDisjointClassifier, self).__init__(name, n_classes)
 
         self.minibatch_size = minibatch_size
         grids = T.TensorType(floatX, (False,) * 5)()
@@ -110,6 +108,3 @@ class GridsDisjointClassifier(DisjointClassModel):
         # apply the network to the preprocessed input
         self.output_layers = network(rotated_grids, n_outputs=n_classes)
         self.define_forward_pass(input_vars=[grids], output_layers=self.output_layers)
-
-    def get_name(self):
-        return "from_grids_disjoint_classifier"

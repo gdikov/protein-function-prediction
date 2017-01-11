@@ -98,6 +98,7 @@ class EnzymeDataProcessor(DataProcessor):
         with open(invalid_codes_path, 'wb') as f:
             cPickle.dump(invalid_codes, f)
 
+        log.info("Total proteins: {} Invalid proteins: {}".format(len(prot_codes), len(invalid_codes)))
         for cls, prots in self.prot_codes.items():
             valid_codes[cls] = [pc for pc in prots if pc not in invalid_codes]
 
