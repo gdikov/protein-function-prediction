@@ -21,43 +21,31 @@ class DisjointClassModel(object):
         self.validation_function = None
         self.output_layers = None
 
-    def define_forward_pass(self, input_vars, output_layers):
-        train_params = lasagne.layers.get_all_params(output_layers, trainable=True)
-
-        # define the losses
-        targets_ints = [T.ivector('targets' + str(i)) for i in range(0, self.n_classes)]
-        targets = [T.eq(targets_ints[i].reshape((-1, 1)), T.arange(2)) for i in range(0, self.n_classes)]
-
-        def categorical_crossentropy_logdomain(log_predictions, targets):
-            return -T.sum(targets * log_predictions, axis=1)
+    def define_forward_pass(self, input_vars, output_layer):
+        train_params = lasagne.layers.get_all_params(output_layer, trainable=True)
+        targets = T.imatrix('targets')
 
         # define objective and training parameters
-        train_predictions = [lasagne.layers.get_output(output) for output in output_layers]
-        train_losses = T.stack([categorical_crossentropy_logdomain(log_predictions=train_predictions[i],
-                                                                   targets=targets[i]).mean()
-                                for i in range(0, self.n_classes)])
-        train_accuracies = T.stack([T.mean(T.eq(T.argmax(train_predictions[i], axis=-1), targets_ints[i]),
-                                           dtype=theano.config.floatX) for i in range(0, self.n_classes)])
+        train_predictions = lasagne.layers.get_output(output_layer)
+        train_losses = T.mean(lasagne.objectives.binary_crossentropy(train_predictions, targets), axis=0)
+        train_accuracies = T.mean(T.eq(train_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
 
-        val_predictions = [lasagne.layers.get_output(output_layers[i], deterministic=True)
-                           for i in range(0, self.n_classes)]
-        val_losses = T.stack([categorical_crossentropy_logdomain(log_predictions=val_predictions[i],
-                                                                 targets=targets[i]).mean()
-                              for i in range(0, self.n_classes)])
-        val_accuracies = T.stack([T.mean(T.eq(T.argmax(val_predictions[i], axis=-1), targets_ints[i]),
-                                         dtype=theano.config.floatX) for i in range(0, self.n_classes)])
+        val_predictions = lasagne.layers.get_output(output_layer, deterministic=True)
+        val_losses = T.mean(lasagne.objectives.binary_crossentropy(val_predictions, targets), axis=0)
+        val_accuracies = T.mean(T.eq(val_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
 
-        total_loss = sum(train_losses)
+        total_loss = T.mean(train_losses)
+
         train_params_updates = lasagne.updates.adam(loss_or_grads=total_loss,
                                                     params=train_params,
                                                     learning_rate=1e-4)
 
-        self.train_function = theano.function(inputs=input_vars + targets_ints,
+        self.train_function = theano.function(inputs=input_vars + [targets],
                                               outputs={'losses': train_losses, 'accs': train_accuracies,
                                                        'predictions': T.stack(train_predictions)},
                                               updates=train_params_updates)  # , profile=True)
 
-        self.validation_function = theano.function(inputs=input_vars + targets_ints,
+        self.validation_function = theano.function(inputs=input_vars + [targets],
                                                    outputs={'losses': val_losses, 'accs': val_accuracies,
                                                             'predictions': T.stack(val_predictions)})
         log.info("Computational graph compiled")
@@ -91,8 +79,8 @@ class MemmapsDisjointClassifier(DisjointClassModel):
                                  use_esp=False)
 
         # apply the network to the preprocessed input
-        self.output_layers = network(grids, n_outputs=n_classes)
-        self.define_forward_pass(input_vars=[coords, charges, vdwradii, n_atoms], output_layers=self.output_layers)
+        self.output_layer = network(grids, n_outputs=n_classes)
+        self.define_forward_pass(input_vars=[coords, charges, vdwradii, n_atoms], output_layer=self.output_layer)
 
 
 class GridsDisjointClassifier(DisjointClassModel):
@@ -106,5 +94,5 @@ class GridsDisjointClassifier(DisjointClassModel):
         rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size)
 
         # apply the network to the preprocessed input
-        self.output_layers = network(rotated_grids, n_outputs=n_classes)
-        self.define_forward_pass(input_vars=[grids], output_layers=self.output_layers)
+        self.output_layer = network(rotated_grids, n_outputs=n_classes)
+        self.define_forward_pass(input_vars=[grids], output_layer=self.output_layer)

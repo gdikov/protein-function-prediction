@@ -1,1 +1,2 @@
-from protfun.networks.basic_convnet import *
+from protfun.networks.basic_convnet import basic_convnet
+from protfun.networks.single_trunk_network import single_trunk_network

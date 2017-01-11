@@ -19,7 +19,6 @@ class DataManager(object):
     def __init__(self, data_dir,
                  force_download=False, force_process=False, force_split=False,
                  percentage_test=10, percentage_val=20):
-        self.data_dirname = data_dir
         self.force_download = force_download
         self.force_process = force_process or force_download
         self.force_split = force_split or force_process or force_download
@@ -134,10 +133,10 @@ class EnzymeDataManager(DataManager):
             self.all_proteins = self._load_pickle(
                 file_path=os.path.join(self.dirs["data_raw"], "all_prot_codes.pickle"))
 
-        failed_downloads, n_successful, n_failed = self.validator.check_downloaded_codes()
-        self._remove_failed_downloads(failed=failed_downloads)
-        log.info("Total number of downloaded proteins found is {0}. Failed to download {1}".
-                 format(n_successful, n_failed))
+        # failed_downloads, n_successful, n_failed = self.validator.check_downloaded_codes()
+        # self._remove_failed_downloads(failed=failed_downloads)
+        # log.info("Total number of downloaded proteins found is {0}. Failed to download {1}".
+        #          format(n_successful, n_failed))
 
         # Process the data if required
         if self.force_memmaps or self.force_grids:
@@ -321,9 +320,9 @@ if __name__ == "__main__":
 
     dm = EnzymeDataManager(data_dir=data_dir,
                            force_download=False,
-                           force_memmaps=True,
-                           force_grids=True,
-                           force_split=True,
+                           force_memmaps=False,
+                           force_grids=False,
+                           force_split=False,
                            percentage_test=30,
                            percentage_val=30,
                            hierarchical_depth=3,
