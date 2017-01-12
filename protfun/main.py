@@ -10,7 +10,7 @@ from protfun.visualizer.performance_view import PerformanceAnalyser
 from protfun.data_management.data_feed import EnzymesMolDataFeeder, EnzymesGridFeeder
 from protfun.models import ModelTrainer
 from protfun.models import MemmapsDisjointClassifier, GridsDisjointClassifier
-from protfun.networks import basic_convnet
+from protfun.networks import basic_convnet, single_trunk_network
 from protfun.config import get_config
 
 config = get_config(os.path.join(os.path.dirname(__file__), 'config.yaml'))
@@ -36,12 +36,14 @@ def _build_enz_feeder_model_trainer():
                                     init_samples_per_class=config['training']['init_samples_per_class'],
                                     prediction_depth=config['proteins']['prediction_depth'],
                                     enzyme_classes=config['proteins']['enzyme_trees'])
-    model_name = "molmap_classifier_{}_classes_{}".format(config["proteins"]["n_classes"],
-                                                          datetime.date.today().strftime("%h_%d_%Y"))
-    model = GridsDisjointClassifier(name=model_name, n_classes=config['proteins']['n_classes'], network=basic_convnet,
+    model_name = "grids_classifier_{}_classes_{}".format(config["proteins"]["n_classes"],
+                                                         datetime.date.today().strftime("%h_%d_%Y"))
+    model = GridsDisjointClassifier(name=model_name,
+                                    n_classes=config['proteins']['n_classes'],
+                                    network=single_trunk_network,
                                     grid_size=64,
                                     minibatch_size=config['training']['minibatch_size'])
-    trainer = ModelTrainer(model=model, data_feeder=data_feeder)
+    trainer = ModelTrainer(model=model, data_feeder=data_feeder, val_frequency=10)
     return data_feeder, model, trainer
 
 
@@ -55,7 +57,7 @@ def test_enz_from_grids():
     trainer.monitor.load_model(model_name="params_180ep_meanvalacc[|0.849|0.849].npz",
                                network=model.get_output_layers())
 
-    _, _, test_predictions, test_targets, proteins = trainer.test()
+    _, _, _, test_predictions, test_targets, proteins = trainer.test()
 
     # make the shapes to be (N x n_classes)
     test_predictions = np.exp(np.asarray(test_predictions)[:, :, :, 1]).transpose((0, 2, 1)).reshape(

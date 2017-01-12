@@ -1,5 +1,5 @@
 data:
-  dir: 'data'
+  dir: '/usr/data/cvpr_shared/proteins/enzymes_w073'
 proteins:
   enzyme_trees:
     - '3.4.21'
@@ -9,6 +9,6 @@ proteins:
 training:
   init_samples_per_class: 2000
   minibatch_size: 8
-  epochs: 200
+  epochs: 400
 
 

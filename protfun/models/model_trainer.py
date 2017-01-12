@@ -24,9 +24,11 @@ class ModelTrainer(object):
         # save training history data
         self.history = {'train_loss': list(),
                         'train_accuracy': list(),
+                        'train_per_class_accs': list(),
                         'train_predictions': list(),
                         'val_loss': list(),
                         'val_accuracy': list(),
+                        'val_per_class_accs': list(),
                         'val_predictions': list(),
                         'val_targets': list(),
                         'time_epoch': list()}
@@ -53,17 +55,19 @@ class ModelTrainer(object):
             epoch_accs = []
             for proteins, inputs in self.data_feeder.iterate_train_data():
                 output = self.model.train_function(*inputs)
-                losses = output['losses']
-                accuracies = output['accs']
+                loss = output['loss']
+                accuracy = output['accuracy']
+                per_class_accs = output['per_class_accs']
                 predictions = output['predictions']
 
                 # this can be enabled to profile the forward pass
                 # self.model.train_function.profile.print_summary()
 
-                epoch_losses.append(losses)
-                epoch_accs.append(accuracies)
-                self.history['train_loss'].append(losses)
-                self.history['train_accuracy'].append(accuracies)
+                epoch_losses.append(loss)
+                epoch_accs.append(accuracy)
+                self.history['train_loss'].append(loss)
+                self.history['train_accuracy'].append(accuracy)
+                self.history['train_per_class_accs'].append(per_class_accs)
                 self.history['train_predictions'].append(predictions)
                 steps_before_validate += 1
 
@@ -71,7 +75,7 @@ class ModelTrainer(object):
 
             epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
             epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
-            log.info("train: epoch {0} loss means: {1} acc means: {2}".format(e, epoch_loss_means, epoch_acc_means))
+            log.info("train: epoch {0} loss mean: {1} acc mean: {2}".format(e, epoch_loss_means, epoch_acc_means))
 
             if np.alltrue(epoch_acc_means >= self.current_max_train_acc):
                 samples_per_class = self.data_feeder.get_samples_per_class()
@@ -87,9 +91,10 @@ class ModelTrainer(object):
                 steps_before_validate = 0
 
     def validate(self, steps_before_validate, epoch):
-        val_loss_means, val_acc_means, val_predictions, val_targets, _ = self._test(mode='val')
+        val_loss_means, val_acc_means, val_per_class_accs_means, val_predictions, val_targets, _ = self._test(mode='val')
         self.history['val_loss'] += [val_loss_means] * steps_before_validate
         self.history['val_accuracy'] += [val_acc_means] * steps_before_validate
+        self.history['val_per_class_accs'] += [val_per_class_accs_means] * steps_before_validate
         self.history['val_predictions'].append(val_predictions)
         self.history['val_targets'].append(val_targets)
         # save parameters if an improvement is observed
@@ -119,16 +124,19 @@ class ModelTrainer(object):
             raise ValueError
         epoch_losses = []
         epoch_accs = []
+        epoch_per_class_accs = []
         epoch_predictions = []
         epoch_targets = []
         proteins = []
         for prots, inputs in data_iter_function():
             output = self.model.validation_function(*inputs)
-            losses = output['losses']
-            accuracies = output['accs']
+            loss = output['loss']
+            accuracy = output['accuracy']
+            per_class_accs = output['per_class_accs']
             predictions = output['predictions']
-            epoch_losses.append(losses)
-            epoch_accs.append(accuracies)
+            epoch_losses.append(loss)
+            epoch_accs.append(accuracy)
+            epoch_per_class_accs.append(per_class_accs)
             epoch_predictions.append(predictions)
             proteins.append(prots)
             # TODO: this will break when the DataFeeder is different, so refactor too.
@@ -136,8 +144,9 @@ class ModelTrainer(object):
 
         epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
         epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
-        log.info("{0}: loss means: {1} acc means: {2}".format(mode, epoch_loss_means, epoch_acc_means))
-        return epoch_loss_means, epoch_acc_means, epoch_predictions, epoch_targets, proteins
+        epoch_per_class_accs_means = np.mean(np.array(epoch_per_class_accs), axis=0)
+        log.info("{0}: loss mean: {1} acc mean: {2}".format(mode, epoch_loss_means, epoch_acc_means))
+        return epoch_loss_means, epoch_acc_means, epoch_per_class_accs_means, epoch_predictions, epoch_targets, proteins
 
     def plot_progress(self):
         t = threading.Timer(5.0, self.plot_progress)
