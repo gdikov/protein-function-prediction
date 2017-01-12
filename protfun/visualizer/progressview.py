@@ -26,10 +26,12 @@ class ProgressView(object):
             raise ValueError
 
     def save(self):
-        self._save(artifacts=['train_loss', 'val_loss'], y_range=[-0.5, 3], filename='loss_history.png')
-        self._save(artifacts=['train_accuracy', 'val_accuracy'], y_range=[-1, 2], filename='accuracy_history.png')
+        self._save(artifacts=['train_loss', 'val_loss'], filename='loss_history.png')
+        self._save(artifacts=['train_accuracy', 'val_accuracy'], y_range=[-0.5, 1.5], filename='accuracy_history.png')
+        self._save(artifacts=['train_per_class_accs', 'val_per_class_accs'], y_range=[-0.5, 1.5],
+                   filename='per_class_accs.png')
 
-    def _save(self, artifacts=list(['train_loss', 'val_loss']), y_range=list([-1, 1]), filename='loss_history.png'):
+    def _save(self, artifacts=list(['train_loss', 'val_loss']), y_range=None, filename='loss_history.png'):
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
@@ -40,20 +42,17 @@ class ProgressView(object):
             values = np.asarray(self.data[artifact])
             if values.size != 0:
                 empty = False
-                for i in range(values.shape[1]):
-                    vals = values[:, i]
-                    if artifact in ['train_loss', 'train_accuracy']:
-                        vals = self.running_mean(vals, self.mean_window)
-                    if artifact.startswith('train'):
-                        ax.plot(vals, label='{} {}'.format(artifact, i))
-                    else:
-                        ax.plot(vals, '--', label='{} {}'.format(artifact, i))
+                if len(values.shape) < 2:
+                    self._plot_single(ax, values, artifact)
+                else:
+                    self._plot_multiple(ax, values, artifact)
             else:
                 log.warning("No history for {}".format(artifact))
                 continue
         if not empty:
-            ax.set_ylim(y_range)
-            ax.set_xlim([0, 10000])
+            if y_range is not None:
+                ax.set_ylim(y_range)
+            # ax.set_xlim([0, 10000])
             box = ax.get_position()
             ax.set_position([box.x0, box.y0 + box.height * 0.1,
                              box.width, box.height * 0.9])
@@ -66,6 +65,22 @@ class ProgressView(object):
                 os.makedirs(self.model_figures_path)
             fig.savefig(os.path.join(self.model_figures_path, filename))
         plt.close(fig)
+
+    def _plot_single(self, fig, values, artifact):
+        if artifact.startswith('train'):
+            values = self.running_mean(values, self.mean_window)
+            fig.plot(values, label=artifact)
+        else:
+            fig.plot(values, '--', label=artifact)
+
+    def _plot_multiple(self, fig, values, artifact):
+        for i in range(0, values.shape[1]):
+            vals = values[:, i]
+            if artifact.startswith('train'):
+                vals = self.running_mean(vals, self.mean_window)
+                fig.plot(vals, label="train_class_{}".format(i))
+            else:
+                fig.plot(vals, '--', label="val_class_{}".format(i))
 
     @staticmethod
     def running_mean(x, window):

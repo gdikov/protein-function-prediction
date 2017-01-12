@@ -43,7 +43,7 @@ def _build_enz_feeder_model_trainer():
                                     network=single_trunk_network,
                                     grid_size=64,
                                     minibatch_size=config['training']['minibatch_size'])
-    trainer = ModelTrainer(model=model, data_feeder=data_feeder)
+    trainer = ModelTrainer(model=model, data_feeder=data_feeder, val_frequency=10)
     return data_feeder, model, trainer
 
 
@@ -57,7 +57,7 @@ def test_enz_from_grids():
     trainer.monitor.load_model(model_name="params_180ep_meanvalacc[|0.849|0.849].npz",
                                network=model.get_output_layers())
 
-    _, _, test_predictions, test_targets, proteins = trainer.test()
+    _, _, _, test_predictions, test_targets, proteins = trainer.test()
 
     # make the shapes to be (N x n_classes)
     test_predictions = np.exp(np.asarray(test_predictions)[:, :, :, 1]).transpose((0, 2, 1)).reshape(

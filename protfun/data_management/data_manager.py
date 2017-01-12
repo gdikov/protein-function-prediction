@@ -205,10 +205,15 @@ class EnzymeDataManager(DataManager):
         else:
             log.info("Skipping splitting step")
 
-        self.train_dataset, self.val_dataset, self.test_dataset = \
+        train_dataset, val_dataset, test_dataset = \
             self._load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
                                          os.path.join(self.dirs["data_train"], "val_prot_codes.pickle"),
                                          os.path.join(self.dirs["data_test"], "test_prot_codes.pickle")])
+
+        # only select the enzymes classes we're interested in
+        self.train_dataset = self._select_enzymes(train_dataset)
+        self.val_dataset = self._select_enzymes(val_dataset)
+        self.test_dataset = self._select_enzymes(test_dataset)
 
         # generate labels based on the data-sets
         lf = LabelFactory(self.train_dataset, self.val_dataset, self.test_dataset,
@@ -217,6 +222,13 @@ class EnzymeDataManager(DataManager):
 
         # final sanity check
         self.validator.check_labels(self.train_labels, self.val_labels, self.test_labels)
+
+    def _select_enzymes(self, dataset):
+        filtered_set = dict()
+        for cls, enzymes in dataset.items():
+            if any([cls.startswith(enzyme_cls) for enzyme_cls in self.enzyme_classes]):
+                filtered_set[cls] = enzymes
+        return filtered_set
 
     def _remove_failed_downloads(self, failed=None):
         # here the protein codes are stored in a dict according to their classes

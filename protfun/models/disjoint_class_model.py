@@ -27,26 +27,29 @@ class DisjointClassModel(object):
 
         # define objective and training parameters
         train_predictions = lasagne.layers.get_output(output_layer)
-        train_losses = T.mean(lasagne.objectives.binary_crossentropy(train_predictions, targets), axis=0)
-        train_accuracies = T.mean(T.eq(train_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
+        train_loss = T.mean(T.sum(lasagne.objectives.binary_crossentropy(train_predictions, targets), axis=-1), axis=0)
+        train_accuracy = T.mean(T.all(T.eq(train_predictions > 0.5, targets), axis=-1), axis=0,
+                                dtype=theano.config.floatX)
+        per_class_train_accuracies = T.mean(T.eq(train_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
 
         val_predictions = lasagne.layers.get_output(output_layer, deterministic=True)
-        val_losses = T.mean(lasagne.objectives.binary_crossentropy(val_predictions, targets), axis=0)
-        val_accuracies = T.mean(T.eq(val_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
+        val_loss = T.mean(T.sum(lasagne.objectives.binary_crossentropy(val_predictions, targets), axis=-1), axis=0)
+        val_accuracy = T.mean(T.all(T.eq(val_predictions > 0.5, targets), axis=-1), axis=0, dtype=theano.config.floatX)
+        per_class_val_accuracies = T.mean(T.eq(val_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
 
-        total_loss = T.mean(train_losses)
-
-        train_params_updates = lasagne.updates.adam(loss_or_grads=total_loss,
+        train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss,
                                                     params=train_params,
                                                     learning_rate=1e-4)
 
         self.train_function = theano.function(inputs=input_vars + [targets],
-                                              outputs={'losses': train_losses, 'accs': train_accuracies,
+                                              outputs={'loss': train_loss, 'accuracy': train_accuracy,
+                                                       'per_class_accs': per_class_train_accuracies,
                                                        'predictions': T.stack(train_predictions)},
                                               updates=train_params_updates)  # , profile=True)
 
         self.validation_function = theano.function(inputs=input_vars + [targets],
-                                                   outputs={'losses': val_losses, 'accs': val_accuracies,
+                                                   outputs={'loss': val_loss, 'accuracy': val_accuracy,
+                                                            'per_class_accs': per_class_val_accuracies,
                                                             'predictions': T.stack(val_predictions)})
         log.info("Computational graph compiled")
 
