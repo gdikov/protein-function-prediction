@@ -37,19 +37,20 @@ def train_enz_from_memmaps():
     trainer.train(epochs=config['training']['epochs'])
 
 
-def _build_enz_feeder_model_trainer():
+def _build_enz_feeder_model_trainer(model_name=None):
     data_feeder = EnzymesGridFeeder(data_dir=config['data']['dir'],
                                     minibatch_size=config['training']['minibatch_size'],
                                     init_samples_per_class=config['training']['init_samples_per_class'],
                                     prediction_depth=config['proteins']['prediction_depth'],
                                     enzyme_classes=config['proteins']['enzyme_trees'])
     current_time = datetime.datetime.now()
-    model_name = "grids_classifier_{}_classes_{}_{}_{}_{}-{}".format(config["proteins"]["n_classes"],
-                                                                     current_time.month,
-                                                                     current_time.day,
-                                                                     current_time.year,
-                                                                     current_time.hour,
-                                                                     current_time.minute)
+    if model_name is None:
+        model_name = "grids_classifier_{}_classes_{}_{}_{}_{}-{}".format(config["proteins"]["n_classes"],
+                                                                         current_time.month,
+                                                                         current_time.day,
+                                                                         current_time.year,
+                                                                         current_time.hour,
+                                                                         current_time.minute)
     model = GridsDisjointClassifier(name=model_name,
                                     n_classes=config['proteins']['n_classes'],
                                     network=single_trunk_network,
@@ -65,9 +66,9 @@ def train_enz_from_grids():
     trainer.train(epochs=config['training']['epochs'])
 
 
-def test_enz_from_grids():
-    _, model, trainer = _build_enz_feeder_model_trainer()
-    trainer.monitor.load_model(model_name="params_180ep_meanvalacc[|0.849|0.849].npz",
+def test_enz_from_grids(model_name, params_file):
+    _, model, trainer = _build_enz_feeder_model_trainer(model_name)
+    trainer.monitor.load_model(model_name=params_file,
                                network=model.get_output_layers())
 
     _, _, _, test_predictions, test_targets, proteins = trainer.test()
@@ -85,6 +86,7 @@ def test_enz_from_grids():
 
 if __name__ == "__main__":
     # train_enz_from_memmaps()
-    train_enz_from_grids()
-    # test_enz_from_grids()
+    # train_enz_from_grids()
+    test_enz_from_grids(model_name="grids_classifier_2_classes_1_13_2017_10-7",
+                        params_file="params_330ep_meanvalacc0.928571.npz")
     # visualize()
