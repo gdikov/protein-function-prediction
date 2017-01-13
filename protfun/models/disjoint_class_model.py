@@ -83,8 +83,8 @@ class MemmapsDisjointClassifier(DisjointClassModel):
                                  use_esp=False)
 
         # apply the network to the preprocessed input
-        self.output_layer = network(grids, n_outputs=n_classes)
-        self.define_forward_pass(input_vars=[coords, charges, vdwradii, n_atoms], output_layer=self.output_layer)
+        self.output_layers = network(grids, n_outputs=n_classes)
+        self.define_forward_pass(input_vars=[coords, charges, vdwradii, n_atoms], output_layer=self.output_layers)
 
 
 class GridsDisjointClassifier(DisjointClassModel):
@@ -98,5 +98,5 @@ class GridsDisjointClassifier(DisjointClassModel):
         rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size)
 
         # apply the network to the preprocessed input
-        self.output_layer = network(rotated_grids, n_outputs=n_classes)
-        self.define_forward_pass(input_vars=[grids], output_layer=self.output_layer)
+        self.output_layers = network(rotated_grids, n_outputs=n_classes)
+        self.define_forward_pass(input_vars=[grids], output_layer=self.output_layers)
