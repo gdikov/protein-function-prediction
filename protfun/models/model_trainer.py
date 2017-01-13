@@ -6,7 +6,6 @@ import threading
 from utils.np_utils import pp_array
 
 from protfun.visualizer.progressview import ProgressView
-from protfun.visualizer.performance_view import PerformanceAnalyser
 from protfun.models.model_monitor import ModelMonitor
 
 log.basicConfig(level=logging.DEBUG)
@@ -40,7 +39,6 @@ class ModelTrainer(object):
                 self.plot_progress()
             self._train(epochs)
             self.monitor.save_history_and_model(self.history, epoch_count=epochs)
-            self.summarize()
         except (KeyboardInterrupt, SystemExit):
             log.warning("Training is interrupted")
             self.monitor.save_history_and_model(self.history, msg='interrupted')
@@ -155,42 +153,3 @@ class ModelTrainer(object):
         progress = ProgressView(model_name=self.model.get_name(),
                                 data_dir=self.data_feeder.get_data_dir(), history_dict=self.history)
         progress.save()
-
-    def summarize(self):
-        # TODO: some very ugly hacks follow. Refactor later
-
-        val_predictions = self.history['val_predictions']
-        val_targets = self.history['val_targets']
-
-        # transform the shape of the predictions
-        stacked_all_epochs = []
-        for vp_in_epoch in val_predictions:
-            lst = []
-            for sample in vp_in_epoch:
-                sample_reshaped = np.exp(np.max(sample, axis=-1))
-                lst.append(sample_reshaped)
-            stacked_in_epoch = np.hstack(lst)
-            stacked_all_epochs.append(stacked_in_epoch)
-        stacked_all_epochs = np.hstack(stacked_all_epochs)
-        predictions = stacked_all_epochs.T
-
-        # transform the shape of the targets
-        stacked_all_epochs = []
-        for vt_in_epoch in val_targets:
-            lst = []
-            for sample in vt_in_epoch:
-                sample = np.hstack(sample)
-                lst.append(sample)
-            stacked_in_epoch = np.vstack(lst)
-            stacked_all_epochs.append(stacked_in_epoch)
-        stacked_all_epochs = np.vstack(stacked_all_epochs)
-        targets = stacked_all_epochs
-
-        performance = PerformanceAnalyser(n_classes=targets.shape[1],
-                                          y_expected=targets,
-                                          y_predicted=predictions,
-                                          data_dir=self.data_feeder.get_data_dir(),
-                                          model_name=self.model.get_name())
-        performance.plot_ROC()
-        log.info("The network has been tremendously successful! "
-                 "Check out the ROC curves in data/figures")
