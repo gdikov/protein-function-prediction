@@ -10,5 +10,6 @@ training:
   init_samples_per_class: 2000
   minibatch_size: 8
   epochs: 400
+  learning_rate: 0.0001
 
 

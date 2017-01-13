@@ -14,9 +14,10 @@ intX = np.int32
 
 
 class DisjointClassModel(object):
-    def __init__(self, name, n_classes):
+    def __init__(self, name, n_classes, learning_rate):
         self.name = name
         self.n_classes = n_classes
+        self.learning_rate = learning_rate
         self.train_function = None
         self.validation_function = None
         self.output_layers = None
@@ -39,7 +40,7 @@ class DisjointClassModel(object):
 
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss,
                                                     params=train_params,
-                                                    learning_rate=1e-4)
+                                                    learning_rate=self.learning_rate)
 
         self.train_function = theano.function(inputs=input_vars + [targets],
                                               outputs={'loss': train_loss, 'accuracy': train_accuracy,
@@ -61,8 +62,8 @@ class DisjointClassModel(object):
 
 
 class MemmapsDisjointClassifier(DisjointClassModel):
-    def __init__(self, name, n_classes, network, minibatch_size):
-        super(MemmapsDisjointClassifier, self).__init__(name, n_classes)
+    def __init__(self, name, n_classes, network, minibatch_size, learning_rate=1e-4):
+        super(MemmapsDisjointClassifier, self).__init__(name, n_classes, learning_rate)
         self.minibatch_size = minibatch_size
 
         coords = T.tensor3('coords')
@@ -87,8 +88,8 @@ class MemmapsDisjointClassifier(DisjointClassModel):
 
 
 class GridsDisjointClassifier(DisjointClassModel):
-    def __init__(self, name, n_classes, network, grid_size, minibatch_size):
-        super(GridsDisjointClassifier, self).__init__(name, n_classes)
+    def __init__(self, name, n_classes, network, grid_size, minibatch_size, learning_rate=1e-4):
+        super(GridsDisjointClassifier, self).__init__(name, n_classes, learning_rate)
 
         self.minibatch_size = minibatch_size
         grids = T.TensorType(floatX, (False,) * 5)()

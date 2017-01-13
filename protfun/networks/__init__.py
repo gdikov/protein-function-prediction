@@ -1,2 +1,3 @@
 from protfun.networks.basic_convnet import basic_convnet
 from protfun.networks.single_trunk_network import single_trunk_network
+from protfun.networks.dense_net import dense_network
