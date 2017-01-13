@@ -151,5 +151,5 @@ class ModelTrainer(object):
         t.daemon = True
         t.start()
         progress = ProgressView(model_name=self.model.get_name(),
-                                data_dir=self.data_feeder.get_data_dir(), history_dict=self.history)
+                                data_dir=self.monitor.get_model_dir(), history_dict=self.history)
         progress.save()

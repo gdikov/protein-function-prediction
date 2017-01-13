@@ -5,6 +5,7 @@ import lasagne.layers.dnn
 
 def dense_network(input, n_outputs):
     network = input
+    network = transition_layers(network, num_filters=8)
     # add deep convolutional structure
     network = dense_net_block(network, depth=3, num_filters=8)
     network = transition_layers(network, num_filters=8)
@@ -16,9 +17,6 @@ def dense_network(input, n_outputs):
     network = transition_layers(network, num_filters=8)
 
     network = dense_net_block(network, depth=6, num_filters=8)
-    network = transition_layers(network, num_filters=8)
-
-    network = dense_net_block(network, depth=8, num_filters=8)
     network = transition_layers(network, num_filters=8)
 
     # add the sigmoid outputs

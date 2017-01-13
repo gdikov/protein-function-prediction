@@ -80,3 +80,6 @@ class ModelMonitor(object):
     def save_history_and_model(self, history, epoch_count=-1, msg='', save_human_readable=False):
         self.save_model(epoch_count, msg)
         self.save_train_history(history, save_human_readable, msg)
+
+    def get_model_dir(self):
+        return self.path_to_model_dir

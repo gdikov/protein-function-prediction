@@ -1,7 +1,5 @@
-import os
-import sys
 import numpy as np
-import datetime
+import string, random, datetime, sys, os
 
 os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=0"
 sys.setrecursionlimit(10000)
@@ -13,9 +11,10 @@ from protfun.data_management.data_feed import EnzymesMolDataFeeder, EnzymesGridF
 from protfun.models import ModelTrainer
 from protfun.models import MemmapsDisjointClassifier, GridsDisjointClassifier
 from protfun.networks import basic_convnet, single_trunk_network, dense_network
-from protfun.config import get_config
+from protfun.config import get_config, save_config
 
-config = get_config(os.path.join(os.path.dirname(__file__), 'config.yaml'))
+config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
+config = get_config(config_path)
 
 
 def train_enz_from_memmaps():
@@ -25,16 +24,18 @@ def train_enz_from_memmaps():
                                        prediction_depth=config['proteins']['prediction_depth'],
                                        enzyme_classes=config['proteins']['enzyme_trees'])
     current_time = datetime.datetime.now()
-    model_name = "molmap_classifier_{}_classes_{}_{}_{}_{}-{}".format(config["proteins"]["n_classes"],
-                                                                      current_time.month,
-                                                                      current_time.day,
-                                                                      current_time.year,
-                                                                      current_time.hour,
-                                                                      current_time.minute)
+    suffix = ''.join(random.choice(string.ascii_lowercase) for _ in xrange(10))
+    model_name = "molmap-{}_{}-classes_{}-{}-{}_{}-{}".format(suffix, config["proteins"]["n_classes"],
+                                                              current_time.month,
+                                                              current_time.day,
+                                                              current_time.year,
+                                                              current_time.hour,
+                                                              current_time.minute)
     model = MemmapsDisjointClassifier(name=model_name, n_classes=config['proteins']['n_classes'], network=basic_convnet,
                                       minibatch_size=config['training']['minibatch_size'])
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
     trainer.train(epochs=config['training']['epochs'])
+    save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
 
 
 def _build_enz_feeder_model_trainer(model_name=None):
@@ -43,17 +44,18 @@ def _build_enz_feeder_model_trainer(model_name=None):
                                     init_samples_per_class=config['training']['init_samples_per_class'],
                                     prediction_depth=config['proteins']['prediction_depth'],
                                     enzyme_classes=config['proteins']['enzyme_trees'])
-    current_time = datetime.datetime.now()
     if model_name is None:
-        model_name = "grids_classifier_{}_classes_{}_{}_{}_{}-{}".format(config["proteins"]["n_classes"],
-                                                                         current_time.month,
-                                                                         current_time.day,
-                                                                         current_time.year,
-                                                                         current_time.hour,
-                                                                         current_time.minute)
+        current_time = datetime.datetime.now()
+        suffix = ''.join(random.choice(string.ascii_lowercase) for _ in xrange(10))
+        model_name = "grids_{}_{}-classes_{}-{}-{}_{}-{}".format(suffix, config["proteins"]["n_classes"],
+                                                                 current_time.month,
+                                                                 current_time.day,
+                                                                 current_time.year,
+                                                                 current_time.hour,
+                                                                 current_time.minute)
     model = GridsDisjointClassifier(name=model_name,
                                     n_classes=config['proteins']['n_classes'],
-                                    network=single_trunk_network,
+                                    network=dense_network,
                                     grid_size=64,
                                     minibatch_size=config['training']['minibatch_size'],
                                     learning_rate=config['training']['learning_rate'])
@@ -64,6 +66,7 @@ def _build_enz_feeder_model_trainer(model_name=None):
 def train_enz_from_grids():
     _, _, trainer = _build_enz_feeder_model_trainer()
     trainer.train(epochs=config['training']['epochs'])
+    save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
 
 
 def test_enz_from_grids(model_name, params_file):
@@ -80,13 +83,14 @@ def test_enz_from_grids(model_name, params_file):
 
     # compute the ROC curve
     pa = PerformanceAnalyser(n_classes=config['proteins']['n_classes'], y_expected=test_targets,
-                             y_predicted=test_predictions, data_dir=config['data']['dir'], model_name="grids_test")
+                             y_predicted=test_predictions, data_dir=trainer.monitor.get_model_dir(),
+                             model_name="grids_test")
     pa.plot_ROC()
 
 
 if __name__ == "__main__":
     # train_enz_from_memmaps()
-    # train_enz_from_grids()
-    test_enz_from_grids(model_name="grids_classifier_2_classes_1_13_2017_10-7",
-                        params_file="params_330ep_meanvalacc0.928571.npz")
+    train_enz_from_grids()
+    # test_enz_from_grids(model_name="grids_classifier_2_classes_1_13_2017_10-7",
+    #                     params_file="params_330ep_meanvalacc0.928571.npz")
     # visualize()
