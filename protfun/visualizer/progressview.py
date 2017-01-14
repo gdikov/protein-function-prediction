@@ -13,7 +13,7 @@ class ProgressView(object):
     """
 
     def __init__(self, model_name, data_dir, history_file=None, history_dict=None, mean_window=5):
-        self.name = model_name
+        self.model_name = model_name
         self.model_figures_path = os.path.join(data_dir, "figures")
         self.mean_window = mean_window
         if history_dict is not None:
@@ -39,6 +39,9 @@ class ProgressView(object):
         ax = fig.gca()
         empty = True
         for artifact in artifacts:
+            if artifact not in self.data:
+                log.warning("{} does not have artifact {}".format(self.model_name, artifact))
+                continue
             values = np.asarray(self.data[artifact])
             if values.size != 0:
                 empty = False

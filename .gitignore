@@ -92,7 +92,8 @@ ENV/
 .idea/
 
 # simple tests
-test.py
+unused/test.py
 data_old
 data_new
+unused
 
