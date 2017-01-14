@@ -301,30 +301,30 @@ class GOProteinsDataManager(DataManager):
 
 
 if __name__ == "__main__":
-    # data_dir = os.path.join(os.path.dirname(__file__), '../../data')
-    data_dir = "/usr/data/cvpr_shared/proteins/enzymes_w073"
-    enzyme_classes = list()
-    for i in range(1, 100):
-        enzyme_classes.append('1.%d' % i)
-    for i in range(1, 11):
-        enzyme_classes.append('2.%d' % i)
-    for i in range(1, 14):
-        enzyme_classes.append('3.%d' % i)
-    for i in range(1, 8):
-        enzyme_classes.append('4.%d' % i)
-    enzyme_classes.append('4.99')
-    for i in range(1, 6):
-        enzyme_classes.append('5.%d' % i)
-    enzyme_classes.append('5.99')
-    for i in range(1, 7):
-        enzyme_classes.append('6.%d' % i)
+    data_dir = os.path.join(os.path.dirname(__file__), '../../data_test')
+    # data_dir = "/usr/data/cvpr_shared/proteins/enzymes_w073"
+    # enzyme_classes = list()
+    # for i in range(1, 100):
+    #     enzyme_classes.append('1.%d' % i)
+    # for i in range(1, 11):
+    #     enzyme_classes.append('2.%d' % i)
+    # for i in range(1, 14):
+    #     enzyme_classes.append('3.%d' % i)
+    # for i in range(1, 8):
+    #     enzyme_classes.append('4.%d' % i)
+    # enzyme_classes.append('4.99')
+    # for i in range(1, 6):
+    #     enzyme_classes.append('5.%d' % i)
+    # enzyme_classes.append('5.99')
+    # for i in range(1, 7):
+    #     enzyme_classes.append('6.%d' % i)
 
     dm = EnzymeDataManager(data_dir=data_dir,
-                           force_download=False,
-                           force_memmaps=False,
+                           force_download=True,
+                           force_memmaps=True,
                            force_grids=False,
                            force_split=False,
                            percentage_test=30,
                            percentage_val=30,
                            hierarchical_depth=3,
-                           enzyme_classes=enzyme_classes)
+                           enzyme_classes=['3.5.1.10'])

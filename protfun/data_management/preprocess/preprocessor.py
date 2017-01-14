@@ -9,6 +9,12 @@ import lasagne
 import cPickle
 import itertools
 
+import prody as pd
+import rdkit.Chem as Chem
+import rdkit.Chem.rdPartialCharges as rdPC
+import rdkit.Chem.rdMolTransforms as rdMT
+import rdkit.Chem.rdmolops as rdMO
+
 from protfun.layers import MoleculeMapLayer
 
 floatX = theano.config.floatX
@@ -108,19 +114,17 @@ class EnzymeDataProcessor(DataProcessor):
         if not os.path.exists(prot_dir):
             os.makedirs(prot_dir)
         # generate and save the memmaps
-        coords = mol["coords"]
-        charges = mol["charges"]
-        vdwradii = mol["vdwradii"]
-
-        self.save_to_memmap(os.path.join(prot_dir, 'coords.memmap'),
-                            coords, dtype=floatX)
-        self.save_to_memmap(os.path.join(prot_dir, 'charges.memmap'),
-                            charges, dtype=floatX)
-        self.save_to_memmap(os.path.join(prot_dir, 'vdwradii.memmap'),
-                            vdwradii, dtype=floatX)
+        for key, value in mol.items():
+            if key.startswith('atoms_count') or key.startswith('charges'):
+                continue
+            print(key)
+            self.save_to_memmap(os.path.join(prot_dir, '{0}.memmap'.format(key)),
+                                value, dtype=floatX)
 
     @staticmethod
     def save_to_memmap(file_path, data, dtype):
+        if data.size == 0:
+            data = np.array([np.nan])
         tmp = np.memmap(file_path, shape=data.shape, mode='w+', dtype=dtype)
         log.info("Saving memmap. Shape of {0} is {1}".format(file_path, data.shape))
         tmp[:] = data[:]
@@ -185,60 +189,133 @@ class PDBMoleculeProcessor(object):
         import rdkit.Chem as Chem
         self.periodic_table = Chem.GetPeriodicTable()
 
-    def process_molecule(self, pdb_file):
+    def process_molecule(self, pdb_file, separate_sidechains=True):
         """
         Processes a molecule from the passed PDB file if the file contents has no errors.
         :param pdb_file: path to the PDB file to process the molecule from.
         :return: a ProcessedMolecule object
         """
-        import rdkit.Chem as Chem
-        import rdkit.Chem.rdPartialCharges as rdPC
-        import rdkit.Chem.rdMolTransforms as rdMT
-        import rdkit.Chem.rdmolops as rdMO
 
+        # TODO: this is the old code using rdkit for the charge computations. Gasteiger is an inappropriate algorithm
         # read a molecule from the PDB file
+        if not separate_sidechains:
+            try:
+                mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
+            except IOError:
+                log.warning("Could not read PDB file.")
+                return None
 
-        try:
-            mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
-        except IOError:
-            log.warning("Could not read PDB file.")
-            return None
+            if mol is None:
+                log.warning("Bad pdb file found.")
+                return None
 
-        if mol is None:
-            log.warning("Bad pdb file found.")
-            return None
+            try:
+                # add missing hydrogen atoms
+                mol = rdMO.AddHs(mol, addCoords=True)
 
-        try:
-            # add missing hydrogen atoms
-            mol = rdMO.AddHs(mol, addCoords=True)
+                # compute partial charges
+                rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
+            except ValueError:
+                log.warning("Bad Gasteiger charge evaluation.")
+                return None
 
-            # compute partial charges
-            rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
-        except ValueError:
-            log.warning("Bad Gasteiger charge evaluation.")
-            return None
+            # get the conformation of the molecule
+            conformer = mol.GetConformer()
 
-        # get the conformation of the molecule
-        conformer = mol.GetConformer()
+            # calculate the center of the molecule
+            center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
 
-        # calculate the center of the molecule
-        center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
+            atoms_count = mol.GetNumAtoms()
+            atoms = mol.GetAtoms()
 
-        atoms_count = mol.GetNumAtoms()
-        atoms = mol.GetAtoms()
+            def get_coords(i):
+                coord = conformer.GetAtomPosition(i)
+                return np.asarray([coord.x, coord.y, coord.z])
 
-        def get_coords(i):
-            coord = conformer.GetAtomPosition(i)
-            return np.asarray([coord.x, coord.y, coord.z])
+            # set the coordinates, charges, VDW radii and atom count
+            res = {
+                "coords": np.asarray([get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
+                    [center.x, center.y, center.z]),
+                "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for atom in atoms]),
+                "vdwradii": np.asarray([self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in atoms]),
+                "atoms_count": atoms_count
+            }
 
-        # set the coordinates, charges, VDW radii and atom count
-        res = {
-            "coords": np.asarray([get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
-                [center.x, center.y, center.z]),
-            "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for atom in atoms]),
-            "vdwradii": np.asarray([self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in atoms]),
-            "atoms_count": atoms_count
-        }
+        else:
+            hydro_file_name = '_hydrogenized.'.join(os.path.basename(pdb_file).split('.'))
+            hydrogenized_pdb_file = os.path.join(os.path.dirname(pdb_file), hydro_file_name)
+            try:
+                mol_rdkit = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
+                if mol_rdkit is not None:
+                    mol_rdkit = rdMO.AddHs(mol_rdkit, addCoords=True)
+                else:
+                    raise ValueError
+                pdbw = Chem.rdmolfiles.PDBWriter(fileName=hydrogenized_pdb_file)
+                pdbw.write(mol_rdkit)
+                pdbw.flush()
+                pdbw.close()
+                del mol_rdkit, pdbw
+            except (EnvironmentError, ValueError):
+                log.warning("Bad PDB file.")
+                return None
+
+            try:
+                mol = pd.parsePDB(hydrogenized_pdb_file)
+            except IOError:
+                log.warning("Could not read PDB file.")
+                return None
+
+            if mol is None:
+                log.warning("Bad pdb file found.")
+                return None
+
+            std_amino_acids = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS',
+                               'GLN', 'GLU', 'GLY', 'HIS', 'ILE',
+                               'LEU', 'LYS', 'MET', 'PHE', 'PRO',
+                               'SER', 'THR', 'TRP', 'TYR', 'VAL']
+
+            canonical_notation = lambda x: x[0].upper() + x[1:].lower() if len(x) > 1 else x
+            res = {'coords': mol.getCoords(),
+                   'charges': None,
+                   'vdwradii': np.asarray([self.periodic_table.GetRvdw(
+                       self.periodic_table.GetAtomicNumber(canonical_notation(atom)))
+                                           for atom in mol.getElements()]),
+                   'atoms_count': mol.numAtoms()}
+
+            # find the data for all the 20 amino acids
+            for aa in std_amino_acids:
+                all_aas_in_mol = mol.select('resname ' + aa)
+                if all_aas_in_mol is not None:
+                    mask = all_aas_in_mol.getIndices()
+                else:
+                    mask = np.array([], dtype=np.int32)
+                res['coords_' + aa] = res['coords'][mask, :]
+                res['charges_' + aa] = None
+                res['vdwradii_' + aa] = res['vdwradii'][mask]
+                res['atoms_count_' + aa] = mask.size
+
+            # find the data for the backbones
+            backbone_mask = mol.backbone.getIndices()
+            res['coords_backbone'] = res['coords'][backbone_mask, :]
+            res['charges_backbone'] = None
+            res['vdwradii_backbone'] = res['vdwradii'][backbone_mask]
+            res['atoms_count_backbone'] = backbone_mask.size
+
+            # find the data for the heavy atoms (i.e. no H atoms)
+            heavy_mask = mol.heavy.getIndices()
+            res['coords_heavy'] = res['coords'][heavy_mask, :]
+            res['charges_heavy'] = None
+            res['vdwradii_heavy'] = res['vdwradii'][heavy_mask]
+            res['atoms_count_heavy'] = heavy_mask.size
+
+            # find the data for the heavy atoms (i.e. no H atoms)
+            hydro_mask = mol.hydrogen.getIndices()
+            res['coords_hydro'] = res['coords'][hydro_mask, :]
+            res['charges_hydro'] = None
+            res['vdwradii_hydro'] = res['vdwradii'][hydro_mask]
+            res['atoms_count_hydro'] = hydro_mask.size
+
+
         return res
 
 
