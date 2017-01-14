@@ -7,6 +7,7 @@ proteins:
   n_classes: 2
   prediction_depth: 3
 training:
+  network: 'basic_convnet'
   init_samples_per_class: 2000
   minibatch_size: 8
   epochs: 400

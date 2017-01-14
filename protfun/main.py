@@ -10,7 +10,7 @@ from protfun.visualizer.performance_view import PerformanceAnalyser
 from protfun.data_management.data_feed import EnzymesMolDataFeeder, EnzymesGridFeeder
 from protfun.models import ModelTrainer
 from protfun.models import MemmapsDisjointClassifier, GridsDisjointClassifier
-from protfun.networks import basic_convnet, single_trunk_network, dense_network
+from protfun.networks import get_network
 from protfun.config import get_config, save_config
 
 config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
@@ -31,7 +31,8 @@ def train_enz_from_memmaps():
                                                               current_time.year,
                                                               current_time.hour,
                                                               current_time.minute)
-    model = MemmapsDisjointClassifier(name=model_name, n_classes=config['proteins']['n_classes'], network=basic_convnet,
+    model = MemmapsDisjointClassifier(name=model_name, n_classes=config['proteins']['n_classes'],
+                                      network=get_network(config['training']['network']),
                                       minibatch_size=config['training']['minibatch_size'])
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
     trainer.train(epochs=config['training']['epochs'])
@@ -55,7 +56,7 @@ def _build_enz_feeder_model_trainer(model_name=None):
                                                                  current_time.minute)
     model = GridsDisjointClassifier(name=model_name,
                                     n_classes=config['proteins']['n_classes'],
-                                    network=dense_network,
+                                    network=get_network(config['training']['network']),
                                     grid_size=64,
                                     minibatch_size=config['training']['minibatch_size'],
                                     learning_rate=config['training']['learning_rate'])
@@ -71,7 +72,7 @@ def train_enz_from_grids():
 
 def test_enz_from_grids(model_name, params_file):
     _, model, trainer = _build_enz_feeder_model_trainer(model_name)
-    trainer.monitor.load_model(model_name=params_file,
+    trainer.monitor.load_model(params_filename=params_file,
                                network=model.get_output_layers())
 
     _, _, _, test_predictions, test_targets, proteins = trainer.test()

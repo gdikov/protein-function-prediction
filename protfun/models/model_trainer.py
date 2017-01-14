@@ -3,6 +3,7 @@ import colorlog as log
 import logging
 import threading
 
+from protfun.visualizer.netview import NetworkView
 from utils.np_utils import pp_array
 
 from protfun.visualizer.progressview import ProgressView
@@ -18,6 +19,7 @@ class ModelTrainer(object):
         self.val_frequency = val_frequency
         self.monitor = ModelMonitor(outputs=model.get_output_layers(), data_dir=data_feeder.get_data_dir(),
                                     name=model.get_name())
+        self.network_view = NetworkView(data_dir=self.monitor.get_model_dir())
         self.current_max_train_acc = np.array(0.85)
         self.current_max_val_acc = np.array(0.0)
         # save training history data
@@ -35,6 +37,7 @@ class ModelTrainer(object):
     def train(self, epochs=100, generate_progress_plot=True):
         try:
             log.info("Training...")
+            self.network_view.save_network_graph(self.model.get_output_layers, "network.png")
             if generate_progress_plot:
                 self.plot_progress()
             self._train(epochs)
@@ -89,7 +92,8 @@ class ModelTrainer(object):
                 steps_before_validate = 0
 
     def validate(self, steps_before_validate, epoch):
-        val_loss_means, val_acc_means, val_per_class_accs_means, val_predictions, val_targets, _ = self._test(mode='val')
+        val_loss_means, val_acc_means, val_per_class_accs_means, val_predictions, val_targets, _ = self._test(
+            mode='val')
         self.history['val_loss'] += [val_loss_means] * steps_before_validate
         self.history['val_accuracy'] += [val_acc_means] * steps_before_validate
         self.history['val_per_class_accs'] += [val_per_class_accs_means] * steps_before_validate

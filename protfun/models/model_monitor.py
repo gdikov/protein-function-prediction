@@ -40,19 +40,19 @@ class ModelMonitor(object):
         np.savez(os.path.join(self.path_to_model_dir, '{0}.npz'.format(filename)),
                  *lasagne.layers.get_all_param_values(self.network_outputs, trainable=True))
 
-    def load_model(self, model_name, network):
+    def load_model(self, params_filename, network):
         """
         Loads the weigths from file and initialize the network.
 
-        :param model_name: the filename to be used
+        :param params_filename: the filename to be used
         :param network: the network to be initialised
         :return:
         """
-        if model_name[-4:] != '.npz':
+        if params_filename[-4:] != '.npz':
             log.error("Model not found")
             raise ValueError
 
-        with np.load(os.path.join(self.path_to_model_dir, model_name)) as f:
+        with np.load(os.path.join(self.path_to_model_dir, params_filename)) as f:
             param_values = [f['arr_%d' % i] for i in range(len(f.files))]
 
         lasagne.layers.set_all_param_values(network, param_values, trainable=True)
@@ -61,7 +61,7 @@ class ModelMonitor(object):
         log.info("Saving training history")
         # Refactored: instead of saving in a text file, dump the history as a pickle and provide
         # the saving to a human-readable format as an option
-        filename = 'train_history_{0}'.format(self.name)
+        filename = 'train_history'
         if msg != '':
             filename += '_' + msg
         with open(os.path.join(self.path_to_model_dir, "{0}.pickle".format(filename)), mode='wb') as f:
