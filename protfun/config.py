@@ -10,4 +10,4 @@ def get_config(filename):
 
 def save_config(config, filename):
     with open(filename, 'w') as f:
-        yaml.dump(config, f, default_flow_style=True)
+        yaml.dump(config, f, default_flow_style=False)

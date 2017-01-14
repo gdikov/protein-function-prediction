@@ -18,14 +18,29 @@ class DataFeeder(object):
         self.samples_per_class = init_samples_per_class
         self.minibatch_size = minibatch_size
 
+    @abc.abstractmethod
     def iterate_test_data(self):
-        return None
+        raise NotImplementedError
 
+    @abc.abstractmethod
     def iterate_train_data(self):
-        return None
+        raise NotImplementedError
 
+    @abc.abstractmethod
     def iterate_val_data(self):
-        return None
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_test_data(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_train_data(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_val_data(self):
+        raise NotImplementedError
 
     def set_samples_per_class(self, samples_per_class):
         self.samples_per_class = samples_per_class
@@ -48,6 +63,27 @@ class EnzymeDataFeeder(DataFeeder):
                                               force_grids=False,
                                               force_split=False)
         self.prediction_depth = prediction_depth
+
+    def iterate_test_data(self):
+        for inputs in self._iter_minibatches(iter_mode='test'):
+            yield inputs
+
+    def iterate_train_data(self):
+        for inputs in self._iter_minibatches(iter_mode='train'):
+            yield inputs
+
+    def iterate_val_data(self):
+        for inputs in self._iter_minibatches(iter_mode='val'):
+            yield inputs
+
+    def get_test_data(self):
+        return self.data_manager.get_test_set()
+
+    def get_train_data(self):
+        return self.data_manager.get_training_set()
+
+    def get_val_data(self):
+        return self.data_manager.get_validation_set()
 
     def _construct_hierarchical_tree(self, data_dict):
 
@@ -119,18 +155,6 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
         super(EnzymesMolDataFeeder, self).__init__(data_dir, minibatch_size, init_samples_per_class,
                                                    prediction_depth, enzyme_classes)
 
-    def iterate_test_data(self):
-        for inputs in self._iter_minibatches(iter_mode='test'):
-            yield inputs
-
-    def iterate_train_data(self):
-        for inputs in self._iter_minibatches(iter_mode='train'):
-            yield inputs
-
-    def iterate_val_data(self):
-        for inputs in self._iter_minibatches(iter_mode='val'):
-            yield inputs
-
     def _form_samples_minibatch(self, prot_codes, from_dir):
         assert len(prot_codes) == self.minibatch_size, \
             "prot_codes must be of the same size as minibatch_size"
@@ -163,18 +187,6 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
     def __init__(self, data_dir, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
         super(EnzymesGridFeeder, self).__init__(data_dir, minibatch_size, init_samples_per_class,
                                                 prediction_depth, enzyme_classes)
-
-    def iterate_test_data(self):
-        for inputs in self._iter_minibatches(iter_mode='test'):
-            yield inputs
-
-    def iterate_train_data(self):
-        for inputs in self._iter_minibatches(iter_mode='train'):
-            yield inputs
-
-    def iterate_val_data(self):
-        for inputs in self._iter_minibatches(iter_mode='val'):
-            yield inputs
 
     def _form_samples_minibatch(self, prot_codes, from_dir):
         assert len(prot_codes) == self.minibatch_size, \
