@@ -233,8 +233,9 @@ def test_enz_from_grids(config, model_name, params_file, mode='test'):
         _, _, _, test_predictions, test_targets, proteins = trainer._test(mode='val')
 
     # make the shapes to be (N x n_classes)
-    test_predictions = np.asarray(test_predictions).reshape((-1, config['proteins']['n_classes']))
-    test_targets = np.asarray(test_targets).reshape((-1, config['proteins']['n_classes']))
+    test_predictions = np.exp(np.asarray(test_predictions)[:, :, :, 1]).transpose((0, 2, 1)).reshape(
+        (-1, config['proteins']['n_classes']))
+    test_targets = np.asarray(test_targets).transpose((0, 2, 1)).reshape((-1, config['proteins']['n_classes']))
 
     # compute the ROC curve
     pa = PerformanceAnalyser(n_classes=config['proteins']['n_classes'], y_expected=test_targets,

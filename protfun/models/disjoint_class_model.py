@@ -22,35 +22,51 @@ class DisjointClassModel(object):
         self.validation_function = None
         self.output_layers = None
 
-    def define_forward_pass(self, input_vars, output_layer):
-        train_params = lasagne.layers.get_all_params(output_layer, trainable=True)
-        targets = T.imatrix('targets')
+    def define_forward_pass(self, input_vars, output_layers):
+        train_params = lasagne.layers.get_all_params(output_layers, trainable=True)
+
+        # define the losses
+        targets_ints = [T.ivector('targets' + str(i)) for i in range(0, self.n_classes)]
+        targets = [T.eq(targets_ints[i].reshape((-1, 1)), T.arange(2)) for i in range(0, self.n_classes)]
+
+        def categorical_crossentropy_logdomain(log_predictions, targets):
+            return -T.sum(targets * log_predictions, axis=1)
 
         # define objective and training parameters
-        train_predictions = lasagne.layers.get_output(output_layer)
-        train_loss = T.mean(T.sum(lasagne.objectives.binary_crossentropy(train_predictions, targets), axis=-1), axis=0)
-        train_accuracy = T.mean(T.all(T.eq(train_predictions > 0.5, targets), axis=-1), axis=0,
-                                dtype=theano.config.floatX)
-        per_class_train_accuracies = T.mean(T.eq(train_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
+        train_predictions = [lasagne.layers.get_output(output) for output in output_layers]
+        train_loss = T.sum(T.stack([categorical_crossentropy_logdomain(log_predictions=train_predictions[i],
+                                                                       targets=targets[i]).mean()
+                                    for i in range(0, self.n_classes)]))
+        train_compared = T.stack(
+            [T.eq(T.argmax(train_predictions[i], axis=-1), targets_ints[i]) for i in range(0, self.n_classes)],
+            axis=1)
+        train_accuracies = T.mean(train_compared, axis=0, dtype=theano.config.floatX)
+        train_accuracy = T.mean(T.all(train_compared, axis=-1), dtype=theano.config.floatX)
 
-        val_predictions = lasagne.layers.get_output(output_layer, deterministic=True)
-        val_loss = T.mean(T.sum(lasagne.objectives.binary_crossentropy(val_predictions, targets), axis=-1), axis=0)
-        val_accuracy = T.mean(T.all(T.eq(val_predictions > 0.5, targets), axis=-1), axis=0, dtype=theano.config.floatX)
-        per_class_val_accuracies = T.mean(T.eq(val_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
+        val_predictions = [lasagne.layers.get_output(output_layers[i], deterministic=True)
+                           for i in range(0, self.n_classes)]
+        val_loss = T.sum(T.stack([categorical_crossentropy_logdomain(log_predictions=val_predictions[i],
+                                                                     targets=targets[i]).mean()
+                                  for i in range(0, self.n_classes)]))
+        val_compared = T.stack(
+            [T.eq(T.argmax(val_predictions[i], axis=-1), targets_ints[i]) for i in range(0, self.n_classes)],
+            axis=1)
+        val_accuracies = T.mean(val_compared, axis=0, dtype=theano.config.floatX)
+        val_accuracy = T.mean(T.all(val_compared, axis=-1), dtype=theano.config.floatX)
 
         train_params_updates = lasagne.updates.adam(loss_or_grads=train_loss,
                                                     params=train_params,
                                                     learning_rate=self.learning_rate)
 
-        self.train_function = theano.function(inputs=input_vars + [targets],
+        self.train_function = theano.function(inputs=input_vars + targets_ints,
                                               outputs={'loss': train_loss, 'accuracy': train_accuracy,
-                                                       'per_class_accs': per_class_train_accuracies,
+                                                       'per_class_accs': train_accuracies,
                                                        'predictions': T.stack(train_predictions)},
                                               updates=train_params_updates)  # , profile=True)
 
-        self.validation_function = theano.function(inputs=input_vars + [targets],
+        self.validation_function = theano.function(inputs=input_vars + targets_ints,
                                                    outputs={'loss': val_loss, 'accuracy': val_accuracy,
-                                                            'per_class_accs': per_class_val_accuracies,
+                                                            'per_class_accs': val_accuracies,
                                                             'predictions': T.stack(val_predictions)})
         log.info("Computational graph compiled")
 
@@ -84,7 +100,7 @@ class MemmapsDisjointClassifier(DisjointClassModel):
 
         # apply the network to the preprocessed input
         self.output_layers = network(grids, n_outputs=n_classes)
-        self.define_forward_pass(input_vars=[coords, charges, vdwradii, n_atoms], output_layer=self.output_layers)
+        self.define_forward_pass(input_vars=[coords, charges, vdwradii, n_atoms], output_layers=self.output_layers)
 
 
 class GridsDisjointClassifier(DisjointClassModel):
@@ -99,4 +115,4 @@ class GridsDisjointClassifier(DisjointClassModel):
 
         # apply the network to the preprocessed input
         self.output_layers = network(rotated_grids, n_outputs=n_classes)
-        self.define_forward_pass(input_vars=[grids], output_layer=self.output_layers)
+        self.define_forward_pass(input_vars=[grids], output_layers=self.output_layers)

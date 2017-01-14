@@ -43,10 +43,10 @@ def create_plots():
 if __name__ == "__main__":
     # create_plots()
     # import numpy as np
-    model_names = ["grids_classifier_2_classes_1_13_2017_18-26",
-                   "grids_kvhlnusegp_2-classes_1-14-2017_1-21",
-                   "grids_xbkzeqcsnc_2-classes_1-14-2017_1-21",
-                   "grids_classifier_2_classes_1_13_2017_18-54"]
+    model_names = ["grids_jtccvwzxqs_2-classes_1-14-2017_1-34",
+                   "grids_khvkzangbb_2-classes_1-14-2017_1-28",
+                   "grids_recozxsabp_2-classes_1-14-2017_1-35"]
+
     for model_name in model_names:
         model_dir = os.path.join(root_config["data"]["dir"], "models", model_name)
         local_config = get_config(os.path.join(model_dir, "config.yaml"))

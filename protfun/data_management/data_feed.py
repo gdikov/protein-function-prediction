@@ -98,6 +98,9 @@ class EnzymeDataFeeder(DataFeeder):
         tree_at_max_hdepth = {key: merge_prots(key) for key in keys_at_max_hdepth}
         return tree_at_max_hdepth
 
+    def _TODO_refactor_me_asap(self, stacked_1hot_labels):
+        return [stacked_1hot_labels[:, i] for i in range(stacked_1hot_labels.shape[1])]
+
     def _iter_minibatches(self, iter_mode='train'):
         if iter_mode == "train":
             samples, labels = self.data_manager.get_training_set()
@@ -140,8 +143,9 @@ class EnzymeDataFeeder(DataFeeder):
             next_samples = self._form_samples_minibatch(prot_codes=prots_in_minibatch, from_dir=data_dir)
 
             # labels are accessed at a fixed hierarchical depth counting from the root
-            next_targets = [np.vstack(
-                [labels[prot_code][self.prediction_depth - 1].astype(intX) for prot_code in prots_in_minibatch])]
+            next_targets = self._TODO_refactor_me_asap(
+                np.vstack([labels[prot_code][self.prediction_depth - 1].astype(intX)
+                           for prot_code in prots_in_minibatch]))
 
             yield prots_in_minibatch, next_samples + next_targets
 
