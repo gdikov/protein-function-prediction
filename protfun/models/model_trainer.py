@@ -104,6 +104,7 @@ class ModelTrainer(object):
             # validate the model
             if e % self.val_frequency == 0:
                 self.validate(steps_before_validate, e)
+                self.monitor.save_history_and_model(self.history, epoch_count=epochs)
                 steps_before_validate = 0
 
     def validate(self, steps_before_validate, epoch):
@@ -188,8 +189,8 @@ def train_enz_from_memmaps(config):
                                       network=get_network(config['training']['network']),
                                       minibatch_size=config['training']['minibatch_size'])
     trainer = ModelTrainer(model=model, data_feeder=data_feeder)
-    trainer.train(epochs=config['training']['epochs'])
     save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
+    trainer.train(epochs=config['training']['epochs'])
 
 
 def _build_enz_feeder_model_trainer(config, model_name=None):
@@ -219,8 +220,8 @@ def _build_enz_feeder_model_trainer(config, model_name=None):
 
 def train_enz_from_grids(config):
     _, _, trainer = _build_enz_feeder_model_trainer(config)
-    trainer.train(epochs=config['training']['epochs'])
     save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
+    trainer.train(epochs=config['training']['epochs'])
 
 
 def test_enz_from_grids(config, model_name, params_file, mode='test'):
