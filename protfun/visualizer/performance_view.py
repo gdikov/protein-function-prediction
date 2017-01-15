@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib
 
 matplotlib.use('Agg')
+import seaborn as sns
 import matplotlib.pyplot as plt
 import cPickle
 import os
@@ -9,6 +10,8 @@ import os
 from itertools import cycle
 from sklearn.metrics import roc_curve, auc
 from scipy import interp
+
+classes = ['3.4.21', '3.4.24']
 
 
 class PerformanceAnalyser(object):
@@ -26,48 +29,46 @@ class PerformanceAnalyser(object):
         """
         false_positive_rate, true_positive_rate, roc_auc = self._compute_ROC()
         if export_figure:
+            sns.set_style("whitegrid")
             fig = self._plot_ROC(false_positive_rate, true_positive_rate, roc_auc)
             path_to_fig = os.path.join(self.data_dir, 'figures/{0}_ROC.png'.format(self.model_name))
             fig.savefig(filename=path_to_fig)
 
     def _plot_ROC(self, false_positive_rate, true_positive_rate, roc_auc):
         # Plot all ROC curves
-        # TODO: make variable number of colors, according to the class number
         lw = 2
         fig = plt.figure()
         ax = plt.subplot(111)
         plt.plot(false_positive_rate["micro"], true_positive_rate["micro"],
-                 label='micro-average ROC curve (area = {0:0.2f})'
+                 label='Micro-average ROC (AUC = {0:0.2f})'
                        ''.format(roc_auc["micro"]),
-                 color='deeppink', linestyle=':', linewidth=4)
+                 linestyle='-.', linewidth=4, solid_capstyle="round")
 
         plt.plot(false_positive_rate["macro"], true_positive_rate["macro"],
-                 label='macro-average ROC curve (area = {0:0.2f})'
+                 label='Macro-average ROC (AUC = {0:0.2f})'
                        ''.format(roc_auc["macro"]),
-                 color='navy', linestyle=':', linewidth=4)
+                 linestyle='-.', linewidth=4, solid_capstyle="round")
 
-        colors = cycle(['aqua', 'darkorange', 'cornflowerblue'])
-        for i, color in zip(range(self.n_classes), colors):
-            plt.plot(false_positive_rate[i], true_positive_rate[i], color=color, lw=lw,
-                     label='ROC curve of class {0} (area = {1:0.2f})'
-                           ''.format(i, roc_auc[i]))
+        for i in range(self.n_classes):
+            class_name = classes[i] if self.n_classes == 2 else "{}".format(i)
+            plt.plot(false_positive_rate[i], true_positive_rate[i], lw=lw,
+                     label='ROC of class {0} (AUC = {1:0.2f})'
+                           ''.format(class_name, roc_auc[i]))
 
         plt.plot([0, 1], [0, 1], 'k--', lw=lw)
         plt.xlim([0.0, 1.0])
-        plt.ylim([0.0, 1.05])
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('Some extension of Receiver operating characteristic to multi-class')
-
-        # Shrink current axis's height by 10% on the bottom
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0 + box.height * 0.1,
-                         box.width, box.height * 0.9])
+        plt.ylim([0.0, 1.00])
+        plt.xlabel('False positive rate', size=12)
+        plt.ylabel('True positive rate', size=12)
+        plt.title('Receiver operating characteristic for multi-label classification', size=15)
 
         # Put a legend below current axis
-        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
-                  fancybox=False, shadow=False, ncol=3, prop={'size': 8})
-        # plt.legend(loc="lower right")
+        ax.legend(loc='lower right', fancybox=True, shadow=True, ncol=1, prop={'size': 12}, frameon=True)
+
+        # adjust styles before saving
+        sns.despine()
+        colors = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+        sns.set_palette(colors)
 
         return fig
 
@@ -105,6 +106,7 @@ class PerformanceAnalyser(object):
         roc_auc["macro"] = auc(false_positive_rate["macro"], true_positive_rate["macro"])
 
         return false_positive_rate, true_positive_rate, roc_auc
+
 
 if __name__ == "__main__":
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../data')

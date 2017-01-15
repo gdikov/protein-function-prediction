@@ -6,6 +6,21 @@ import logging
 
 log.basicConfig(level=logging.DEBUG)
 
+text = {
+    'titles': {
+        'loss': 'Loss progression during training',
+        'accuracy': 'Accuracy progression during training',
+        'per_class_accs': 'Accuracy progression per class during training'
+    },
+    'y_labels': {
+        'loss': 'Loss',
+        'accuracy': 'Accuracy',
+        'per_class_accs': 'Accuracy'
+    }
+}
+
+classes = ['3.4.21', '3.4.24']
+
 
 class ProgressView(object):
     """
@@ -26,23 +41,29 @@ class ProgressView(object):
             raise ValueError
 
     def save(self):
-        self._save(artifacts=['train_loss', 'val_loss'], filename='loss_history.png')
-        self._save(artifacts=['train_accuracy', 'val_accuracy'], y_range=[-0.5, 1.5], filename='accuracy_history.png')
-        self._save(artifacts=['train_per_class_accs', 'val_per_class_accs'], y_range=[-0.5, 1.5],
+        self._save(artifacts=['train_loss', 'val_loss'], type='loss', filename='loss_history.png')
+        self._save(artifacts=['train_accuracy', 'val_accuracy'], type='accuracy', y_range=[0, 1],
+                   filename='accuracy_history.png')
+        self._save(artifacts=['train_per_class_accs', 'val_per_class_accs'], type='per_class_accs', y_range=[0, 1],
                    filename='per_class_accs.png')
 
-    def _save(self, artifacts=list(['train_loss', 'val_loss']), y_range=None, filename='loss_history.png'):
+    def _save(self, artifacts, type, y_range=None, filename='loss_history.png'):
         import matplotlib
         matplotlib.use('Agg')
+        import seaborn as sns
+        sns.set_style("whitegrid")
         import matplotlib.pyplot as plt
         fig = plt.figure()
         ax = fig.gca()
         empty = True
+        max_length = 0
         for artifact in artifacts:
             if artifact not in self.data:
                 log.warning("{} does not have artifact {}".format(self.model_name, artifact))
                 continue
             values = np.asarray(self.data[artifact])
+            if max_length < values.shape[0]:
+                max_length = values.shape[0]
             if values.size != 0:
                 empty = False
                 if len(values.shape) < 2:
@@ -55,15 +76,21 @@ class ProgressView(object):
         if not empty:
             if y_range is not None:
                 ax.set_ylim(y_range)
-            # ax.set_xlim([0, 10000])
-            box = ax.get_position()
-            ax.set_position([box.x0, box.y0 + box.height * 0.1,
-                             box.width, box.height * 0.9])
+            ax.set_xlim([0, max_length])
 
-            # Put a legend below current axis
-            ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
-                      fancybox=False, shadow=False, ncol=5, prop={'size': 8})
-            # ax.legend()
+            # define the legend
+            legend_position = 'upper right' if artifacts[0].endswith('loss') else 'lower right'
+
+            ax.legend(loc=legend_position, fancybox=True, shadow=True, ncol=1, prop={'size': 12}, frameon=True)
+            ax.set_title(text['titles'][type], size=15)
+            ax.set_ylabel(text['y_labels'][type], size=12)
+            ax.set_xlabel("Mini-batch count", size=12)
+
+            # adjust styles before saving
+            sns.despine()
+            colors = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+            sns.set_palette(colors)
+
             if not os.path.exists(self.model_figures_path):
                 os.makedirs(self.model_figures_path)
             fig.savefig(os.path.join(self.model_figures_path, filename))
@@ -72,18 +99,21 @@ class ProgressView(object):
     def _plot_single(self, fig, values, artifact):
         if artifact.startswith('train'):
             values = self.running_mean(values, self.mean_window)
-            fig.plot(values, label=artifact)
+            fig.plot(values, label="Training set", alpha=0.6)
         else:
-            fig.plot(values, '--', label=artifact)
+            fig.plot(values, '--', label="Validation set", linewidth=2, solid_capstyle="projecting")
 
     def _plot_multiple(self, fig, values, artifact):
         for i in range(0, values.shape[1]):
             vals = values[:, i]
+            class_name = classes[i] if values.shape[1] == 2 else "{}".format(i)
             if artifact.startswith('train'):
                 vals = self.running_mean(vals, self.mean_window)
-                fig.plot(vals, label="train_class_{}".format(i))
+
+                fig.plot(vals, label="Training set, class: {}".format(class_name), alpha=0.6)
             else:
-                fig.plot(vals, '--', label="val_class_{}".format(i))
+                fig.plot(vals, '--', label="Validation set, class: {}".format(class_name), linewidth=2,
+                         solid_capstyle="projecting")
 
     @staticmethod
     def running_mean(x, window):
