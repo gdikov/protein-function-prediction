@@ -16,9 +16,11 @@ import rdkit.Chem.rdMolTransforms as rdMT
 import rdkit.Chem.rdmolops as rdMO
 
 from protfun.layers import MoleculeMapLayer
+from protfun.layers import MoleculeMapWithSideChainsLayer
 
 floatX = theano.config.floatX
 intX = np.int32
+CNS = 24    # number of sidechain channels (20 amino, all, nonhydro, hydro, backbone)
 
 
 class DataProcessor(object):
@@ -42,14 +44,15 @@ class EnzymeDataProcessor(DataProcessor):
     """
 
     def __init__(self, from_dir, target_dir, protein_codes, process_grids=True, process_memmaps=True,
-                 force_recreate=False):
+                 force_recreate=False, add_sidechain_channels=True):
         super(EnzymeDataProcessor, self).__init__(from_dir=from_dir, target_dir=target_dir)
         self.prot_codes = protein_codes
         self.process_grids = process_grids
         self.process_memmaps = process_memmaps
         self.force_recreate = force_recreate
-        self.molecule_processor = PDBMoleculeProcessor()
-        self.grid_processor = GridProcessor()
+        self.add_sidechain_channels = add_sidechain_channels
+        self.molecule_processor = PDBMoleculeProcessor(separate_sidechains=add_sidechain_channels)
+        self.grid_processor = GridProcessor(separate_sidechains=add_sidechain_channels)
 
     def process(self):
         # will store the valid proteins for each enzyme class, which is the key in the dict()
@@ -72,7 +75,9 @@ class EnzymeDataProcessor(DataProcessor):
             f_path = os.path.join(self.from_dir, pc.upper(), 'pdb' + pc.lower() + '.ent')
 
             # if required, process the memmaps for the protein again
-            if self.process_memmaps and (not self.memmaps_exists(prot_dir) or self.force_recreate):
+            if self.process_memmaps and (not self.memmaps_exists(prot_dir,
+                                                                 num_channels=CNS if self.add_sidechain_channels else 1)
+                                         or self.force_recreate):
                 # attempt to process the molecule from the PDB file
                 mol = self.molecule_processor.process_molecule(f_path)
                 if mol is None:
@@ -132,10 +137,18 @@ class EnzymeDataProcessor(DataProcessor):
         del tmp
 
     @staticmethod
-    def memmaps_exists(prot_dir):
-        return os.path.exists(os.path.join(prot_dir, 'coords.memmap')) and \
-               os.path.exists(os.path.join(prot_dir, 'charges.memmap')) and \
-               os.path.exists(os.path.join(prot_dir, 'vdwradii.memmap'))
+    def memmaps_exists(prot_dir, num_channels=1):
+        if num_channels > 1:
+            if not os.path.exists(prot_dir):
+                return False
+            memmaps = [f for f in os.listdir(prot_dir) if f.endswith('.memmap')]
+            # TODO this is hardcoded and semi-correct sanity check: refactor!
+            return len([f for f in memmaps if f.startswith('coords')]) == num_channels and \
+                   len([f for f in memmaps if f.startswith('vdwradii')]) == num_channels
+        else:
+            return os.path.exists(os.path.join(prot_dir, 'coords.memmap')) and \
+                   os.path.exists(os.path.join(prot_dir, 'charges.memmap')) and \
+                   os.path.exists(os.path.join(prot_dir, 'vdwradii.memmap'))
 
     @staticmethod
     def grid_exists(prot_dir):
@@ -185,11 +198,12 @@ class PDBMoleculeProcessor(object):
     MoleculeProcessor can produce a ProcessedMolecule from the contents of a PDB file.
     """
 
-    def __init__(self):
+    def __init__(self, separate_sidechains=True):
         import rdkit.Chem as Chem
         self.periodic_table = Chem.GetPeriodicTable()
+        self.separate_sidechains = separate_sidechains
 
-    def process_molecule(self, pdb_file, separate_sidechains=True):
+    def process_molecule(self, pdb_file):
         """
         Processes a molecule from the passed PDB file if the file contents has no errors.
         :param pdb_file: path to the PDB file to process the molecule from.
@@ -198,7 +212,7 @@ class PDBMoleculeProcessor(object):
 
         # TODO: this is the old code using rdkit for the charge computations. Gasteiger is an inappropriate algorithm
         # read a molecule from the PDB file
-        if not separate_sidechains:
+        if not self.separate_sidechains:
             try:
                 mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
             except IOError:
@@ -248,6 +262,11 @@ class PDBMoleculeProcessor(object):
                 mol_rdkit = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
                 if mol_rdkit is not None:
                     mol_rdkit = rdMO.AddHs(mol_rdkit, addCoords=True)
+                    # get the conformation of the molecule
+                    conformer = mol_rdkit.GetConformer()
+                    # calculate the center of the molecule
+                    center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
+                    mol_center = np.asarray([center.x, center.y, center.z])
                 else:
                     raise ValueError
                 pdbw = Chem.rdmolfiles.PDBWriter(fileName=hydrogenized_pdb_file)
@@ -275,7 +294,7 @@ class PDBMoleculeProcessor(object):
                                'SER', 'THR', 'TRP', 'TYR', 'VAL']
 
             canonical_notation = lambda x: x[0].upper() + x[1:].lower() if len(x) > 1 else x
-            res = {'coords': mol.getCoords(),
+            res = {'coords': mol.getCoords() - mol_center,
                    'charges': None,
                    'vdwradii': np.asarray([self.periodic_table.GetRvdw(
                        self.periodic_table.GetAtomicNumber(canonical_notation(atom)))
@@ -314,7 +333,6 @@ class PDBMoleculeProcessor(object):
             res['charges_hydro'] = None
             res['vdwradii_hydro'] = res['vdwradii'][hydro_mask]
             res['atoms_count_hydro'] = hydro_mask.size
-
 
         return res
 
@@ -362,28 +380,62 @@ class GeneOntologyProcessor(object):
 
 
 class GridProcessor(object):
-    def __init__(self):
-        dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
-        dummy_charges_input = lasagne.layers.InputLayer(shape=(1, None))
-        dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
-        dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
+    @staticmethod
+    def unpack_layers(*inputs):
+        return inputs
 
-        self.processor = MoleculeMapLayer(incomings=[dummy_coords_input, dummy_charges_input,
-                                                     dummy_vdwradii_input, dummy_natoms_input],
-                                          minibatch_size=1,
-                                          rotate=False)
+    def __init__(self, separate_sidechains=True):
+        self.separate_sidechains = separate_sidechains
+        if not separate_sidechains:
+            dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
+            dummy_charges_input = lasagne.layers.InputLayer(shape=(1, None))
+            dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
+            dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
+            self.processor = MoleculeMapLayer(incomings=[dummy_coords_input, dummy_charges_input,
+                                                         dummy_vdwradii_input, dummy_natoms_input],
+                                              minibatch_size=1)
+        else:
+
+            dummy_coords_input = [lasagne.layers.InputLayer(shape=(1, None, None)) for _ in range(24)]
+            dummy_vdwradii_input = [lasagne.layers.InputLayer(shape=(1, None)) for _ in range(24)]
+            self.processor = MoleculeMapWithSideChainsLayer(incomings=[self.unpack_layers(dummy_coords_input),
+                                                                       self.unpack_layers(dummy_vdwradii_input)],
+                                                            minibatch_size=1)
 
     def process(self, prot_dir):
-        try:
-            coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))
-            charges = np.memmap(os.path.join(prot_dir, 'charges.memmap'), mode='r', dtype=floatX).reshape((1, -1))
-            vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))
-            n_atoms = np.array(coords.shape[1], dtype=intX).reshape((1,))
-        except IOError:
-            return None
-        mol_info = [theano.shared(coords),
-                    theano.shared(charges),
-                    theano.shared(vdwradii),
-                    theano.shared(n_atoms)]
-        grid = self.processor.get_output_for(mols_info=mol_info).eval()
+        if not self.separate_sidechains:
+            try:
+                coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))
+                charges = np.memmap(os.path.join(prot_dir, 'charges.memmap'), mode='r', dtype=floatX).reshape((1, -1))
+                vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))
+                n_atoms = np.array(coords.shape[1], dtype=intX).reshape((1,))
+            except IOError:
+                return None
+            mol_info = [theano.shared(coords),
+                        theano.shared(charges),
+                        theano.shared(vdwradii),
+                        theano.shared(n_atoms)]
+            grid = self.processor.get_output_for(mols_info=mol_info).eval()
+        else:
+            try:
+                memmaps_sufix = ['.memmap', '_backbone.memmap', '_heavy.memmap', '_hydro.memmap',
+                                 '_ALA.memmap', '_ARG.memmap', '_ASN.memmap', '_ASP.memmap',
+                                 '_CYS.memmap', '_GLN.memmap', '_GLU.memmap', '_GLY.memmap',
+                                 '_HIS.memmap', '_ILE.memmap', '_LEU.memmap', '_LYS.memmap',
+                                 '_MET.memmap', '_PHE.memmap', '_PRO.memmap', '_SER.memmap',
+                                 '_THR.memmap', '_TRP.memmap', '_TYR.memmap', '_VAL.memmap']
+                coords = [np.memmap(os.path.join(prot_dir, 'coords' + f), mode='r', dtype=floatX)
+                          for f in memmaps_sufix]
+                coords = [c.reshape((1, -1, 3))
+                          if not any(np.isnan(c)) else np.array([[[0, 0, 0]]], dtype=floatX)
+                          for c in coords]
+                vdwradii = [np.memmap(os.path.join(prot_dir, 'vdwradii' + f), mode='r', dtype=floatX)
+                            for f in memmaps_sufix]
+                vdwradii = [c.reshape((1, -1))
+                            if not any(np.isnan(c)) else np.array([[0]], dtype=floatX)
+                            for c in vdwradii]
+            except IOError:
+                return None
+            mol_info = [theano.shared(c) for c in coords] + [theano.shared(v) for v in vdwradii]
+            grid = self.processor.get_output_for(mols_info=mol_info, use_sidechains_channels=True).eval()
         return grid
