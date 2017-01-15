@@ -149,7 +149,7 @@ class EnzymeDataManager(DataManager):
             prep.download_pdbs(base_dir=self.dirs['data_raw'],
                                protein_codes=self.all_proteins)
             save_pickle(file_path=os.path.join(self.dirs["data_raw"], "all_prot_codes.pickle"),
-                             data=self.all_proteins)
+                        data=self.all_proteins)
             self._save_enzyme_list(target_dir=self.dirs["data_raw"], proteins_dict=self.all_proteins)
         else:
             log.info("Skipping downloading step")
@@ -171,12 +171,12 @@ class EnzymeDataManager(DataManager):
             self.valid_proteins = edp.process()
             self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
             save_pickle(file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"),
-                             data=self.valid_proteins)
+                        data=self.valid_proteins)
             self._save_enzyme_list(target_dir=self.dirs["data_processed"], proteins_dict=self.valid_proteins)
         else:
             log.info("Skipping preprocessing step")
             self.valid_proteins = load_pickle(file_path=os.path.join(self.dirs["data_processed"],
-                                                                           "valid_prot_codes.pickle"))
+                                                                     "valid_prot_codes.pickle"))
             self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
 
         # Split test / val data set if required
@@ -200,21 +200,21 @@ class EnzymeDataManager(DataManager):
                 self._copy_processed(target_dir=self.dirs["data_train"], proteins_dict=trainval_data)
                 self._save_enzyme_list(target_dir=self.dirs["data_train"], proteins_dict=trainval_data)
                 save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
-                                            os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
-                                 data=[train_dataset, val_dataset])
+                                       os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
+                            data=[train_dataset, val_dataset])
 
                 # save test set under dirs["data_test"], copy over all corresponding data samples
                 self._copy_processed(target_dir=self.dirs["data_test"], proteins_dict=test_dataset)
                 self._save_enzyme_list(target_dir=self.dirs["data_test"], proteins_dict=test_dataset)
                 save_pickle(file_path=os.path.join(self.dirs["data_test"], "test_prot_codes.pickle"),
-                                 data=test_dataset)
+                            data=test_dataset)
             else:
                 # only reinitialize the train and validation sets
                 # the existing train and val pickles need to be merged and split again
                 train_dataset, val_dataset = load_pickle(file_path=[os.path.join(self.dirs["data_train"],
-                                                                                       "train_prot_codes.pickle"),
-                                                                         os.path.join(self.dirs["data_train"],
-                                                                                       "val_prot_codes.pickle")])
+                                                                                 "train_prot_codes.pickle"),
+                                                                    os.path.join(self.dirs["data_train"],
+                                                                                 "val_prot_codes.pickle")])
                 trainval_data = self.merge_data(data=[train_dataset, val_dataset])
 
                 # split them again
@@ -223,15 +223,15 @@ class EnzymeDataManager(DataManager):
                 self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
 
                 save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
-                                            os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
-                                 data=[train_dataset, val_dataset])
+                                       os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
+                            data=[train_dataset, val_dataset])
         else:
             log.info("Skipping splitting step")
 
         train_dataset, val_dataset, test_dataset = \
             load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
-                                        os.path.join(self.dirs["data_train"], "val_prot_codes.pickle"),
-                                        os.path.join(self.dirs["data_test"], "test_prot_codes.pickle")])
+                                   os.path.join(self.dirs["data_train"], "val_prot_codes.pickle"),
+                                   os.path.join(self.dirs["data_test"], "test_prot_codes.pickle")])
 
         # only select the enzymes classes we're interested in
         self.train_dataset = self._select_enzymes(train_dataset)

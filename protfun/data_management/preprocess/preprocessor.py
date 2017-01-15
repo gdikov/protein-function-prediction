@@ -398,8 +398,10 @@ class GridProcessor(object):
 
             dummy_coords_input = [lasagne.layers.InputLayer(shape=(1, None, None)) for _ in range(24)]
             dummy_vdwradii_input = [lasagne.layers.InputLayer(shape=(1, None)) for _ in range(24)]
+            dummy_natoms_input = [lasagne.layers.InputLayer(shape=(1,)) for _ in range(24)]
             self.processor = MoleculeMapWithSideChainsLayer(incomings=[self.unpack_layers(dummy_coords_input),
-                                                                       self.unpack_layers(dummy_vdwradii_input)],
+                                                                       self.unpack_layers(dummy_vdwradii_input),
+                                                                       self.unpack_layers(dummy_natoms_input)],
                                                             minibatch_size=1)
 
     def process(self, prot_dir):
@@ -432,10 +434,13 @@ class GridProcessor(object):
                 vdwradii = [np.memmap(os.path.join(prot_dir, 'vdwradii' + f), mode='r', dtype=floatX)
                             for f in memmaps_sufix]
                 vdwradii = [c.reshape((1, -1))
-                            if not any(np.isnan(c)) else np.array([[0]], dtype=floatX)
+                            if not any(np.isnan(c)) else np.array([[1]], dtype=floatX)
                             for c in vdwradii]
+                n_atoms = [np.array([n.size], dtype=intX) for n in vdwradii]
             except IOError:
                 return None
-            mol_info = [theano.shared(c) for c in coords] + [theano.shared(v) for v in vdwradii]
-            grid = self.processor.get_output_for(mols_info=mol_info, use_sidechains_channels=True).eval()
+            mol_info = [theano.shared(c) for c in coords] + \
+                       [theano.shared(v) for v in vdwradii] + \
+                       [theano.shared(n) for n in n_atoms]
+            grid = self.processor.get_output_for(mols_info=mol_info).eval()
         return grid
