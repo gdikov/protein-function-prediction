@@ -1,14 +1,16 @@
 import os
 
-os.environ["THEANO_FLAGS"] = "device=gpu2,lib.cnmem=1"
+from protfun.visualizer.molview import MoleculeView
+# os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=1"
 import colorlog as log
 import logging
 import cPickle
 import numpy as np
 
 from protfun.config import get_config, save_config
-from protfun.models import test_enz_from_grids
+from protfun.models import test_enz_from_grids, get_hidden_activations
 from protfun.visualizer.progressview import ProgressView
+from utils import save_pickle, load_pickle
 
 log.basicConfig(level=logging.DEBUG)
 
@@ -58,6 +60,36 @@ def create_history_plots():
             log.warning("Missing history file for: {}".format(model_name))
 
 
+def save_hidden_activations():
+    model_name = "grids_eqzchnjmlm_2-classes_1-14-2017_20-38"
+    model_dir = os.path.join(root_config["data"]["dir"], "models", model_name)
+    local_config = get_config(os.path.join(model_dir, "config.yaml"))
+    local_config["training"]["minibatch_size"] = 1
+
+    param_files = [f for f in os.listdir(model_dir) if f.startswith("params_") and "meanvalacc" in f]
+    epochs = np.array([int(f.split('_')[1][:-2]) for f in param_files], dtype=np.int32)
+    best_params_file = param_files[np.argmax(epochs)]
+    prots, activations = get_hidden_activations(config=local_config, model_name=model_name,
+                                                params_file=best_params_file)
+    save_pickle(file_path=os.path.join(model_dir, "activations.pickle"),
+                data=activations)
+
+
+def visualize_hidden_activations():
+    model_name = "grids_eqzchnjmlm_2-classes_1-14-2017_20-38"
+    model_dir = os.path.join(root_config["data"]["dir"], "models", model_name)
+    activations = load_pickle(file_path=os.path.join(model_dir, "activations.pickle"))
+
+    # for i in range(64):
+    viewer = MoleculeView(data_dir=root_config['data']['dir'],
+                          data={"potential": None, "density": activations[0][0, 1]},
+                          info={"name": "test"})
+
+    viewer.density3d()
+
+
 if __name__ == "__main__":
     # create_history_plots()
-    create_performance_plots()
+    # create_performance_plots()
+    # save_hidden_activations()
+    visualize_hidden_activations()

@@ -162,6 +162,11 @@ class ModelTrainer(object):
         log.info("{0}: loss mean: {1} acc mean: {2}".format(mode, epoch_loss_means, epoch_acc_means))
         return epoch_loss_means, epoch_acc_means, epoch_per_class_accs_means, epoch_predictions, epoch_targets, proteins
 
+    def get_test_hidden_activations(self):
+        for prots, inputs in self.data_feeder.iterate_test_data():
+            # do just a single minibatch
+            return prots, self.model.get_hidden_activations(inputs[0])
+
     def plot_progress(self):
         t = threading.Timer(5.0, self.plot_progress)
         t.daemon = True
@@ -242,3 +247,12 @@ def test_enz_from_grids(config, model_name, params_file, mode='test'):
                              y_predicted=test_predictions, data_dir=trainer.monitor.get_model_dir(),
                              model_name="grids_{}".format(mode))
     pa.plot_ROC()
+
+
+def get_hidden_activations(config, model_name, params_file):
+    _, model, trainer = _build_enz_feeder_model_trainer(config, model_name=model_name)
+    trainer.monitor.load_model(params_filename=params_file,
+                               network=model.get_output_layers())
+    prots, activations = trainer.get_test_hidden_activations()
+    return prots, activations
+

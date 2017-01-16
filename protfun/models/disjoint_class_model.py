@@ -20,6 +20,7 @@ class DisjointClassModel(object):
         self.learning_rate = learning_rate
         self.train_function = None
         self.validation_function = None
+        self.get_hidden_activations = None
         self.output_layers = None
 
     def define_forward_pass(self, input_vars, output_layer):
@@ -52,6 +53,10 @@ class DisjointClassModel(object):
                                                    outputs={'loss': val_loss, 'accuracy': val_accuracy,
                                                             'per_class_accs': per_class_val_accuracies,
                                                             'predictions': T.stack(val_predictions)})
+
+        self.get_hidden_activations = theano.function(inputs=input_vars,
+                                                      outputs=lasagne.layers.get_output(
+                                                          lasagne.layers.get_all_layers(output_layer)))
         log.info("Computational graph compiled")
 
     def get_output_layers(self):
