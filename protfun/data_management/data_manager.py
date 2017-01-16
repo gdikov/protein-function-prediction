@@ -76,6 +76,29 @@ class DataManager(object):
         return first_data_dict, second_data_dict
 
     @staticmethod
+    def split_data_coarse(data_dict, percentage, hierarchical_depth):
+        import itertools
+        first_data_dict = dict()
+        second_data_dict = dict()
+
+        target_classes = set(['.'.join(cls.split('.')[:hierarchical_depth]) for cls in data_dict])
+
+        for target_cls in target_classes:
+            children = [(cls, enzymes) for cls, enzymes in data_dict.items() if cls.startswith(target_cls)]
+            target_cls_prots = set(itertools.chain.from_iterable(zip(*children)[1]))
+            required_count = ((100 - percentage) * len(target_cls_prots)) // 100
+            sorted_children = sorted(children, key=lambda x: len(x[1]), reverse=True)
+            collected_so_far = set()
+            for cls, enzymes in sorted_children:
+                if len(collected_so_far) < required_count:
+                    collected_so_far |= set(enzymes)
+                    second_data_dict[cls] = enzymes
+                else:
+                    first_data_dict[cls] = enzymes
+
+        return first_data_dict, second_data_dict
+
+    @staticmethod
     def merge_data(data=None):
         if isinstance(data, list):
             all_keys = set(sum([d.keys() for d in data], []))
