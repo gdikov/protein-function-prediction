@@ -84,7 +84,7 @@ class DataManager(object):
         target_classes = set(['.'.join(cls.split('.')[:hierarchical_depth]) for cls in data_dict])
 
         for target_cls in target_classes:
-            children = [(cls, enzymes) for cls, enzymes in data_dict.items() if cls.startswith(target_cls)]
+            children = [(cls, enzymes) for cls, enzymes in data_dict.items() if cls.startswith(target_cls + '.')]
             target_cls_prots = set(itertools.chain.from_iterable(zip(*children)[1]))
             required_count = ((100 - percentage) * len(target_cls_prots)) // 100
             sorted_children = sorted(children, key=lambda x: len(x[1]), reverse=True)
@@ -249,7 +249,7 @@ class EnzymeDataManager(DataManager):
     def _select_enzymes(self, dataset):
         filtered_set = dict()
         for cls, enzymes in dataset.items():
-            if any([cls.startswith(enzyme_cls) for enzyme_cls in self.enzyme_classes]):
+            if any([cls.startswith(enzyme_cls + '.') for enzyme_cls in self.enzyme_classes]):
                 filtered_set[cls] = enzymes
         return filtered_set
 

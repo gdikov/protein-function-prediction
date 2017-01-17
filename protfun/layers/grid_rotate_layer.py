@@ -21,7 +21,7 @@ class GridRotationLayer(lasagne.layers.Layer):
         self.angle = avg_rotation_angle
 
     def get_output_shape_for(self, input_shape):
-        return None, 2, self.grid_side, self.grid_side, self.grid_side
+        return None, 1, self.grid_side, self.grid_side, self.grid_side
 
     def get_output_for(self, grids, **kwargs):
         height = width = depth = self.grid_side

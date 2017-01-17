@@ -95,7 +95,7 @@ class EnzymeDataFeeder(DataFeeder):
             return merged
 
         keys_at_max_hdepth = set(['.'.join(x.split('.')[:self.prediction_depth]) for x in data_dict.keys()])
-        tree_at_max_hdepth = {key: merge_prots(key) for key in keys_at_max_hdepth}
+        tree_at_max_hdepth = {key: merge_prots(key + '.') for key in keys_at_max_hdepth}
         return tree_at_max_hdepth
 
     def _iter_minibatches(self, iter_mode='train'):
@@ -196,6 +196,6 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
             path_to_prot = path.join(from_dir, prot_id.upper())
             # TODO: refactor this hardcoded resolution reshape
             grids.append(
-                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64)))
+                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX).reshape((1, 2, 128, 128, 128)))
 
-        return [np.vstack(grids)]
+        return [np.vstack(grids)[:, [1]]]

@@ -21,7 +21,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
     """
 
     def __init__(self, incomings, minibatch_size=None,
-                 grid_side=126.0, resolution=2.0,
+                 grid_side=127.0, resolution=1.0,
                  rotate=True, use_esp=True, **kwargs):
         """
         :param incomings: list of lasagne InputLayers for coords, charges, vdwradii and n_atoms for the molecules
@@ -112,7 +112,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
             mol_coords = mol_coords[T.arange(mol_natoms), :, None]
 
             # add 100 % overhead to make sure there's some free memory left
-            approx_extra_space_factor = 2
+            approx_extra_space_factor = 3
             # (n_atoms x 3 coords x 4 bytes) memory per (grid point, molecule)
             needed_bytes_per_grid_point = (mol_natoms * 3 * 4) * approx_extra_space_factor
             grid_points_per_step = free_gpu_memory // needed_bytes_per_grid_point

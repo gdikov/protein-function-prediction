@@ -30,7 +30,7 @@ class ProgressView(object):
     def __init__(self, model_name, data_dir, history_file=None, history_dict=None, mean_window=5):
         self.model_name = model_name
         self.model_figures_path = os.path.join(data_dir, "figures")
-        self.mean_window = mean_window
+        self.mean_window = 10 * mean_window
         if history_dict is not None:
             self.data = history_dict
         elif history_file is not None:
@@ -99,9 +99,9 @@ class ProgressView(object):
     def _plot_single(self, fig, values, artifact):
         if artifact.startswith('train'):
             values = self.running_mean(values, self.mean_window)
-            fig.plot(values, label="Training set", alpha=0.6)
+            fig.plot(values, label="Training set", alpha=0.6, linewidth=0.5)
         else:
-            fig.plot(values, '--', label="Validation set", linewidth=2, solid_capstyle="projecting")
+            fig.plot(values, '-', label="Validation set", c="black", linewidth=2, solid_capstyle="projecting")
 
     def _plot_multiple(self, fig, values, artifact):
         for i in range(0, values.shape[1]):
@@ -110,9 +110,9 @@ class ProgressView(object):
             if artifact.startswith('train'):
                 vals = self.running_mean(vals, self.mean_window)
 
-                fig.plot(vals, label="Training set, class: {}".format(class_name), alpha=0.6)
+                fig.plot(vals, label="Training set, class: {}".format(class_name), alpha=0.6, linewidth=0.5)
             else:
-                fig.plot(vals, '--', label="Validation set, class: {}".format(class_name), linewidth=2,
+                fig.plot(vals, '-', label="Validation set, class: {}".format(class_name), c="black", linewidth=2,
                          solid_capstyle="projecting")
 
     @staticmethod

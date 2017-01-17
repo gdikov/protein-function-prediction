@@ -29,13 +29,13 @@ class DisjointClassModel(object):
 
         # define objective and training parameters
         train_predictions = lasagne.layers.get_output(output_layer)
-        train_loss = T.mean(T.sum(lasagne.objectives.binary_crossentropy(train_predictions, targets), axis=-1), axis=0)
+        train_loss = T.sum(lasagne.objectives.binary_crossentropy(train_predictions, targets))
         train_accuracy = T.mean(T.all(T.eq(train_predictions > 0.5, targets), axis=-1), axis=0,
                                 dtype=theano.config.floatX)
         per_class_train_accuracies = T.mean(T.eq(train_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
 
         val_predictions = lasagne.layers.get_output(output_layer, deterministic=True)
-        val_loss = T.mean(T.sum(lasagne.objectives.binary_crossentropy(val_predictions, targets), axis=-1), axis=0)
+        val_loss = T.sum(lasagne.objectives.binary_crossentropy(val_predictions, targets))
         val_accuracy = T.mean(T.all(T.eq(val_predictions > 0.5, targets), axis=-1), axis=0, dtype=theano.config.floatX)
         per_class_val_accuracies = T.mean(T.eq(val_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
 
@@ -98,7 +98,7 @@ class GridsDisjointClassifier(DisjointClassModel):
 
         self.minibatch_size = minibatch_size
         grids = T.TensorType(floatX, (False,) * 5)()
-        input_layer = lasagne.layers.InputLayer(shape=(self.minibatch_size, 2, grid_size, grid_size, grid_size),
+        input_layer = lasagne.layers.InputLayer(shape=(self.minibatch_size, 1, grid_size, grid_size, grid_size),
                                                 input_var=grids)
         rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size)
 

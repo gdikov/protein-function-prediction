@@ -216,7 +216,7 @@ def _build_enz_feeder_model_trainer(config, model_name=None):
     model = GridsDisjointClassifier(name=model_name,
                                     n_classes=config['proteins']['n_classes'],
                                     network=get_network(config['training']['network']),
-                                    grid_size=64,
+                                    grid_size=128,
                                     minibatch_size=config['training']['minibatch_size'],
                                     learning_rate=config['training']['learning_rate'])
     trainer = ModelTrainer(model=model, data_feeder=data_feeder, val_frequency=10)
