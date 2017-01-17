@@ -20,7 +20,7 @@ from protfun.layers import MoleculeMapWithSideChainsLayer
 
 floatX = theano.config.floatX
 intX = np.int32
-CNS = 24    # number of sidechain channels (20 amino, all, nonhydro, hydro, backbone)
+CNS = 24  # number of sidechain channels (20 amino, all, nonhydro, hydro, backbone)
 
 
 class DataProcessor(object):
@@ -51,8 +51,12 @@ class EnzymeDataProcessor(DataProcessor):
         self.process_memmaps = process_memmaps
         self.force_recreate = force_recreate
         self.add_sidechain_channels = add_sidechain_channels
-        self.molecule_processor = PDBMoleculeProcessor(separate_sidechains=add_sidechain_channels)
-        self.grid_processor = GridProcessor(separate_sidechains=add_sidechain_channels)
+        if add_sidechain_channels:
+            self.molecule_processor = PDBSideChainProcessor()
+            self.grid_processor = GridSideChainProcessor()
+        else:
+            self.molecule_processor = PDBMoleculeProcessor()
+            self.grid_processor = GridProcessor()
 
     def process(self):
         # will store the valid proteins for each enzyme class, which is the key in the dict()
@@ -198,10 +202,9 @@ class PDBMoleculeProcessor(object):
     MoleculeProcessor can produce a ProcessedMolecule from the contents of a PDB file.
     """
 
-    def __init__(self, separate_sidechains=True):
+    def __init__(self):
         import rdkit.Chem as Chem
         self.periodic_table = Chem.GetPeriodicTable()
-        self.separate_sidechains = separate_sidechains
 
     def process_molecule(self, pdb_file):
         """
@@ -212,127 +215,133 @@ class PDBMoleculeProcessor(object):
 
         # TODO: this is the old code using rdkit for the charge computations. Gasteiger is an inappropriate algorithm
         # read a molecule from the PDB file
-        if not self.separate_sidechains:
-            try:
-                mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
-            except IOError:
-                log.warning("Could not read PDB file.")
-                return None
+        try:
+            mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
+        except IOError:
+            log.warning("Could not read PDB file.")
+            return None
 
-            if mol is None:
-                log.warning("Bad pdb file found.")
-                return None
+        if mol is None:
+            log.warning("Bad pdb file found.")
+            return None
 
-            try:
-                # add missing hydrogen atoms
-                mol = rdMO.AddHs(mol, addCoords=True)
+        try:
+            # add missing hydrogen atoms
+            mol = rdMO.AddHs(mol, addCoords=True)
 
-                # compute partial charges
-                rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
-            except ValueError:
-                log.warning("Bad Gasteiger charge evaluation.")
-                return None
+            # compute partial charges
+            rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
+        except ValueError:
+            log.warning("Bad Gasteiger charge evaluation.")
+            return None
 
-            # get the conformation of the molecule
-            conformer = mol.GetConformer()
+        # get the conformation of the molecule
+        conformer = mol.GetConformer()
 
-            # calculate the center of the molecule
-            center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
+        # calculate the center of the molecule
+        center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
 
-            atoms_count = mol.GetNumAtoms()
-            atoms = mol.GetAtoms()
+        atoms_count = mol.GetNumAtoms()
+        atoms = mol.GetAtoms()
 
-            def get_coords(i):
-                coord = conformer.GetAtomPosition(i)
-                return np.asarray([coord.x, coord.y, coord.z])
+        def get_coords(i):
+            coord = conformer.GetAtomPosition(i)
+            return np.asarray([coord.x, coord.y, coord.z])
 
-            # set the coordinates, charges, VDW radii and atom count
-            res = {
-                "coords": np.asarray([get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
-                    [center.x, center.y, center.z]),
-                "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for atom in atoms]),
-                "vdwradii": np.asarray([self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in atoms]),
-                "atoms_count": atoms_count
-            }
+        # set the coordinates, charges, VDW radii and atom count
+        res = {
+            "coords": np.asarray([get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
+                [center.x, center.y, center.z]),
+            "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for atom in atoms]),
+            "vdwradii": np.asarray([self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in atoms]),
+            "atoms_count": atoms_count
+        }
+        return res
 
-        else:
-            hydro_file_name = '_hydrogenized.'.join(os.path.basename(pdb_file).split('.'))
-            hydrogenized_pdb_file = os.path.join(os.path.dirname(pdb_file), hydro_file_name)
-            try:
-                mol_rdkit = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
-                if mol_rdkit is not None:
-                    mol_rdkit = rdMO.AddHs(mol_rdkit, addCoords=True)
-                    # get the conformation of the molecule
-                    conformer = mol_rdkit.GetConformer()
-                    # calculate the center of the molecule
-                    center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
-                    mol_center = np.asarray([center.x, center.y, center.z])
-                else:
-                    raise ValueError
-                pdbw = Chem.rdmolfiles.PDBWriter(fileName=hydrogenized_pdb_file)
-                pdbw.write(mol_rdkit)
-                pdbw.flush()
-                pdbw.close()
-                del mol_rdkit, pdbw
-            except (EnvironmentError, ValueError):
-                log.warning("Bad PDB file.")
-                return None
 
-            try:
-                mol = pd.parsePDB(hydrogenized_pdb_file)
-            except IOError:
-                log.warning("Could not read PDB file.")
-                return None
+class PDBSideChainProcessor(object):
+    def __init__(self):
+        import rdkit.Chem as Chem
+        self.periodic_table = Chem.GetPeriodicTable()
 
-            if mol is None:
-                log.warning("Bad pdb file found.")
-                return None
+    def process_molecule(self, pdb_file):
+        hydro_file_name = '_hydrogenized.'.join(os.path.basename(pdb_file).split('.'))
+        hydrogenized_pdb_file = os.path.join(os.path.dirname(pdb_file), hydro_file_name)
+        try:
+            mol_rdkit = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
+            if mol_rdkit is not None:
+                mol_rdkit = rdMO.AddHs(mol_rdkit, addCoords=True)
+                # get the conformation of the molecule
+                conformer = mol_rdkit.GetConformer()
+                # calculate the center of the molecule
+                center = rdMT.ComputeCentroid(conformer, ignoreHs=False)
+                mol_center = np.asarray([center.x, center.y, center.z])
+            else:
+                raise ValueError
+            pdbw = Chem.rdmolfiles.PDBWriter(fileName=hydrogenized_pdb_file)
+            pdbw.write(mol_rdkit)
+            pdbw.flush()
+            pdbw.close()
+            del mol_rdkit, pdbw
+        except (EnvironmentError, ValueError):
+            log.warning("Bad PDB file.")
+            return None
 
-            std_amino_acids = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS',
-                               'GLN', 'GLU', 'GLY', 'HIS', 'ILE',
-                               'LEU', 'LYS', 'MET', 'PHE', 'PRO',
-                               'SER', 'THR', 'TRP', 'TYR', 'VAL']
+        try:
+            mol = pd.parsePDB(hydrogenized_pdb_file)
+        except IOError:
+            log.warning("Could not read PDB file.")
+            return None
 
-            canonical_notation = lambda x: x[0].upper() + x[1:].lower() if len(x) > 1 else x
-            res = {'coords': mol.getCoords() - mol_center,
-                   'charges': None,
-                   'vdwradii': np.asarray([self.periodic_table.GetRvdw(
-                       self.periodic_table.GetAtomicNumber(canonical_notation(atom)))
-                                           for atom in mol.getElements()]),
-                   'atoms_count': mol.numAtoms()}
+        if mol is None:
+            log.warning("Bad pdb file found.")
+            return None
 
-            # find the data for all the 20 amino acids
-            for aa in std_amino_acids:
-                all_aas_in_mol = mol.select('resname ' + aa)
-                if all_aas_in_mol is not None:
-                    mask = all_aas_in_mol.getIndices()
-                else:
-                    mask = np.array([], dtype=np.int32)
-                res['coords_' + aa] = res['coords'][mask, :]
-                res['charges_' + aa] = None
-                res['vdwradii_' + aa] = res['vdwradii'][mask]
-                res['atoms_count_' + aa] = mask.size
+        std_amino_acids = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS',
+                           'GLN', 'GLU', 'GLY', 'HIS', 'ILE',
+                           'LEU', 'LYS', 'MET', 'PHE', 'PRO',
+                           'SER', 'THR', 'TRP', 'TYR', 'VAL']
 
-            # find the data for the backbones
-            backbone_mask = mol.backbone.getIndices()
-            res['coords_backbone'] = res['coords'][backbone_mask, :]
-            res['charges_backbone'] = None
-            res['vdwradii_backbone'] = res['vdwradii'][backbone_mask]
-            res['atoms_count_backbone'] = backbone_mask.size
+        canonical_notation = lambda x: x[0].upper() + x[1:].lower() if len(x) > 1 else x
+        res = {'coords': mol.getCoords() - mol_center,
+               'charges': None,
+               'vdwradii': np.asarray([self.periodic_table.GetRvdw(
+                   self.periodic_table.GetAtomicNumber(canonical_notation(atom)))
+                                       for atom in mol.getElements()]),
+               'atoms_count': mol.numAtoms()}
 
-            # find the data for the heavy atoms (i.e. no H atoms)
-            heavy_mask = mol.heavy.getIndices()
-            res['coords_heavy'] = res['coords'][heavy_mask, :]
-            res['charges_heavy'] = None
-            res['vdwradii_heavy'] = res['vdwradii'][heavy_mask]
-            res['atoms_count_heavy'] = heavy_mask.size
+        # find the data for all the 20 amino acids
+        for aa in std_amino_acids:
+            all_aas_in_mol = mol.select('resname ' + aa)
+            if all_aas_in_mol is not None:
+                mask = all_aas_in_mol.getIndices()
+            else:
+                mask = np.array([], dtype=np.int32)
+            res['coords_' + aa] = res['coords'][mask, :]
+            res['charges_' + aa] = None
+            res['vdwradii_' + aa] = res['vdwradii'][mask]
+            res['atoms_count_' + aa] = mask.size
 
-            # find the data for the heavy atoms (i.e. no H atoms)
-            hydro_mask = mol.hydrogen.getIndices()
-            res['coords_hydro'] = res['coords'][hydro_mask, :]
-            res['charges_hydro'] = None
-            res['vdwradii_hydro'] = res['vdwradii'][hydro_mask]
-            res['atoms_count_hydro'] = hydro_mask.size
+        # find the data for the backbones
+        backbone_mask = mol.backbone.getIndices()
+        res['coords_backbone'] = res['coords'][backbone_mask, :]
+        res['charges_backbone'] = None
+        res['vdwradii_backbone'] = res['vdwradii'][backbone_mask]
+        res['atoms_count_backbone'] = backbone_mask.size
+
+        # find the data for the heavy atoms (i.e. no H atoms)
+        heavy_mask = mol.heavy.getIndices()
+        res['coords_heavy'] = res['coords'][heavy_mask, :]
+        res['charges_heavy'] = None
+        res['vdwradii_heavy'] = res['vdwradii'][heavy_mask]
+        res['atoms_count_heavy'] = heavy_mask.size
+
+        # find the data for the heavy atoms (i.e. no H atoms)
+        hydro_mask = mol.hydrogen.getIndices()
+        res['coords_hydro'] = res['coords'][hydro_mask, :]
+        res['charges_hydro'] = None
+        res['vdwradii_hydro'] = res['vdwradii'][hydro_mask]
+        res['atoms_count_hydro'] = hydro_mask.size
 
         return res
 
@@ -380,67 +389,68 @@ class GeneOntologyProcessor(object):
 
 
 class GridProcessor(object):
+    def __init__(self):
+        dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
+        dummy_charges_input = lasagne.layers.InputLayer(shape=(1, None))
+        dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
+        dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
+        self.processor = MoleculeMapLayer(incomings=[dummy_coords_input, dummy_charges_input,
+                                                     dummy_vdwradii_input, dummy_natoms_input],
+                                          minibatch_size=1, rotate=False)
+
+    def process(self, prot_dir):
+        try:
+            coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))
+            charges = np.memmap(os.path.join(prot_dir, 'charges.memmap'), mode='r', dtype=floatX).reshape((1, -1))
+            vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))
+            n_atoms = np.array(coords.shape[1], dtype=intX).reshape((1,))
+        except IOError:
+            return None
+        mol_info = [theano.shared(coords),
+                    theano.shared(charges),
+                    theano.shared(vdwradii),
+                    theano.shared(n_atoms)]
+        grid = self.processor.get_output_for(mols_info=mol_info).eval()
+        return grid
+
+
+class GridSideChainProcessor(object):
     @staticmethod
     def unpack_layers(*inputs):
         return inputs
 
-    def __init__(self, separate_sidechains=True):
-        self.separate_sidechains = separate_sidechains
-        if not separate_sidechains:
-            dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
-            dummy_charges_input = lasagne.layers.InputLayer(shape=(1, None))
-            dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
-            dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
-            self.processor = MoleculeMapLayer(incomings=[dummy_coords_input, dummy_charges_input,
-                                                         dummy_vdwradii_input, dummy_natoms_input],
-                                              minibatch_size=1)
-        else:
-
-            dummy_coords_input = [lasagne.layers.InputLayer(shape=(1, None, None)) for _ in range(24)]
-            dummy_vdwradii_input = [lasagne.layers.InputLayer(shape=(1, None)) for _ in range(24)]
-            dummy_natoms_input = [lasagne.layers.InputLayer(shape=(1,)) for _ in range(24)]
-            self.processor = MoleculeMapWithSideChainsLayer(incomings=[self.unpack_layers(dummy_coords_input),
-                                                                       self.unpack_layers(dummy_vdwradii_input),
-                                                                       self.unpack_layers(dummy_natoms_input)],
-                                                            minibatch_size=1)
+    def __init__(self):
+        dummy_coords_input = [lasagne.layers.InputLayer(shape=(1, None, None)) for _ in range(24)]
+        dummy_vdwradii_input = [lasagne.layers.InputLayer(shape=(1, None)) for _ in range(24)]
+        dummy_natoms_input = [lasagne.layers.InputLayer(shape=(1,)) for _ in range(24)]
+        self.processor = MoleculeMapWithSideChainsLayer(incomings=[self.unpack_layers(dummy_coords_input),
+                                                                   self.unpack_layers(dummy_vdwradii_input),
+                                                                   self.unpack_layers(dummy_natoms_input)],
+                                                        minibatch_size=1)
 
     def process(self, prot_dir):
-        if not self.separate_sidechains:
-            try:
-                coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))
-                charges = np.memmap(os.path.join(prot_dir, 'charges.memmap'), mode='r', dtype=floatX).reshape((1, -1))
-                vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))
-                n_atoms = np.array(coords.shape[1], dtype=intX).reshape((1,))
-            except IOError:
-                return None
-            mol_info = [theano.shared(coords),
-                        theano.shared(charges),
-                        theano.shared(vdwradii),
-                        theano.shared(n_atoms)]
-            grid = self.processor.get_output_for(mols_info=mol_info).eval()
-        else:
-            try:
-                memmaps_sufix = ['.memmap', '_backbone.memmap', '_heavy.memmap', '_hydro.memmap',
-                                 '_ALA.memmap', '_ARG.memmap', '_ASN.memmap', '_ASP.memmap',
-                                 '_CYS.memmap', '_GLN.memmap', '_GLU.memmap', '_GLY.memmap',
-                                 '_HIS.memmap', '_ILE.memmap', '_LEU.memmap', '_LYS.memmap',
-                                 '_MET.memmap', '_PHE.memmap', '_PRO.memmap', '_SER.memmap',
-                                 '_THR.memmap', '_TRP.memmap', '_TYR.memmap', '_VAL.memmap']
-                coords = [np.memmap(os.path.join(prot_dir, 'coords' + f), mode='r', dtype=floatX)
-                          for f in memmaps_sufix]
-                coords = [c.reshape((1, -1, 3))
-                          if not any(np.isnan(c)) else np.array([[[0, 0, 0]]], dtype=floatX)
-                          for c in coords]
-                vdwradii = [np.memmap(os.path.join(prot_dir, 'vdwradii' + f), mode='r', dtype=floatX)
-                            for f in memmaps_sufix]
-                vdwradii = [c.reshape((1, -1))
-                            if not any(np.isnan(c)) else np.array([[1]], dtype=floatX)
-                            for c in vdwradii]
-                n_atoms = [np.array([n.size], dtype=intX) for n in vdwradii]
-            except IOError:
-                return None
-            mol_info = [theano.shared(c) for c in coords] + \
-                       [theano.shared(v) for v in vdwradii] + \
-                       [theano.shared(n) for n in n_atoms]
-            grid = self.processor.get_output_for(mols_info=mol_info).eval()
+        try:
+            memmaps_sufix = ['.memmap', '_backbone.memmap', '_heavy.memmap', '_hydro.memmap',
+                             '_ALA.memmap', '_ARG.memmap', '_ASN.memmap', '_ASP.memmap',
+                             '_CYS.memmap', '_GLN.memmap', '_GLU.memmap', '_GLY.memmap',
+                             '_HIS.memmap', '_ILE.memmap', '_LEU.memmap', '_LYS.memmap',
+                             '_MET.memmap', '_PHE.memmap', '_PRO.memmap', '_SER.memmap',
+                             '_THR.memmap', '_TRP.memmap', '_TYR.memmap', '_VAL.memmap']
+            coords = [np.memmap(os.path.join(prot_dir, 'coords' + f), mode='r', dtype=floatX)
+                      for f in memmaps_sufix]
+            coords = [c.reshape((1, -1, 3))
+                      if not any(np.isnan(c)) else np.array([[[0, 0, 0]]], dtype=floatX)
+                      for c in coords]
+            vdwradii = [np.memmap(os.path.join(prot_dir, 'vdwradii' + f), mode='r', dtype=floatX)
+                        for f in memmaps_sufix]
+            vdwradii = [c.reshape((1, -1))
+                        if not any(np.isnan(c)) else np.array([[1]], dtype=floatX)
+                        for c in vdwradii]
+            n_atoms = [np.array([n.size], dtype=intX) for n in vdwradii]
+        except IOError:
+            return None
+        mol_info = [theano.shared(c) for c in coords] + \
+                   [theano.shared(v) for v in vdwradii] + \
+                   [theano.shared(n) for n in n_atoms]
+        grid = self.processor.get_output_for(mols_info=mol_info).eval()
         return grid
