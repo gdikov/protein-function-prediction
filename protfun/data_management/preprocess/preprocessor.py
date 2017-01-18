@@ -16,7 +16,6 @@ import rdkit.Chem.rdMolTransforms as rdMT
 import rdkit.Chem.rdmolops as rdMO
 
 from protfun.layers import MoleculeMapLayer
-from protfun.layers import MoleculeMapWithSideChainsLayer
 
 floatX = theano.config.floatX
 intX = np.int32
@@ -124,9 +123,6 @@ class EnzymeDataProcessor(DataProcessor):
             os.makedirs(prot_dir)
         # generate and save the memmaps
         for key, value in mol.items():
-            if key.startswith('atoms_count') or key.startswith('charges'):
-                continue
-            print(key)
             self.save_to_memmap(os.path.join(prot_dir, '{0}.memmap'.format(key)),
                                 value, dtype=floatX)
 
@@ -230,7 +226,7 @@ class PDBMoleculeProcessor(object):
             mol = rdMO.AddHs(mol, addCoords=True)
 
             # compute partial charges
-            rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
+            # rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
         except ValueError:
             log.warning("Bad Gasteiger charge evaluation.")
             return None
@@ -252,7 +248,7 @@ class PDBMoleculeProcessor(object):
         res = {
             "coords": np.asarray([get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
                 [center.x, center.y, center.z]),
-            "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for atom in atoms]),
+            # "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for atom in atoms]),
             "vdwradii": np.asarray([self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in atoms]),
             "atoms_count": atoms_count
         }
@@ -304,11 +300,9 @@ class PDBSideChainProcessor(object):
 
         canonical_notation = lambda x: x[0].upper() + x[1:].lower() if len(x) > 1 else x
         res = {'coords': mol.getCoords() - mol_center,
-               'charges': None,
                'vdwradii': np.asarray([self.periodic_table.GetRvdw(
                    self.periodic_table.GetAtomicNumber(canonical_notation(atom)))
-                                       for atom in mol.getElements()]),
-               'atoms_count': mol.numAtoms()}
+                                       for atom in mol.getElements()])}
 
         # find the data for all the 20 amino acids
         for aa in std_amino_acids:
@@ -318,30 +312,22 @@ class PDBSideChainProcessor(object):
             else:
                 mask = np.array([], dtype=np.int32)
             res['coords_' + aa] = res['coords'][mask, :]
-            res['charges_' + aa] = None
             res['vdwradii_' + aa] = res['vdwradii'][mask]
-            res['atoms_count_' + aa] = mask.size
 
         # find the data for the backbones
         backbone_mask = mol.backbone.getIndices()
         res['coords_backbone'] = res['coords'][backbone_mask, :]
-        res['charges_backbone'] = None
         res['vdwradii_backbone'] = res['vdwradii'][backbone_mask]
-        res['atoms_count_backbone'] = backbone_mask.size
 
         # find the data for the heavy atoms (i.e. no H atoms)
         heavy_mask = mol.heavy.getIndices()
         res['coords_heavy'] = res['coords'][heavy_mask, :]
-        res['charges_heavy'] = None
         res['vdwradii_heavy'] = res['vdwradii'][heavy_mask]
-        res['atoms_count_heavy'] = heavy_mask.size
 
         # find the data for the heavy atoms (i.e. no H atoms)
         hydro_mask = mol.hydrogen.getIndices()
         res['coords_hydro'] = res['coords'][hydro_mask, :]
-        res['charges_hydro'] = None
         res['vdwradii_hydro'] = res['vdwradii'][hydro_mask]
-        res['atoms_count_hydro'] = hydro_mask.size
 
         return res
 
@@ -391,23 +377,19 @@ class GeneOntologyProcessor(object):
 class GridProcessor(object):
     def __init__(self):
         dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
-        dummy_charges_input = lasagne.layers.InputLayer(shape=(1, None))
         dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
         dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
-        self.processor = MoleculeMapLayer(incomings=[dummy_coords_input, dummy_charges_input,
-                                                     dummy_vdwradii_input, dummy_natoms_input],
+        self.processor = MoleculeMapLayer(incomings=[dummy_coords_input, dummy_vdwradii_input, dummy_natoms_input],
                                           minibatch_size=1, rotate=False)
 
     def process(self, prot_dir):
         try:
             coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))
-            charges = np.memmap(os.path.join(prot_dir, 'charges.memmap'), mode='r', dtype=floatX).reshape((1, -1))
             vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))
             n_atoms = np.array(coords.shape[1], dtype=intX).reshape((1,))
         except IOError:
             return None
         mol_info = [theano.shared(coords),
-                    theano.shared(charges),
                     theano.shared(vdwradii),
                     theano.shared(n_atoms)]
         grid = self.processor.get_output_for(mols_info=mol_info).eval()
@@ -415,42 +397,52 @@ class GridProcessor(object):
 
 
 class GridSideChainProcessor(object):
-    @staticmethod
-    def unpack_layers(*inputs):
-        return inputs
+    channels_count = 24
 
     def __init__(self):
-        dummy_coords_input = [lasagne.layers.InputLayer(shape=(1, None, None)) for _ in range(24)]
-        dummy_vdwradii_input = [lasagne.layers.InputLayer(shape=(1, None)) for _ in range(24)]
-        dummy_natoms_input = [lasagne.layers.InputLayer(shape=(1,)) for _ in range(24)]
-        self.processor = MoleculeMapWithSideChainsLayer(incomings=[self.unpack_layers(dummy_coords_input),
-                                                                   self.unpack_layers(dummy_vdwradii_input),
-                                                                   self.unpack_layers(dummy_natoms_input)],
-                                                        minibatch_size=1)
+        dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
+        dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
+        dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
+        self.processor = MoleculeMapLayer(incomings=[dummy_coords_input,
+                                                     dummy_vdwradii_input,
+                                                     dummy_natoms_input],
+                                          rotate=False,
+                                          minibatch_size=1)
 
     def process(self, prot_dir):
         try:
-            memmaps_sufix = ['.memmap', '_backbone.memmap', '_heavy.memmap', '_hydro.memmap',
+            memmaps_sufix = ['_backbone.memmap', '_heavy.memmap', '_hydro.memmap',
                              '_ALA.memmap', '_ARG.memmap', '_ASN.memmap', '_ASP.memmap',
                              '_CYS.memmap', '_GLN.memmap', '_GLU.memmap', '_GLY.memmap',
                              '_HIS.memmap', '_ILE.memmap', '_LEU.memmap', '_LYS.memmap',
                              '_MET.memmap', '_PHE.memmap', '_PRO.memmap', '_SER.memmap',
                              '_THR.memmap', '_TRP.memmap', '_TYR.memmap', '_VAL.memmap']
-            coords = [np.memmap(os.path.join(prot_dir, 'coords' + f), mode='r', dtype=floatX)
-                      for f in memmaps_sufix]
-            coords = [c.reshape((1, -1, 3))
-                      if not any(np.isnan(c)) else np.array([[[0, 0, 0]]], dtype=floatX)
-                      for c in coords]
-            vdwradii = [np.memmap(os.path.join(prot_dir, 'vdwradii' + f), mode='r', dtype=floatX)
-                        for f in memmaps_sufix]
-            vdwradii = [c.reshape((1, -1))
-                        if not any(np.isnan(c)) else np.array([[1]], dtype=floatX)
-                        for c in vdwradii]
-            n_atoms = [np.array([n.size], dtype=intX) for n in vdwradii]
+            coords = [np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))]
+            vdwradii = [np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))]
+            n_atoms = [np.array([vdwradii[0].size], dtype=intX)]
+            for suffix in memmaps_sufix[:self.channels_count - 1]:
+                next_coords = np.zeros_like(coords[0])
+                next_vdwradii = np.zeros_like(vdwradii[0])
+
+                try:
+                    masked_coords = np.memmap(os.path.join(prot_dir, 'coords' + suffix), mode='r',
+                                              dtype=floatX).reshape((1, -1, 3))
+                    masked_vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii' + suffix), mode='r',
+                                                dtype=floatX).reshape((1, -1))
+                    masked_natoms = np.array([masked_vdwradii.size], dtype=intX)
+                    next_coords[:, :masked_natoms[0]] = masked_coords
+                    next_vdwradii[:, :masked_natoms[0]] = masked_vdwradii
+                except ValueError:  # this channel has no atoms
+                    masked_natoms = np.array([1], dtype=intX)
+
+                coords.append(next_coords)
+                vdwradii.append(next_vdwradii)
+                n_atoms.append(masked_natoms)
         except IOError:
             return None
-        mol_info = [theano.shared(c) for c in coords] + \
-                   [theano.shared(v) for v in vdwradii] + \
-                   [theano.shared(n) for n in n_atoms]
-        grid = self.processor.get_output_for(mols_info=mol_info).eval()
-        return grid
+        result = []
+        for c, v, na in zip(coords, vdwradii, n_atoms):
+            mol_info = [theano.shared(x) for x in
+                        [c, v, na]]
+            result.append(self.processor.get_output_for(mol_info).eval())
+        return np.transpose(np.concatenate(result), (1, 0, 2, 3, 4))

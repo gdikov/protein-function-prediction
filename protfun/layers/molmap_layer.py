@@ -22,7 +22,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
 
     def __init__(self, incomings, minibatch_size=None,
                  grid_side=127.0, resolution=1.0,
-                 rotate=True, use_esp=True, **kwargs):
+                 rotate=True, **kwargs):
         """
         :param incomings: list of lasagne InputLayers for coords, charges, vdwradii and n_atoms for the molecules
                           int the minibatch.
@@ -39,7 +39,6 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
 
         self.minibatch_size = minibatch_size
         self.rotate = rotate
-        self.use_esp = use_esp
 
         # Set the grid side length and resolution in Angstroms.
         self.endx = grid_side / 2
@@ -61,9 +60,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         :param input_shape: not needed
         :return: the shape of the two computed grids (electron density, esp), stacked along axis 1
         """
-        channel_count = 2 if self.use_esp else 1
-        return self.minibatch_size, channel_count, self.side_points_count, \
-               self.side_points_count, self.side_points_count
+        return self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count
 
     def get_output_for(self, mols_info, **kwargs):
         """
@@ -78,11 +75,10 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         :return: Two grids, stacked along the axis 1: electrostatic potential and electron density.
                  Dimensions: (minibatch_dim x 2 x grid_side_size x grid_side_size x grid_side_size)
         """
-        mols_coords, mols_charges, mols_vdwradii, mols_natoms = mols_info
+        mols_coords, mols_vdwradii, mols_natoms = mols_info
         zeros = np.zeros(
             (self.minibatch_size, 1, self.side_points_count ** 3), dtype=floatX)
         grids_density = self.add_param(zeros, zeros.shape, 'grids_density', trainable=False)
-        grids_esp = self.add_param(zeros, zeros.shape, 'grids_esp', trainable=False)
 
         free_gpu_memory = self.get_free_gpu_memory()
         if self.rotate:
@@ -92,7 +88,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         # TODO: keep in mind the declarative implementation (regular for loop) is faster
         # but it takes exponentially more time to compile as the batch_size increases
         # for i in range(0, self.minibatch_size):
-        def compute_grid_per_mol(i, mol_natoms, mol_coords, mol_charges, mol_vdwradii, grid_esp, grid_density,
+        def compute_grid_per_mol(i, mol_natoms, mol_coords, mol_vdwradii, grid_density,
                                  grid_coords):
             """
             The function is used in theano scan to compute the grids for a single molecule from the mini-batch.
@@ -100,34 +96,29 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
             :param i: the index of the molecule in the mini-batch
             :param mol_natoms: the number of atoms in this molecule
             :param mol_coords: the coordinates of the atoms in this molecule
-            :param mol_charges: the charges of the atoms in this molecule
             :param mol_vdwradii: the vdwradii of the atoms in this molecule
-            :param grid_esp: the ESP grid for the whole mini-batch. Here the result for all molecules is accumulated.
             :param grid_density: the el. density grid for the whole mini-batch. Also gets accumulated.
             :param grid_coords: the coordinates of the voxels in the grids (always constant)
             :return:
             """
-            mol_charges = mol_charges[T.arange(mol_natoms), None]
             mol_vdwradii = mol_vdwradii[T.arange(mol_natoms), None]
             mol_coords = mol_coords[T.arange(mol_natoms), :, None]
 
             # add 100 % overhead to make sure there's some free memory left
-            approx_extra_space_factor = 3
+            approx_extra_space_factor = 2
             # (n_atoms x 3 coords x 4 bytes) memory per (grid point, molecule)
             needed_bytes_per_grid_point = (mol_natoms * 3 * 4) * approx_extra_space_factor
             grid_points_per_step = free_gpu_memory // needed_bytes_per_grid_point
             niter = points_count ** 3 // grid_points_per_step + 1
 
-            def compute_grid_part(j, grid_esp, grid_density, mol_coords, mol_charges, mol_vdwradii, grid_coords):
+            def compute_grid_part(j, grid_density, mol_coords, mol_vdwradii, grid_coords):
                 """
                 The function is used to iteratively compute parts of the grid for a single molecule. The size of those
                 parts is dynamically optimized to fit into GPU memory.
 
                 :param j: index of the current part of the grid being computed
-                :param grid_esp: the ESP grid for the whole mini-batch. Here the result for all molecules is accumulated
                 :param grid_density: the el. density grid for the whole mini-batch. Also gets accumulated.
                 :param mol_coords: the coordinates of the atoms in the current molecule
-                :param mol_charges: the charges of the atoms in the current molecule
                 :param mol_vdwradii: the vdwradii of the atoms in the current molecule
                 :param grid_coords: the coordinates of the voxels in the grids (always constant)
                 :return:
@@ -138,56 +129,37 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
                 distances_i = T.sqrt(
                     T.sum((grid_coords[None, :, grid_idx_start:grid_idx_end] - mol_coords) ** 2, axis=1))
 
-                # grid point distances should not be smaller then vwd radius when computing ESP
-                capped_distances_i = T.maximum(distances_i, mol_vdwradii)
-
-                if self.use_esp:
-                    esp_i = T.sum(mol_charges / capped_distances_i, axis=0, keepdims=True)
                 density_i = T.sum(T.exp((-distances_i ** 2) / mol_vdwradii ** 2), axis=0, keepdims=True)
 
                 grid_density = T.set_subtensor(grid_density[i, :, grid_idx_start:grid_idx_end], density_i)
-                if self.use_esp:
-                    grid_esp = T.set_subtensor(grid_esp[i, :, grid_idx_start:grid_idx_end], esp_i)
-                return grid_esp, grid_density
+                return grid_density
 
             partial_result, _ = theano.scan(fn=compute_grid_part,
                                             sequences=T.arange(niter),
-                                            outputs_info=[grid_esp, grid_density],
+                                            outputs_info=grid_density,
                                             non_sequences=[mol_coords,
-                                                           mol_charges,
                                                            mol_vdwradii,
                                                            grid_coords],
                                             n_steps=niter,
                                             allow_gc=True)
 
-            grid_esp, grid_density = partial_result[0][-1], partial_result[1][-1]
-            return grid_esp, grid_density
+            grid_density = partial_result[-1]
+            return grid_density
 
         result, _ = theano.scan(fn=compute_grid_per_mol,
                                 sequences=[T.arange(self.minibatch_size),
                                            mols_natoms,
                                            mols_coords,
-                                           mols_charges,
                                            mols_vdwradii],
-                                outputs_info=[grids_esp, grids_density],
+                                outputs_info=grids_density,
                                 non_sequences=self.grid_coords,
                                 n_steps=self.minibatch_size,
                                 allow_gc=True)
 
-        if self.use_esp:
-            grids_esp = result[0][-1]
-            grids_esp = T.reshape(grids_esp, newshape=(
-                self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
-
-        grids_density = result[1][-1]
+        grids_density = result[-1]
         grids_density = T.reshape(grids_density, newshape=(
             self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
-
-        if self.use_esp:
-            grids = T.concatenate([grids_esp, grids_density], axis=1)
-        else:
-            grids = grids_density
-        return grids
+        return grids_density
 
     @staticmethod
     def get_free_gpu_memory():

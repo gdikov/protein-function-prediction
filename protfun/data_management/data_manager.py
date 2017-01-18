@@ -1,5 +1,6 @@
 import abc
 import os
+# os.environ["THEANO_FLAGS"] = "device=gpu3,lib.cnmem=0"
 import shutil
 import colorlog as log
 import numpy as np
@@ -301,8 +302,8 @@ class GOProteinsDataManager(DataManager):
 
 
 if __name__ == "__main__":
-    data_dir = os.path.join(os.path.dirname(__file__), '../../data_test')
-    # data_dir = "/usr/data/cvpr_shared/proteins/enzymes_w073"
+    # data_dir = os.path.join(os.path.dirname(__file__), '../../data_test')
+    data_dir = "/usr/data/cvpr_shared/proteins/enzymes_w073/restricted"
     # enzyme_classes = list()
     # for i in range(1, 100):
     #     enzyme_classes.append('1.%d' % i)
@@ -320,11 +321,11 @@ if __name__ == "__main__":
     #     enzyme_classes.append('6.%d' % i)
 
     dm = EnzymeDataManager(data_dir=data_dir,
-                           force_download=True,
+                           force_download=False,
                            force_memmaps=True,
-                           force_grids=False,
+                           force_grids=True,
                            force_split=False,
                            percentage_test=30,
                            percentage_val=30,
                            hierarchical_depth=3,
-                           enzyme_classes=['3.5.1.10'])
+                           enzyme_classes=['3.4.21', '3.4.24'])
