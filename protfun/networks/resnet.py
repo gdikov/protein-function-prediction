@@ -30,12 +30,16 @@ def resnet_block(network, depth=6, num_filters=16):
         previous += [network]
         input = lasagne.layers.ElemwiseSumLayer(incomings=previous)
 
+        # network = lasagne.layers.BatchNormLayer(incoming=network)
+        network = lasagne.layers.NonlinearityLayer(incoming=input, nonlinearity=lasagne.nonlinearities.leaky_rectify)
+
         # add a bottleneck
-        network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=input, pad='same',
+        network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
                                                     num_filters=4 * num_filters,
                                                     filter_size=(1, 1, 1),
                                                     nonlinearity=lasagne.nonlinearities.identity)
-        network = lasagne.layers.BatchNormLayer(incoming=network)
+
+        # network = lasagne.layers.BatchNormLayer(incoming=network)
         network = lasagne.layers.NonlinearityLayer(incoming=network, nonlinearity=lasagne.nonlinearities.leaky_rectify)
 
         # add the proper convolution
@@ -43,8 +47,6 @@ def resnet_block(network, depth=6, num_filters=16):
                                                     num_filters=num_filters,
                                                     filter_size=(3, 3, 3),
                                                     nonlinearity=lasagne.nonlinearities.identity)
-        network = lasagne.layers.BatchNormLayer(incoming=network)
-        network = lasagne.layers.NonlinearityLayer(incoming=network, nonlinearity=lasagne.nonlinearities.leaky_rectify)
     return network
 
 
