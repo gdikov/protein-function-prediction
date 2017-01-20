@@ -9,7 +9,7 @@ Note: this network architecture was motivated by the following speculations:
     layers in depth. A crude estimate of the size of these sites was 10-15k A^3 which amounts to
     about 12x12x12 voxel receptive field size.
 """
-def shallow_network(input, n_outputs):
+def shallow_network(input, n_outputs, last_nonlinearity):
     network = input
     # add deep convolutional structure
     network = add_shallow_conv_maxpool(network)
@@ -17,7 +17,7 @@ def shallow_network(input, n_outputs):
     network = add_dense_layers(network, n_layers=1, n_units=256)
     # end each branch with a softmax
     output = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
-                                       nonlinearity=lasagne.nonlinearities.sigmoid)
+                                       nonlinearity=last_nonlinearity)
     return output
 
 

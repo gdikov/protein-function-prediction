@@ -3,7 +3,7 @@ import lasagne
 import lasagne.layers.dnn
 
 
-def dense_network(input, n_outputs):
+def dense_network(input, n_outputs, last_nonlinearity):
     network = input
     network = transition_layers(network, num_filters=8)
     # add deep convolutional structure
@@ -21,7 +21,7 @@ def dense_network(input, n_outputs):
 
     # add the sigmoid outputs
     output = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
-                                       nonlinearity=lasagne.nonlinearities.sigmoid)
+                                       nonlinearity=last_nonlinearity)
     return output
 
 

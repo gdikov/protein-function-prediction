@@ -3,7 +3,7 @@ import lasagne
 import lasagne.layers.dnn
 
 
-def single_trunk_network(input, n_outputs):
+def single_trunk_network(input, n_outputs, last_nonlinearity):
     network = input
     # add deep convolutional structure
     network = add_deep_conv_maxpool(network)
@@ -11,7 +11,7 @@ def single_trunk_network(input, n_outputs):
     network = add_dense_layers(network, n_layers=2, n_units=256)
     # end each branch with a softmax
     output = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
-                                       nonlinearity=lasagne.nonlinearities.sigmoid)
+                                       nonlinearity=last_nonlinearity)
     return output
 
 
