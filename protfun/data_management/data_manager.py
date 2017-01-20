@@ -7,7 +7,7 @@ import numpy as np
 import protfun.data_management.preprocess as prep
 from protfun.data_management.validation import EnzymeValidator
 from protfun.data_management.label_factory import LabelFactory
-from utils import save_pickle, load_pickle
+from utils import save_pickle, load_pickle, construct_hierarchical_tree
 
 
 class DataManager(object):
@@ -35,7 +35,7 @@ class DataManager(object):
 
         # ensure all directories exist
         for _, d in self.dirs.items():
-            if not os.path.exists(d):
+            if not os.path.exists(d) and not os.path.islink(d):
                 os.makedirs(d)
 
     @abc.abstractmethod
@@ -50,17 +50,25 @@ class DataManager(object):
     def get_validation_set(self):
         raise NotImplementedError
 
+
     @staticmethod
-    def split_data(data_dict, percentage):
-        if percentage > 100:
+    def split_data_on_level(data_dict, percentage, level=3):
+        if not 0 <= percentage <= 100:
             log.error("Bad percentage number. Must be in [0, 100]")
             raise ValueError
 
-        first_data_dict = dict()
-        second_data_dict = dict()
-
+        first_data_dict = {key: [] for key in data_dict.keys()}
+        second_data_dict = {key: [] for key in data_dict.keys()}
+        if level < 4:
+            merged_on_level = construct_hierarchical_tree(data_dict, prediction_depth=level)
+            prots2classes_dict = dict()
+            for cls, prot_codes in data_dict.items():
+                for p in prot_codes:
+                    prots2classes_dict[p] = cls
+        else:
+            merged_on_level = data_dict
         # take percentage of data points from each hierarchical leaf class
-        for cls, samples in data_dict.items():
+        for cls, samples in merged_on_level.items():
             num_samples = len(samples)
             first_part_size = int((num_samples * percentage) // 100)
             second_part_size = num_samples - first_part_size
@@ -71,13 +79,25 @@ class DataManager(object):
                                              replace=False,
                                              size=int((num_samples * percentage) // 100.0))
             second_samples = np.setdiff1d(samples, first_samples, assume_unique=True)
-            first_data_dict[cls] = list(first_samples)
-            second_data_dict[cls] = list(second_samples)
+
+            if level < 4:
+                for p in first_samples:
+                    full_cls = prots2classes_dict[p]
+                    first_data_dict[full_cls].append(p)
+
+                for p in second_samples:
+                    full_cls = prots2classes_dict[p]
+                    second_data_dict[full_cls].append(p)
+            else:
+                first_data_dict[cls] = list(first_samples)
+                second_data_dict[cls] = list(second_samples)
 
         return first_data_dict, second_data_dict
 
+
     @staticmethod
-    def split_data_coarse(data_dict, percentage, hierarchical_depth):
+    # TODO: maybe this function is redundant. Refactor using construct_hierarchical_tree from data_utils if possibel
+    def split_data_on_sublevel(data_dict, percentage, hierarchical_depth):
         import itertools
         first_data_dict = dict()
         second_data_dict = dict()
@@ -168,7 +188,8 @@ class EnzymeDataManager(DataManager):
                                            from_dir=self.dirs['data_raw'],
                                            target_dir=self.dirs['data_processed'],
                                            process_grids=self.force_grids,
-                                           process_memmaps=self.force_memmaps)
+                                           process_memmaps=self.force_memmaps,
+                                           use_esp=False)
             self.valid_proteins = edp.process()
             self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
             save_pickle(file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"),
@@ -185,8 +206,10 @@ class EnzymeDataManager(DataManager):
             resp = raw_input("Do you really want to split a test set into a separate directory?" +
                              " This will change the existing test set / train set split! y/[n]\n")
             if resp.startswith('y'):
-                test_dataset, trainval_data = self.split_data(self.valid_proteins, percentage=self.p_test)
-                val_dataset, train_dataset = self.split_data(trainval_data, percentage=self.p_val)
+                test_dataset, trainval_data = self.split_data_on_level(self.valid_proteins,
+                                                                       percentage=self.p_test, level=3)
+                val_dataset, train_dataset = self.split_data_on_level(trainval_data,
+                                                                      percentage=self.p_val, level=3)
 
                 self.validator.check_splitting(self.valid_proteins, trainval_data, test_dataset)
                 self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
@@ -219,7 +242,8 @@ class EnzymeDataManager(DataManager):
                 trainval_data = self.merge_data(data=[train_dataset, val_dataset])
 
                 # split them again
-                val_dataset, train_dataset = self.split_data(trainval_data, percentage=self.p_val)
+                val_dataset, train_dataset = self.split_data_on_level(trainval_data,
+                                                                      percentage=self.p_val, level=3)
 
                 self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
 
@@ -302,8 +326,8 @@ class GOProteinsDataManager(DataManager):
 
 
 if __name__ == "__main__":
-    # data_dir = os.path.join(os.path.dirname(__file__), '../../data_test')
-    data_dir = "/usr/data/cvpr_shared/proteins/enzymes_w073/restricted"
+    data_dir = os.path.join(os.path.dirname(__file__), '../../data_test')
+    # data_dir = "/usr/data/cvpr_shared/proteins/enzymes_w073/multichannel_density"
     # enzyme_classes = list()
     # for i in range(1, 100):
     #     enzyme_classes.append('1.%d' % i)
@@ -322,10 +346,10 @@ if __name__ == "__main__":
 
     dm = EnzymeDataManager(data_dir=data_dir,
                            force_download=False,
-                           force_memmaps=True,
-                           force_grids=True,
-                           force_split=False,
+                           force_memmaps=False,
+                           force_grids=False,
+                           force_split=True,
                            percentage_test=30,
                            percentage_val=30,
                            hierarchical_depth=3,
-                           enzyme_classes=['3.4.21', '3.4.24'])
+                           enzyme_classes=['3.13.1'])

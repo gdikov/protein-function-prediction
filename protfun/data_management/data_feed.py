@@ -5,6 +5,8 @@ import numpy as np
 import theano
 from os import path
 
+from utils import construct_hierarchical_tree
+
 from protfun.data_management.data_manager import EnzymeDataManager
 
 log.basicConfig(level=logging.DEBUG)
@@ -85,19 +87,6 @@ class EnzymeDataFeeder(DataFeeder):
     def get_val_data(self):
         return self.data_manager.get_validation_set()
 
-    def _construct_hierarchical_tree(self, data_dict):
-
-        def merge_prots(subpath):
-            merged = []
-            for key, vals in data_dict.items():
-                if key.startswith(subpath):
-                    merged += vals
-            return merged
-
-        keys_at_max_hdepth = set(['.'.join(x.split('.')[:self.prediction_depth]) for x in data_dict.keys()])
-        tree_at_max_hdepth = {key: merge_prots(key + '.') for key in keys_at_max_hdepth}
-        return tree_at_max_hdepth
-
     def _iter_minibatches(self, iter_mode='train'):
         if iter_mode == "train":
             samples, labels = self.data_manager.get_training_set()
@@ -112,7 +101,7 @@ class EnzymeDataFeeder(DataFeeder):
             log.error("iter_mode can only be 'train', 'val' or 'test'")
             raise ValueError
 
-        grouped_samples = self._construct_hierarchical_tree(samples)
+        grouped_samples = construct_hierarchical_tree(samples, prediction_depth=self.prediction_depth)
 
         represented_classes, data_sizes = \
             map(list, zip(*[(cls, len(prots)) for cls, prots in grouped_samples.items() if len(prots) > 0]))

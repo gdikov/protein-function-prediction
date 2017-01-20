@@ -35,3 +35,23 @@ def load_pickle(file_path):
         return objs
     else:
         return _load_one(file_path)
+
+def construct_hierarchical_tree(data_dict, prediction_depth=4):
+
+    def merge_prots(subpath, is_leaf):
+        merged = []
+        if not is_leaf:
+            for key, vals in data_dict.items():
+                if key.startswith(subpath + '.'):
+                    merged += vals
+        else:
+            for key, vals in data_dict.items():
+                if key == subpath:
+                    merged += vals
+        return merged
+
+    keys_at_max_hdepth = set(['.'.join(x.split('.')[:prediction_depth]) for x in data_dict.keys()])
+    tree_at_max_hdepth = {key: merge_prots(key, is_leaf=False)
+                          if prediction_depth < 4 else merge_prots(key, is_leaf=True)
+                          for key in keys_at_max_hdepth}
+    return tree_at_max_hdepth

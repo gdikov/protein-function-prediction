@@ -159,6 +159,7 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         grids_density = result[-1]
         grids_density = T.reshape(grids_density, newshape=(
             self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
+        import gc; gc.collect()
         return grids_density
 
     @staticmethod

@@ -43,12 +43,13 @@ class EnzymeDataProcessor(DataProcessor):
     """
 
     def __init__(self, from_dir, target_dir, protein_codes, process_grids=True, process_memmaps=True,
-                 force_recreate=False, add_sidechain_channels=True):
+                 force_recreate=False, add_sidechain_channels=True, use_esp=False):
         super(EnzymeDataProcessor, self).__init__(from_dir=from_dir, target_dir=target_dir)
         self.prot_codes = protein_codes
         self.process_grids = process_grids
         self.process_memmaps = process_memmaps
         self.force_recreate = force_recreate
+        self.use_esp = use_esp
         self.add_sidechain_channels = add_sidechain_channels
         if add_sidechain_channels:
             self.molecule_processor = PDBSideChainProcessor()
@@ -82,7 +83,7 @@ class EnzymeDataProcessor(DataProcessor):
                                                                  num_channels=CNS if self.add_sidechain_channels else 1)
                                          or self.force_recreate):
                 # attempt to process the molecule from the PDB file
-                mol = self.molecule_processor.process_molecule(f_path)
+                mol = self.molecule_processor.process_molecule(f_path, use_esp=self.use_esp)
                 if mol is None:
                     log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
                     invalid_codes.add(pc)
@@ -202,7 +203,7 @@ class PDBMoleculeProcessor(object):
         import rdkit.Chem as Chem
         self.periodic_table = Chem.GetPeriodicTable()
 
-    def process_molecule(self, pdb_file):
+    def process_molecule(self, pdb_file, use_esp=False):
         """
         Processes a molecule from the passed PDB file if the file contents has no errors.
         :param pdb_file: path to the PDB file to process the molecule from.
@@ -221,15 +222,15 @@ class PDBMoleculeProcessor(object):
             log.warning("Bad pdb file found.")
             return None
 
-        try:
-            # add missing hydrogen atoms
-            mol = rdMO.AddHs(mol, addCoords=True)
-
-            # compute partial charges
-            # rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
-        except ValueError:
-            log.warning("Bad Gasteiger charge evaluation.")
-            return None
+        if use_esp:
+            try:
+                # add missing hydrogen atoms
+                mol = rdMO.AddHs(mol, addCoords=True)
+                # compute partial charges
+                rdPC.ComputeGasteigerCharges(mol, throwOnParamFailure=True)
+            except ValueError:
+                log.warning("Bad Gasteiger charge evaluation.")
+                return None
 
         # get the conformation of the molecule
         conformer = mol.GetConformer()
@@ -257,10 +258,9 @@ class PDBMoleculeProcessor(object):
 
 class PDBSideChainProcessor(object):
     def __init__(self):
-        import rdkit.Chem as Chem
         self.periodic_table = Chem.GetPeriodicTable()
 
-    def process_molecule(self, pdb_file):
+    def process_molecule(self, pdb_file, use_esp=False):
         hydro_file_name = '_hydrogenized.'.join(os.path.basename(pdb_file).split('.'))
         hydrogenized_pdb_file = os.path.join(os.path.dirname(pdb_file), hydro_file_name)
         try:
@@ -279,7 +279,7 @@ class PDBSideChainProcessor(object):
             pdbw.flush()
             pdbw.close()
             del mol_rdkit, pdbw
-        except (EnvironmentError, ValueError):
+        except (IOError, ValueError):
             log.warning("Bad PDB file.")
             return None
 
