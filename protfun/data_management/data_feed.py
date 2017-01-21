@@ -173,9 +173,10 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
 
 
 class EnzymesGridFeeder(EnzymeDataFeeder):
-    def __init__(self, data_dir, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
+    def __init__(self, data_dir, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes, n_channels):
         super(EnzymesGridFeeder, self).__init__(data_dir, minibatch_size, init_samples_per_class,
                                                 prediction_depth, enzyme_classes)
+        self.n_channels = n_channels
 
     def _form_samples_minibatch(self, prot_codes, from_dir):
         assert len(prot_codes) == self.minibatch_size, \
@@ -185,6 +186,9 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
             path_to_prot = path.join(from_dir, prot_id.upper())
             # TODO: refactor this hardcoded resolution reshape
             grids.append(
-                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX).reshape((1, 2, 128, 128, 128)))
+                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX).reshape((1, -1, 64, 64, 64)))
 
-        return [np.vstack(grids)[:, [1]]]
+        stacked = np.vstack(grids)
+
+        # a small hack ot work around the molecules that still contain ESP channel
+        return [stacked[:, stacked.shape[1] - self.n_channels:]]

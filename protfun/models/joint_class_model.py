@@ -69,14 +69,14 @@ class JointClassModel(object):
 
 
 class GridsJointClassifier(JointClassModel):
-    def __init__(self, name, n_classes, network, grid_size, minibatch_size, learning_rate=1e-4):
+    def __init__(self, name, n_classes, network, grid_size, n_channels, minibatch_size, learning_rate=1e-4):
         super(GridsJointClassifier, self).__init__(name, n_classes, learning_rate)
 
         self.minibatch_size = minibatch_size
         grids = T.TensorType(floatX, (False,) * 5)()
-        input_layer = lasagne.layers.InputLayer(shape=(self.minibatch_size, 1, grid_size, grid_size, grid_size),
+        input_layer = lasagne.layers.InputLayer(shape=(self.minibatch_size, n_channels, grid_size, grid_size, grid_size),
                                                 input_var=grids)
-        rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size)
+        rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size, n_channels=n_channels)
 
         # apply the network to the preprocessed input
         self.output_layers = network(rotated_grids, n_outputs=n_classes,

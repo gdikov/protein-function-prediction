@@ -210,7 +210,8 @@ def _build_enz_feeder_model_trainer(config, model_name=None):
                                     minibatch_size=config['training']['minibatch_size'],
                                     init_samples_per_class=config['training']['init_samples_per_class'],
                                     prediction_depth=config['proteins']['prediction_depth'],
-                                    enzyme_classes=config['proteins']['enzyme_trees'])
+                                    enzyme_classes=config['proteins']['enzyme_trees'],
+                                    n_channels=config['proteins']['n_channels'])
     if model_name is None:
         current_time = datetime.datetime.now()
         suffix = ''.join(random.choice(string.ascii_lowercase) for _ in xrange(10))
@@ -224,6 +225,7 @@ def _build_enz_feeder_model_trainer(config, model_name=None):
                                     n_classes=config['proteins']['n_classes'],
                                     network=get_network(config['training']['network']),
                                     grid_size=config['proteins']['grid_side'],
+                                    n_channels=config['proteins']['n_channels'],
                                     minibatch_size=config['training']['minibatch_size'],
                                     learning_rate=config['training']['learning_rate'])
     trainer = ModelTrainer(model=model, data_feeder=data_feeder, val_frequency=2)

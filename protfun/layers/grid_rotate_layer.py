@@ -13,15 +13,16 @@ floatX = theano.config.floatX
 class GridRotationLayer(lasagne.layers.Layer):
     min_dist_from_border = 5
 
-    def __init__(self, incoming, grid_side=64, interpolation='linear', avg_rotation_angle=np.pi,
+    def __init__(self, incoming, grid_side, n_channels, interpolation='linear', avg_rotation_angle=np.pi,
                  **kwargs):  # 0.392 = pi/8
         super(GridRotationLayer, self).__init__(incoming, **kwargs)
         self.grid_side = grid_side
+        self.n_channels = n_channels
         self.interpolation = interpolation
         self.angle = avg_rotation_angle
 
     def get_output_shape_for(self, input_shape):
-        return None, 1, self.grid_side, self.grid_side, self.grid_side
+        return None, self.n_channels, self.grid_side, self.grid_side, self.grid_side
 
     def get_output_for(self, grids, **kwargs):
         height = width = depth = self.grid_side
