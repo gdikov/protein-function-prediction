@@ -30,14 +30,14 @@ class JointClassModel(object):
         # define objective and training parameters
         train_predictions = lasagne.layers.get_output(output_layer)
         train_loss = T.sum(lasagne.objectives.categorical_crossentropy(train_predictions, targets))
-        train_accuracy = lasagne.objectives.categorical_accuracy(train_predictions, targets)
+        train_accuracy = T.mean(lasagne.objectives.categorical_accuracy(train_predictions, targets))
 
         per_class_train_accuracies = T.mean(T.eq(T.argmax(train_predictions, axis=1), T.argmax(targets, axis=1)),
                                             axis=0, dtype=theano.config.floatX)
 
         val_predictions = lasagne.layers.get_output(output_layer, deterministic=True)
         val_loss = T.sum(lasagne.objectives.categorical_crossentropy(val_predictions, targets))
-        val_accuracy = lasagne.objectives.categorical_accuracy(val_predictions, targets)
+        val_accuracy = T.mean(lasagne.objectives.categorical_accuracy(val_predictions, targets))
         per_class_val_accuracies = T.mean(T.eq(T.argmax(val_predictions, axis=1), T.argmax(targets, axis=1)),
                                           axis=0, dtype=theano.config.floatX)
 
