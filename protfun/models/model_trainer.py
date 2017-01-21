@@ -63,8 +63,12 @@ class ModelTrainer(object):
             self.monitor.save_history_and_model(self.history)
 
     def _train(self, epochs=100):
-        steps_before_validate = 0
         used_proteins = set()
+        validations = 0
+        val_accuracies = []
+        max_val_acc = 0
+
+        iterate_val = self.data_feeder.iterate_val_data()
         for e in xrange(epochs):
             log.info("Unique proteins used during training so far: {}".format(len(used_proteins)))
             epoch_losses = []
@@ -85,27 +89,52 @@ class ModelTrainer(object):
                 self.history['train_accuracy'].append(accuracy)
                 self.history['train_per_class_accs'].append(per_class_accs)
                 self.history['train_predictions'].append(predictions)
-                steps_before_validate += 1
 
                 used_proteins = used_proteins | set(proteins)
+
+                # validate now
+                try:
+                    val_proteins, val_inputs = iterate_val.next()
+                except StopIteration:
+                    iterate_val = self.data_feeder.iterate_val_data()
+                    val_proteins, val_inputs = iterate_val.next()
+                validations += 1
+
+                output = self.model.validation_function(*val_inputs)
+                val_loss = output['loss']
+                val_accuracy = output['accuracy']
+                val_per_class_accs = output['per_class_accs']
+                val_predictions = output['predictions']
+
+                self.history['val_loss'].append(val_loss)
+                self.history['val_accuracy'].append(val_accuracy)
+                val_accuracies.append(val_accuracy)
+                self.history['val_per_class_accs'].append(val_per_class_accs)
+                self.history['val_predictions'].append(val_predictions)
+                self.history['val_targets'].append(val_inputs[1:])
+
+                if sum(val_accuracies) / validations > max_val_acc:
+                    max_val_acc = sum(val_accuracies) / validations
+                    self.monitor.save_history_and_model(self.history, epoch_count=e, msg="best")
 
             epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
             epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
             log.info("train: epoch {0} loss mean: {1} acc mean: {2}".format(e, epoch_loss_means, epoch_acc_means))
+            log.info("average val accuracy: {}".format(sum(val_accuracies) / validations))
 
-            if np.alltrue(epoch_acc_means >= self.current_max_train_acc):
-                samples_per_class = self.data_feeder.get_samples_per_class()
-                log.info("Augmenting dataset: doubling the samples per class ({0})".format(
-                    2 * self.data_feeder.get_samples_per_class()))
-                self.current_max_train_acc = epoch_acc_means
-                samples_per_class *= 2
-                self.data_feeder.set_samples_per_class(samples_per_class)
+            # if np.alltrue(epoch_acc_means >= self.current_max_train_acc):
+            #     samples_per_class = self.data_feeder.get_samples_per_class()
+            #     log.info("Augmenting dataset: doubling the samples per class ({0})".format(
+            #         2 * self.data_feeder.get_samples_per_class()))
+            #     self.current_max_train_acc = epoch_acc_means
+            #     samples_per_class *= 2
+            #     self.data_feeder.set_samples_per_class(samples_per_class)
 
-            # validate the model
-            if e % self.val_frequency == 0:
-                self.validate(steps_before_validate, e)
-                self.monitor.save_history_and_model(self.history, epoch_count=epochs)
-                steps_before_validate = 0
+            # # validate the model
+            # if e % self.val_frequency == 0:
+            #     self.validate(steps_before_validate, e)
+            #     self.monitor.save_history_and_model(self.history, epoch_count=epochs)
+            #     steps_before_validate = 0
 
     def validate(self, steps_before_validate, epoch):
         val_loss_means, val_acc_means, val_per_class_accs_means, val_predictions, val_targets, _ = self._test(
@@ -176,28 +205,6 @@ class ModelTrainer(object):
         progress.save()
 
 
-def train_enz_from_memmaps(config):
-    data_feeder = EnzymesMolDataFeeder(data_dir=config['data']['dir'],
-                                       minibatch_size=config['training']['minibatch_size'],
-                                       init_samples_per_class=config['training']['init_samples_per_class'],
-                                       prediction_depth=config['proteins']['prediction_depth'],
-                                       enzyme_classes=config['proteins']['enzyme_trees'])
-    current_time = datetime.datetime.now()
-    suffix = ''.join(random.choice(string.ascii_lowercase) for _ in xrange(10))
-    model_name = "molmap-{}_{}-classes_{}-{}-{}_{}-{}".format(suffix, config["proteins"]["n_classes"],
-                                                              current_time.month,
-                                                              current_time.day,
-                                                              current_time.year,
-                                                              current_time.hour,
-                                                              current_time.minute)
-    model = MemmapsDisjointClassifier(name=model_name, n_classes=config['proteins']['n_classes'],
-                                      network=get_network(config['training']['network']),
-                                      minibatch_size=config['training']['minibatch_size'])
-    trainer = ModelTrainer(model=model, data_feeder=data_feeder)
-    save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
-    trainer.train(epochs=config['training']['epochs'])
-
-
 def _build_enz_feeder_model_trainer(config, model_name=None):
     data_feeder = EnzymesGridFeeder(data_dir=config['data']['dir'],
                                     minibatch_size=config['training']['minibatch_size'],
@@ -216,10 +223,10 @@ def _build_enz_feeder_model_trainer(config, model_name=None):
     model = GridsDisjointClassifier(name=model_name,
                                     n_classes=config['proteins']['n_classes'],
                                     network=get_network(config['training']['network']),
-                                    grid_size=128,
+                                    grid_size=config['proteins']['grid_side'],
                                     minibatch_size=config['training']['minibatch_size'],
                                     learning_rate=config['training']['learning_rate'])
-    trainer = ModelTrainer(model=model, data_feeder=data_feeder, val_frequency=10)
+    trainer = ModelTrainer(model=model, data_feeder=data_feeder, val_frequency=2)
     return data_feeder, model, trainer
 
 
@@ -255,4 +262,3 @@ def get_hidden_activations(config, model_name, params_file):
                                network=model.get_output_layers())
     prots, activations = trainer.get_test_hidden_activations()
     return prots, activations
-
