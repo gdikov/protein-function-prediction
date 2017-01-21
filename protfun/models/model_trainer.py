@@ -7,7 +7,7 @@ import threading
 import colorlog as log
 import numpy as np
 import os
-from utils import save_pickle
+from protfun.utils import save_pickle
 
 from protfun.config import save_config
 from protfun.data_management.data_feed import EnzymesGridFeeder
@@ -211,7 +211,8 @@ def _build_enz_feeder_model_trainer(config, model_name=None):
                                     init_samples_per_class=config['training']['init_samples_per_class'],
                                     prediction_depth=config['proteins']['prediction_depth'],
                                     enzyme_classes=config['proteins']['enzyme_trees'],
-                                    n_channels=config['proteins']['n_channels'])
+                                    num_channels=config['proteins']['n_channels'],
+                                    grid_size=config['proteins']['grid_side'])
     if model_name is None:
         current_time = datetime.datetime.now()
         suffix = ''.join(random.choice(string.ascii_lowercase) for _ in xrange(10))
