@@ -1,13 +1,14 @@
-import abc
-import os
-# os.environ["THEANO_FLAGS"] = "device=gpu3,lib.cnmem=0"
 import shutil
+
+import abc
 import colorlog as log
 import numpy as np
+import os
+
 import protfun.data_management.preprocess as prep
-from protfun.data_management.validation import EnzymeValidator
 from protfun.data_management.label_factory import LabelFactory
-from utils import save_pickle, load_pickle, construct_hierarchical_tree
+from protfun.data_management.validation import EnzymeValidator
+from protfun.utils import save_pickle, load_pickle, construct_hierarchical_tree
 
 
 class DataManager(object):

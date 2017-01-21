@@ -1,15 +1,14 @@
-import os
-import numpy as np
 import matplotlib
+import numpy as np
+import os
 
 matplotlib.use('Agg')
-import matplotlib.mlab as mlab
 import seaborn as sns
 
 sns.set_style("whitegrid")
 import matplotlib.pyplot as plt
 
-from utils import load_pickle
+from protfun.utils import load_pickle
 data_dir = "/usr/prakt/w073/DLCV_ProtFun/data"
 
 prots = os.path.join(data_dir, "processed/valid_prot_codes.pickle")

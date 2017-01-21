@@ -1,16 +1,15 @@
+import cPickle
+import logging
+
+import colorlog as log
+import numpy as np
 import os
 
-from protfun.visualizer.molview import MoleculeView
-# os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=1"
-import colorlog as log
-import logging
-import cPickle
-import numpy as np
-
-from protfun.config import get_config, save_config
+from protfun.config import get_config
 from protfun.models import test_enz_from_grids, get_hidden_activations
+from protfun.utils import save_pickle, load_pickle
+from protfun.visualizer.molview import MoleculeView
 from protfun.visualizer.progressview import ProgressView
-from utils import save_pickle, load_pickle
 
 log.basicConfig(level=logging.DEBUG)
 

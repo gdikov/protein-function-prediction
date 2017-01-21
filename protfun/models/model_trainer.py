@@ -1,23 +1,23 @@
-import numpy as np
-import colorlog as log
-import logging
-import threading
-import string
-import random
 import datetime
+import logging
+import random
+import string
+import threading
+
+import colorlog as log
+import numpy as np
 import os
+from utils import save_pickle
 
-from protfun.visualizer.netview import NetworkView
-from utils.np_utils import pp_array
-
-from protfun.visualizer.progressview import ProgressView
-from protfun.models.model_monitor import ModelMonitor
-from protfun.visualizer.performance_view import PerformanceAnalyser
-from protfun.data_management.data_feed import EnzymesMolDataFeeder, EnzymesGridFeeder
-from protfun.models import MemmapsDisjointClassifier, GridsDisjointClassifier
-from protfun.networks import get_network
 from protfun.config import save_config
-from utils import save_pickle, load_pickle
+from protfun.data_management.data_feed import EnzymesGridFeeder
+from protfun.models import GridsDisjointClassifier
+from protfun.models.model_monitor import ModelMonitor
+from protfun.networks import get_network
+from protfun.utils.np_utils import pp_array
+from protfun.visualizer.netview import NetworkView
+from protfun.visualizer.performance_view import PerformanceAnalyser
+from protfun.visualizer.progressview import ProgressView
 
 log.basicConfig(level=logging.DEBUG)
 

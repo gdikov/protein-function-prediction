@@ -1,11 +1,11 @@
 import sys, os
 
-os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=0"
+# os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=1"
 sys.setrecursionlimit(10000)
 # enable if you want to profile the forward pass
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-from protfun.models import train_enz_from_grids, train_enz_from_memmaps, test_enz_from_grids
+from protfun.models import train_enz_from_grids, test_enz_from_grids
 from protfun.config import get_config
 
 if __name__ == "__main__":

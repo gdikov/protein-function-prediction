@@ -1,13 +1,13 @@
 import logging
+
 import abc
 import colorlog as log
 import numpy as np
 import theano
 from os import path
 
-from utils import construct_hierarchical_tree
-
 from protfun.data_management.data_manager import EnzymeDataManager
+from protfun.utils import construct_hierarchical_tree
 
 log.basicConfig(level=logging.DEBUG)
 floatX = theano.config.floatX
