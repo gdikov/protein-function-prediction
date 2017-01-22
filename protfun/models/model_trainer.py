@@ -50,7 +50,7 @@ class ModelTrainer(object):
 
     def train(self, epochs=100, generate_progress_plot=True):
         try:
-            log.info("Training...")
+            log.info("Training model {}".format(self.model.get_name()))
             save_pickle(file_path=[os.path.join(self.monitor.get_model_dir(), "train_prot_codes.pickle"),
                                    os.path.join(self.monitor.get_model_dir(), "val_prot_codes.pickle"),
                                    os.path.join(self.monitor.get_model_dir(), "test_prot_codes.pickle")],
