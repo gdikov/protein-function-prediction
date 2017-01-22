@@ -128,7 +128,7 @@ class GridRotationLayer(lasagne.layers.Layer):
         max = T.constant(2.5, 'max_translation', dtype=floatX)
         random_streams = T.shared_randomstreams.RandomStreams()
         rand01 = random_streams.uniform((3, 1, 1, 1), dtype=floatX)  # unifom random in open interval ]0;1[
-        rand_translation = T.add(T.mul(rand01 * T.sub(max - min)) + min)
+        rand_translation = T.add(T.mul(rand01 * T.sub(max, min)), min)
         return rand_translation
 
 
