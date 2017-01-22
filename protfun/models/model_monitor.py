@@ -77,6 +77,15 @@ class ModelMonitor(object):
                 # TODO: fill in with the formatted data
                 f.write("# END DATA")
 
+    def load_train_history(self):
+        filename = 'train_history_best.pickle'
+        try:
+            with open(os.path.join(self.path_to_model_dir, "{0}.pickle".format(filename)), mode='r') as f:
+                history = cPickle.load(f)
+        except:
+            return None
+        return history
+
     def save_history_and_model(self, history, epoch_count=-1, msg='', save_human_readable=False):
         self.save_model(epoch_count, msg)
         self.save_train_history(history, save_human_readable, msg)

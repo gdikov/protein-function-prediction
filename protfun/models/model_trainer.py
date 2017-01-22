@@ -23,26 +23,30 @@ log.basicConfig(level=logging.DEBUG)
 
 
 class ModelTrainer(object):
-    def __init__(self, model, data_feeder, val_frequency=10):
+    def __init__(self, model, data_feeder, val_frequency=10, first_epoch=0):
         self.model = model
         self.data_feeder = data_feeder
-        self.val_frequency = val_frequency
         self.monitor = ModelMonitor(outputs=model.get_output_layers(), data_dir=data_feeder.get_data_dir(),
                                     name=model.get_name())
         self.network_view = NetworkView(data_dir=self.monitor.get_model_dir())
         self.current_max_train_acc = np.array(0.85)
         self.current_max_val_acc = np.array(0.0)
+        self.first_epoch = first_epoch
         # save training history data
-        self.history = {'train_loss': list(),
-                        'train_accuracy': list(),
-                        'train_per_class_accs': list(),
-                        'train_predictions': list(),
-                        'val_loss': list(),
-                        'val_accuracy': list(),
-                        'val_per_class_accs': list(),
-                        'val_predictions': list(),
-                        'val_targets': list(),
-                        'time_epoch': list()}
+        history = self.monitor.load_train_history()
+        if history is not None:
+            self.history = history
+        else:
+            self.history = {'train_loss': list(),
+                            'train_accuracy': list(),
+                            'train_per_class_accs': list(),
+                            'train_predictions': list(),
+                            'val_loss': list(),
+                            'val_accuracy': list(),
+                            'val_per_class_accs': list(),
+                            'val_predictions': list(),
+                            'val_targets': list(),
+                            'time_epoch': list()}
 
     def train(self, epochs=100, generate_progress_plot=True):
         try:
@@ -69,7 +73,7 @@ class ModelTrainer(object):
         max_val_acc = 0
 
         iterate_val = self.data_feeder.iterate_val_data()
-        for e in xrange(epochs):
+        for e in xrange(self.first_epoch, self.first_epoch + epochs):
             log.info("Unique proteins used during training so far: {}".format(len(used_proteins)))
             epoch_losses = []
             epoch_accs = []
@@ -116,7 +120,6 @@ class ModelTrainer(object):
                 if sum(val_accuracies) / validations > max_val_acc:
                     max_val_acc = sum(val_accuracies) / validations
                     self.monitor.save_history_and_model(self.history, epoch_count=e, msg="best")
-
             epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
             epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
             log.info("train: epoch {0} loss mean: {1} acc mean: {2}".format(e, epoch_loss_means, epoch_acc_means))
@@ -233,8 +236,8 @@ def _build_enz_feeder_model_trainer(config, model_name=None):
     return data_feeder, model, trainer
 
 
-def train_enz_from_grids(config):
-    _, _, trainer = _build_enz_feeder_model_trainer(config)
+def train_enz_from_grids(config, model_name=None):
+    _, _, trainer = _build_enz_feeder_model_trainer(config, model_name=model_name)
     save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
     trainer.train(epochs=config['training']['epochs'])
 
