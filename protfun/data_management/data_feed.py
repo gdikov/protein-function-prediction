@@ -188,7 +188,7 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
         for prot_id in prot_codes:
             path_to_prot = path.join(from_dir, prot_id.upper())
             grids.append(
-                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX).reshape((1, self.num_channels,
+                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX).reshape((1, -1,
                                                                                                    self.grid_size,
                                                                                                    self.grid_size,
                                                                                                    self.grid_size)))

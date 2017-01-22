@@ -39,13 +39,14 @@ class GridRotationLayer(lasagne.layers.Layer):
         # t_y will be added to all values in the second indices grid
         # t_z will be added to all values in the third indices grid
         # resulting in a translation in the direction of translation_vector
-        indices_grids += self._translation_vector()
+        indices_grids = T.add(indices_grids, self._translation_vector())
 
         # Rotate
         # the origin is just the center point in the grid
-        origin = np.array((width // 2, height // 2, depth // 2), dtype=floatX).reshape((3, 1, 1, 1))
+        origin = T.as_tensor_variable(np.array((width // 2, height // 2, depth // 2),
+                                               dtype=floatX).reshape((3, 1, 1, 1)), name='origin')
         # We first center all indices, just as in the translation above
-        indices_grids -= origin
+        indices_grids = T.sub(indices_grids, origin)
 
         # T.tensordot is a generalized version of a dot product.
         # The axes parameter is of length 2, and it gives the axis for each of the two tensors passed,
@@ -58,7 +59,7 @@ class GridRotationLayer(lasagne.layers.Layer):
         indices_grids = T.tensordot(self._rotation_matrix(), indices_grids, axes=(0, 0))
 
         # Uncenter
-        indices_grids += origin
+        indices_grids = T.add(indices_grids, origin)
 
         # Since indices_grids was transformed, we now might have indices at certain locations
         # that are out of the range of the original grid. We this need to clip them to valid values.
@@ -123,11 +124,11 @@ class GridRotationLayer(lasagne.layers.Layer):
     @staticmethod
     def _translation_vector():
         # TODO: make min and max dependent on the molecule being translated
-        min = -2.5
-        max = 2.5
+        min = T.constant(-2.5, 'min_translation', dtype=floatX)
+        max = T.constant(2.5, 'max_translation', dtype=floatX)
         random_streams = T.shared_randomstreams.RandomStreams()
         rand01 = random_streams.uniform((3, 1, 1, 1), dtype=floatX)  # unifom random in open interval ]0;1[
-        rand_translation = rand01 * (max - min) + min
+        rand_translation = T.add(T.mul(rand01 * T.sub(max - min)) + min)
         return rand_translation
 
 
