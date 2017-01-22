@@ -195,5 +195,5 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
 
         stacked = np.vstack(grids)
 
-        # a small hack ot work around the molecules that still contain ESP channel
+        # a small hack to work around the molecules that still contain ESP channel
         return [stacked[:, stacked.shape[1] - self.num_channels:]]

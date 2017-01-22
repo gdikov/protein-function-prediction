@@ -76,29 +76,55 @@ class GridRotationLayer(lasagne.layers.Layer):
             # and than index the original input grid with the 3 indices train_grids (numpy style indexing with arrays)
             # to obtain the final result. Note that here, as usual, the multi-dim array that you index with has the
             # same spatial dimensionality as the multi-dim array being index.
-            output = grids[:, :, T.iround(x_indices), T.iround(y_indices), T.iround(z_indices)]
+
+            # We intentionally flatten everything before indexing, so that Theano can use ArraySubtensor1 instead
+            # of ArraySubtensor, because only the former can be run on the GPU.
+            # https://groups.google.com/forum/#!topic/theano-users/XkPJP6on50Y
+            flat_grids, flat_indices = grids.reshape((grids.shape[0], grids.shape[1], -1)), \
+                                       width * height * T.iround(x_indices).flatten() + \
+                                       height * T.iround(y_indices).flatten() + \
+                                       T.iround(z_indices).flatten()
+            output = flat_grids[:, :, flat_indices]
+            output = output.reshape(grids.shape)
         else:
+            flat_grids = grids.reshape((grids.shape[0], grids.shape[1], -1))
             # For linear interpolation, we use the transformed indices x_indices, y_indices and z_indices
             # to linearly calculate the desired values at each of the original indices in each dimension.
-            top = T.cast(y_indices, 'int32')
-            left = T.cast(x_indices, 'int32')
-            forward = T.cast(z_indices, 'int32')
+
+            # Again, everythin is flattened so that Theano can put it on the GPU, just as in the other part
+            # of this if block.
+            top = T.cast(y_indices, 'int32').flatten()
+            left = T.cast(x_indices, 'int32').flatten()
+            forward = T.cast(z_indices, 'int32').flatten()
+
+            x_indices = x_indices.flatten()
+            y_indices = y_indices.flatten()
+            z_indices = z_indices.flatten()
 
             # this computs the amount of shift into each direction from the original position
-            fraction_y = T.cast(y_indices - top, theano.config.floatX)
-            fraction_x = T.cast(x_indices - left, theano.config.floatX)
-            fraction_z = T.cast(z_indices - forward, theano.config.floatX)
+            fraction_y = T.cast(y_indices - top, theano.config.floatX).flatten()
+            fraction_x = T.cast(x_indices - left, theano.config.floatX).flatten()
+            fraction_z = T.cast(z_indices - forward, theano.config.floatX).flatten()
 
             # then the new value is the linear combination based on the shifts in all
             # of the 8 possible directions in 3D
-            output = grids[:, :, top, left, forward] * (1 - fraction_y) * (1 - fraction_x) * (1 - fraction_z) + \
-                     grids[:, :, top, left, forward + 1] * (1 - fraction_y) * (1 - fraction_x) * fraction_z + \
-                     grids[:, :, top, left + 1, forward] * (1 - fraction_y) * fraction_x * (1 - fraction_z) + \
-                     grids[:, :, top, left + 1, forward + 1] * (1 - fraction_y) * fraction_x * fraction_z + \
-                     grids[:, :, top + 1, left, forward] * fraction_y * (1 - fraction_x) * (1 - fraction_z) + \
-                     grids[:, :, top + 1, left, forward + 1] * fraction_y * (1 - fraction_x) * fraction_z + \
-                     grids[:, :, top + 1, left + 1, forward] * fraction_y * fraction_x * (1 - fraction_z) + \
-                     grids[:, :, top + 1, left + 1, forward + 1] * fraction_y * fraction_x * fraction_z
+            output = flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * left + forward] * \
+                     (1 - fraction_y) * (1 - fraction_x) * (1 - fraction_z) + \
+                     flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * left + (forward + 1)] * \
+                     (1 - fraction_y) * (1 - fraction_x) * fraction_z + \
+                     flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * (left + 1) + forward] * \
+                     (1 - fraction_y) * fraction_x * (1 - fraction_z) + \
+                     flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * (left + 1) + (forward + 1)] * \
+                     (1 - fraction_y) * fraction_x * fraction_z + \
+                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * left + forward] * \
+                     fraction_y * (1 - fraction_x) * (1 - fraction_z) + \
+                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * left + (forward + 1)] * \
+                     fraction_y * (1 - fraction_x) * fraction_z + \
+                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * (left + 1) + forward] * \
+                     fraction_y * fraction_x * (1 - fraction_z) + \
+                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * (left + 1) + (forward + 1)] * \
+                     fraction_y * fraction_x * fraction_z
+            output = output.reshape(grids.shape)
 
         return output
 
@@ -133,22 +159,20 @@ class GridRotationLayer(lasagne.layers.Layer):
 
 
 if __name__ == "__main__":
-    import os
     from protfun.visualizer.molview import MoleculeView
 
-    data_dir = os.path.join(os.path.dirname(__file__), "../../data")
-    grid_dir = os.path.join(data_dir, "processed/1AWH")
-    grid_file = os.path.join(grid_dir, "grid.memmap")
+    data_dir = "/home/valor/workspace/DLCV_ProtFun/data/full/processed_single_64/1A0H"
+    grid_file = "/home/valor/workspace/DLCV_ProtFun/data/full/processed_single_64/1A0H/grid.memmap"
     test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64))
     log.debug(test_grid.shape)
-    viewer = MoleculeView(data_dir=data_dir, data={"potential": test_grid[0, 0], "density": test_grid[0, 1]},
+    viewer = MoleculeView(data_dir=data_dir, data={"potential": test_grid[0, 1], "density": test_grid[0, 1]},
                           info={"name": "test"})
     viewer.density3d()
     grid_side = test_grid.shape[3]
 
     input_grid = T.TensorType(floatX, (False,) * 5)()
     input_layer = lasagne.layers.InputLayer(shape=(1, 2, grid_side, grid_side, grid_side), input_var=input_grid)
-    rotate_layer = GridRotationLayer(incoming=input_layer, grid_side=grid_side)
+    rotate_layer = GridRotationLayer(incoming=input_layer, grid_side=grid_side, n_channels=2, interpolation='linear')
 
     func = theano.function(inputs=[input_grid], outputs=lasagne.layers.get_output(rotate_layer))
 
@@ -159,6 +183,6 @@ if __name__ == "__main__":
         start = time.time()
         rotated_grid = func(test_grid)
         log.info("took time: {}".format(time.time() - start))
-        viewer = MoleculeView(data_dir=data_dir, data={"potential": rotated_grid[0, 0], "density": rotated_grid[0, 1]},
+        viewer = MoleculeView(data_dir=data_dir, data={"potential": rotated_grid[0, 1], "density": rotated_grid[0, 1]},
                               info={"name": "test"})
         viewer.density3d()
