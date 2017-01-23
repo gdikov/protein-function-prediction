@@ -23,9 +23,10 @@ log.basicConfig(level=logging.DEBUG)
 
 
 class ModelTrainer(object):
-    def __init__(self, model, data_feeder, val_frequency=10, first_epoch=0):
+    def __init__(self, model, data_feeder, checkpoint_frequency=200, first_epoch=0):
         self.model = model
         self.data_feeder = data_feeder
+        self.checkpoint_frequency = checkpoint_frequency
         self.monitor = ModelMonitor(outputs=model.get_output_layers(), data_dir=data_feeder.get_data_dir(),
                                     name=model.get_name())
         self.network_view = NetworkView(data_dir=self.monitor.get_model_dir())
@@ -71,6 +72,7 @@ class ModelTrainer(object):
         validations = 0
         val_accuracies = []
         max_val_acc = 0
+        current_minibatch = 0
 
         iterate_val = self.data_feeder.iterate_val_data()
         for e in xrange(self.first_epoch, self.first_epoch + epochs):
@@ -93,7 +95,6 @@ class ModelTrainer(object):
                 self.history['train_accuracy'].append(accuracy)
                 self.history['train_per_class_accs'].append(per_class_accs)
                 self.history['train_predictions'].append(predictions)
-
                 used_proteins = used_proteins | set(proteins)
 
                 # validate now
@@ -117,9 +118,13 @@ class ModelTrainer(object):
                 self.history['val_predictions'].append(val_predictions)
                 self.history['val_targets'].append(val_inputs[1:])
 
-                if sum(val_accuracies) / validations > max_val_acc:
-                    max_val_acc = sum(val_accuracies) / validations
-                    self.monitor.save_history_and_model(self.history, epoch_count=e, msg="best")
+                current_minibatch += 1
+                if current_minibatch % self.checkpoint_frequency == self.checkpoint_frequency - 1:
+                    log.info("Attempt to checkpoint: {} minibatches have passed".format(current_minibatch))
+                    if sum(val_accuracies) / validations > max_val_acc:
+                        max_val_acc = sum(val_accuracies) / validations
+                        self.monitor.save_history_and_model(self.history, epoch_count=e, msg="best")
+
             epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
             epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
             log.info("train: epoch {0} loss mean: {1} acc mean: {2}".format(e, epoch_loss_means, epoch_acc_means))
@@ -208,7 +213,7 @@ class ModelTrainer(object):
         progress.save()
 
 
-def _build_enz_feeder_model_trainer(config, model_name=None):
+def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0):
     data_feeder = EnzymesGridFeeder(data_dir=config['data']['dir'],
                                     minibatch_size=config['training']['minibatch_size'],
                                     init_samples_per_class=config['training']['init_samples_per_class'],
@@ -232,13 +237,16 @@ def _build_enz_feeder_model_trainer(config, model_name=None):
                                     n_channels=config['proteins']['n_channels'],
                                     minibatch_size=config['training']['minibatch_size'],
                                     learning_rate=config['training']['learning_rate'])
-    trainer = ModelTrainer(model=model, data_feeder=data_feeder, val_frequency=2)
+    trainer = ModelTrainer(model=model, data_feeder=data_feeder, first_epoch=start_epoch)
     return data_feeder, model, trainer
 
 
-def train_enz_from_grids(config, model_name=None):
-    _, _, trainer = _build_enz_feeder_model_trainer(config, model_name=model_name)
+def train_enz_from_grids(config, model_name=None, start_epoch=0):
+    _, _, trainer = _build_enz_feeder_model_trainer(config, model_name=model_name, start_epoch=start_epoch)
     save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
+    if start_epoch != 0:
+        trainer.monitor.load_model("params_{}ep_best.npz".format(start_epoch),
+                                   network=trainer.model.get_output_layers())
     trainer.train(epochs=config['training']['epochs'])
 
 

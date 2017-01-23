@@ -78,13 +78,14 @@ class ModelMonitor(object):
                 f.write("# END DATA")
 
     def load_train_history(self):
-        filename = 'train_history_best.pickle'
         try:
-            with open(os.path.join(self.path_to_model_dir, "{0}.pickle".format(filename)), mode='r') as f:
+            with open(os.path.join(self.path_to_model_dir, 'train_history_best.pickle'), mode='rb') as f:
                 history = cPickle.load(f)
+                log.info("Loaded history from previous training, continuing from where it was stopped.")
+                return history
         except:
+            log.info("No previous history was loaded, proceeding with a new training.")
             return None
-        return history
 
     def save_history_and_model(self, history, epoch_count=-1, msg='', save_human_readable=False):
         self.save_model(epoch_count, msg)
