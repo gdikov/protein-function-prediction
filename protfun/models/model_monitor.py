@@ -57,11 +57,11 @@ class ModelMonitor(object):
 
         lasagne.layers.set_all_param_values(network, param_values, trainable=True)
 
-    def save_train_history(self, history, save_human_readable=False, msg=''):
+    def save_train_history(self, history, epoch_count, save_human_readable=False, msg=''):
         log.info("Saving training history")
         # Refactored: instead of saving in a text file, dump the history as a pickle and provide
         # the saving to a human-readable format as an option
-        filename = 'train_history'
+        filename = 'train_history_ep{}'.format(epoch_count)
         if msg != '':
             filename += '_' + msg
         with open(os.path.join(self.path_to_model_dir, "{0}.pickle".format(filename)), mode='wb') as f:
@@ -89,7 +89,7 @@ class ModelMonitor(object):
 
     def save_history_and_model(self, history, epoch_count=-1, msg='', save_human_readable=False):
         self.save_model(epoch_count, msg)
-        self.save_train_history(history, save_human_readable, msg)
+        self.save_train_history(history, epoch_count, save_human_readable, msg)
 
     def get_model_dir(self):
         return self.path_to_model_dir

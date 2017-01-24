@@ -2,7 +2,6 @@ import datetime
 import logging
 import random
 import string
-import threading
 
 import colorlog as log
 import numpy as np
@@ -49,7 +48,7 @@ class ModelTrainer(object):
                             'val_targets': list(),
                             'time_epoch': list()}
 
-    def train(self, epochs=100, generate_progress_plot=True):
+    def train(self, epochs=100):
         try:
             log.info("Training model {}".format(self.model.get_name()))
             save_pickle(file_path=[os.path.join(self.monitor.get_model_dir(), "train_prot_codes.pickle"),
@@ -59,8 +58,6 @@ class ModelTrainer(object):
                               self.data_feeder.get_val_data(),
                               self.data_feeder.get_test_data()])
             self.network_view.save_network_graph(self.model.get_output_layers(), "network.png")
-            if generate_progress_plot:
-                self.plot_progress()
             self._train(epochs)
             self.monitor.save_history_and_model(self.history, epoch_count=epochs)
         except (KeyboardInterrupt, SystemExit):
@@ -124,6 +121,9 @@ class ModelTrainer(object):
                     if sum(val_accuracies) / validations > max_val_acc:
                         max_val_acc = sum(val_accuracies) / validations
                         self.monitor.save_history_and_model(self.history, epoch_count=e, msg="best")
+                    progress = ProgressView(model_name=self.model.get_name(),
+                                            data_dir=self.monitor.get_model_dir(), history_dict=self.history)
+                    progress.save()
 
             epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
             epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
@@ -203,14 +203,6 @@ class ModelTrainer(object):
         for prots, inputs in self.data_feeder.iterate_test_data():
             # do just a single minibatch
             return prots, self.model.get_hidden_activations(inputs[0])
-
-    def plot_progress(self):
-        t = threading.Timer(5.0, self.plot_progress)
-        t.daemon = True
-        t.start()
-        progress = ProgressView(model_name=self.model.get_name(),
-                                data_dir=self.monitor.get_model_dir(), history_dict=self.history)
-        progress.save()
 
 
 def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0):
