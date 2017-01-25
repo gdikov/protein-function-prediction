@@ -5,7 +5,7 @@ import colorlog as log
 import numpy as np
 import os
 # os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=2000,base_compiledir=~/.atcremers11"
-os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=2500,base_compiledir=~/.atcremers11"
+# os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=2500,base_compiledir=~/.atcremers11"
 from protfun.config import get_config
 from protfun.models import test_enz_from_grids, get_hidden_activations
 from protfun.utils import save_pickle, load_pickle
@@ -31,7 +31,7 @@ def measure_performance():
 
         param_files = [f for f in os.listdir(model_dir) if f.startswith("params_") and "best" in f]
         epochs = np.array([int(f.split('_')[1][:-2]) for f in param_files], dtype=np.int32)
-        best_params_file = "params_3ep_best.npz"#param_files[np.argmax(epochs)]
+        best_params_file = param_files[np.argmax(epochs)]
 
         test_enz_from_grids(config=local_config, model_name=model_name, params_file=best_params_file, mode="test")
         # test_enz_from_grids(config=local_config, model_name=model_name, params_file=best_params_file, mode="val")
@@ -46,7 +46,7 @@ def create_history_plots(model_name, history_filename, checkpoint):
         with open(os.path.join(model_dir, history_filename), mode='r') as history_file:
             train_history = cPickle.load(history_file)
         view = ProgressView(model_name=model_name, data_dir=model_dir, history_dict=train_history)
-        view.save()
+        view.save(checkpoint=checkpoint)
         log.info("Saved progress plots for: {}".format(model_name))
     else:
         log.warning("Missing history file for: {}".format(model_name))
@@ -81,7 +81,24 @@ def visualize_hidden_activations():
 
 
 if __name__ == "__main__":
-    # create_history_plots()
-    measure_performance()
+    # model_name = "grids_scjcdzajzw_2-classes_1-25-2017_10-44"
+    model_name = "grids_qvrvatyodl_2-classes_1-24-2017_1-49"
+
+    history_filename = "train_history_best.pickle"
+
+    minibatch_size = get_config(os.path.join(os.path.join(root_config["data"]["dir"],
+                                                          "models", model_name),
+                                             "config.yaml"))["training"]["minibatch_size"]
+
+    factor_restricted = 400 // minibatch_size
+    factor_all = 5000 // minibatch_size
+
+    import re
+    checkpoint = map(int, re.findall(r'\d+', history_filename))[0] * factor_restricted
+    print("checkpoint:", checkpoint)
+    create_history_plots(model_name=model_name,
+                         history_filename=history_filename,
+                         checkpoint=checkpoint)
+    # measure_performance()
     # save_hidden_activations()
     # visualize_hidden_activations()
