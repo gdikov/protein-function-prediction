@@ -33,7 +33,7 @@ class ModelTrainer(object):
         self.current_max_val_acc = np.array(0.0)
         self.first_epoch = first_epoch
         # save training history data
-        history = self.monitor.load_train_history()
+        history = self.monitor.load_train_history(epoch=first_epoch)
         if history is not None:
             self.history = history
         else:
@@ -255,11 +255,8 @@ def test_enz_from_grids(config, model_name, params_file, mode='test'):
     test_predictions = np.asarray(test_predictions).reshape((-1, config['proteins']['n_classes']))
     test_targets = np.asarray(test_targets).reshape((-1, config['proteins']['n_classes']))
 
-    # compute the ROC curve
-    pa = PerformanceAnalyser(n_classes=config['proteins']['n_classes'], y_expected=test_targets,
-                             y_predicted=test_predictions, data_dir=trainer.monitor.get_model_dir(),
-                             model_name="grids_{}".format(mode))
-    pa.plot_ROC()
+    save_pickle(os.path.join(trainer.monitor.get_model_dir(), "{}_predictions.pickle".format(mode)), test_predictions)
+    save_pickle(os.path.join(trainer.monitor.get_model_dir(), "{}_targets.pickle".format(mode)), test_targets)
 
 
 def get_hidden_activations(config, model_name, params_file):

@@ -77,9 +77,9 @@ class ModelMonitor(object):
                 # TODO: fill in with the formatted data
                 f.write("# END DATA")
 
-    def load_train_history(self):
+    def load_train_history(self, epoch):
         try:
-            with open(os.path.join(self.path_to_model_dir, 'train_history_best.pickle'), mode='rb') as f:
+            with open(os.path.join(self.path_to_model_dir, 'train_history_ep{}_best.pickle'.format(epoch)), mode='rb') as f:
                 history = cPickle.load(f)
                 log.info("Loaded history from previous training, continuing from where it was stopped.")
                 return history
