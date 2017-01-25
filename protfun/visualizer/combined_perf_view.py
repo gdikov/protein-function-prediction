@@ -9,6 +9,7 @@ import os
 
 from sklearn.metrics import roc_curve, auc
 from scipy import interp
+from protfun.utils.data_utils import load_pickle
 
 classes = ['3.4.21', '3.4.24']
 
@@ -50,35 +51,21 @@ class ROCView(object):
         self.fig.savefig(filename=path_to_fig)
 
 
+def add_curve(view, dir, label, suffix=""):
+    predictions = np.asarray(load_pickle(os.path.join(dir, "test_predictions{}.pickle".format(suffix))))[:, 0]
+    targets = np.asarray(load_pickle(os.path.join(dir, "test_targets{}.pickle".format(suffix))))[:, 0]
+    view.add_curve(predictions, targets, label)
+
 if __name__ == "__main__":
-    from protfun.utils.data_utils import load_pickle
+
 
     view = ROCView(data_dir=os.path.dirname(__file__))
 
-    # predictions = np.asarray(load_pickle("/home/valor/workspace/DLCV_ProtFun/data/split_by_level4/restricted_multi_64/models/grids_axufeoamvo_2-classes_1-21-2017_16-41/test_predictions.pickle"))[:,0]
-    # targets = np.asarray(load_pickle("/home/valor/workspace/DLCV_ProtFun/data/split_by_level4/restricted_multi_64/models/grids_axufeoamvo_2-classes_1-21-2017_16-41/test_targets.pickle"))[:,0]
-    # view.add_curve(predictions, targets, "multi channel")
-    #
-    # predictions = np.asarray(load_pickle("/home/valor/workspace/DLCV_ProtFun/data/split_by_level4/restricted_single_64/models/grids_lbcwfjpraz_2-classes_1-21-2017_18-37/test_predictions.pickle"))[:,0]
-    # targets = np.asarray(load_pickle("/home/valor/workspace/DLCV_ProtFun/data/split_by_level4/restricted_single_64/models/grids_lbcwfjpraz_2-classes_1-21-2017_18-37/test_targets.pickle"))[:,0]
-    # view.add_curve(predictions, targets, "single channel")
-    # view.save_anc_close("ROC_combined_strict_split.png")
+    add_curve(view, "/home/valor/workspace/DLCV_ProtFun/data/final/strict/restricted_multi_128", "multi high res")
+    add_curve(view, "/home/valor/workspace/DLCV_ProtFun/data/final/strict/restricted_multi_64", "multi low res", suffix="10")
+    add_curve(view, "/home/valor/workspace/DLCV_ProtFun/data/final/strict/restricted_single_128", "single high res")
+    add_curve(view, "/home/valor/workspace/DLCV_ProtFun/data/final/strict/restricted_single_64", "single low res")
 
-    predictions = np.asarray(load_pickle(
-        "/home/valor/workspace/DLCV_ProtFun/data/split_on_level3/restricted_multi_64/models/grids_asitycwovd_2-classes_1-22-2017_21-35/test_predictions.pickle"))[
-                  :, 0]
-    targets = np.asarray(load_pickle(
-        "/home/valor/workspace/DLCV_ProtFun/data/split_on_level3/restricted_multi_64/models/grids_asitycwovd_2-classes_1-22-2017_21-35/test_targets.pickle"))[
-              :, 0]
-    view.add_curve(predictions, targets, "multi channel")
-
-    predictions = np.asarray(load_pickle(
-        "/home/valor/workspace/DLCV_ProtFun/data/split_on_level3/restricted_single_64/models/grids_umyfbmdxjg_2-classes_1-21-2017_16-50/test_predictions.pickle"))[
-                  :, 0]
-    targets = np.asarray(load_pickle(
-        "/home/valor/workspace/DLCV_ProtFun/data/split_on_level3/restricted_single_64/models/grids_umyfbmdxjg_2-classes_1-21-2017_16-50/test_targets.pickle"))[
-              :, 0]
-    view.add_curve(predictions, targets, "single channel")
-    view.save_anc_close("ROC_combined_naive_split.png")
+    view.save_anc_close("ROC_combined_strict.png")
 
 

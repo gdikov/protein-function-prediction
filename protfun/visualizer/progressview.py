@@ -40,14 +40,14 @@ class ProgressView(object):
                       "to the ProgressView.")
             raise ValueError
 
-    def save(self):
-        self._save(artifacts=['train_loss', 'val_loss'], type='loss', filename='loss_history.png')
+    def save(self, checkpoint=None):
+        self._save(artifacts=['train_loss', 'val_loss'], type='loss', filename='loss_history.png', checkpoint=checkpoint)
         self._save(artifacts=['train_accuracy', 'val_accuracy'], type='accuracy', y_range=[0, 1],
-                   filename='accuracy_history.png')
+                   filename='accuracy_history.png', checkpoint=checkpoint)
         self._save(artifacts=['train_per_class_accs', 'val_per_class_accs'], type='per_class_accs', y_range=[0, 1],
-                   filename='per_class_accs.png')
+                   filename='per_class_accs.png', checkpoint=checkpoint)
 
-    def _save(self, artifacts, type, y_range=None, filename='loss_history.png'):
+    def _save(self, artifacts, type, y_range=None, filename='loss_history.png', checkpoint=None):
         import matplotlib
         matplotlib.use('Agg')
         import seaborn as sns
@@ -77,6 +77,9 @@ class ProgressView(object):
             if y_range is not None:
                 ax.set_ylim(y_range)
             ax.set_xlim([0, max_length])
+
+            if checkpoint:
+                ax.axvline(x=checkpoint)
 
             # define the legend
             legend_position = 'upper right' if artifacts[0].endswith('loss') else 'lower right'
