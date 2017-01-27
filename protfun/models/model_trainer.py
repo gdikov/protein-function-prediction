@@ -22,7 +22,7 @@ log.basicConfig(level=logging.DEBUG)
 
 
 class ModelTrainer(object):
-    def __init__(self, model, data_feeder, checkpoint_frequency=200, first_epoch=0):
+    def __init__(self, model, data_feeder, checkpoint_frequency=1, first_epoch=0):
         self.model = model
         self.data_feeder = data_feeder
         self.checkpoint_frequency = checkpoint_frequency
@@ -66,12 +66,8 @@ class ModelTrainer(object):
 
     def _train(self, epochs=100):
         used_proteins = set()
-        validations = 0
-        val_accuracies = []
-        max_val_acc = 0
-        current_minibatch = 0
+        steps_before_validate = 0
 
-        iterate_val = self.data_feeder.iterate_val_data()
         for e in xrange(self.first_epoch, self.first_epoch + epochs):
             log.info("Unique proteins used during training so far: {}".format(len(used_proteins)))
             epoch_losses = []
@@ -94,55 +90,20 @@ class ModelTrainer(object):
                 self.history['train_predictions'].append(predictions)
                 used_proteins = used_proteins | set(proteins)
 
-                # validate now
-                try:
-                    val_proteins, val_inputs = iterate_val.next()
-                except StopIteration:
-                    iterate_val = self.data_feeder.iterate_val_data()
-                    val_proteins, val_inputs = iterate_val.next()
-                validations += 1
-
-                output = self.model.validation_function(*val_inputs)
-                val_loss = output['loss']
-                val_accuracy = output['accuracy']
-                val_per_class_accs = output['per_class_accs']
-                val_predictions = output['predictions']
-
-                self.history['val_loss'].append(val_loss)
-                self.history['val_accuracy'].append(val_accuracy)
-                val_accuracies.append(val_accuracy)
-                self.history['val_per_class_accs'].append(val_per_class_accs)
-                self.history['val_predictions'].append(val_predictions)
-                self.history['val_targets'].append(val_inputs[1:])
-
-                current_minibatch += 1
-                if current_minibatch % self.checkpoint_frequency == self.checkpoint_frequency - 1:
-                    log.info("Attempt to checkpoint: {} minibatches have passed".format(current_minibatch))
-                    if sum(val_accuracies) / validations > max_val_acc:
-                        max_val_acc = sum(val_accuracies) / validations
-                        self.monitor.save_history_and_model(self.history, epoch_count=e, msg="best")
-                    progress = ProgressView(model_name=self.model.get_name(),
-                                            data_dir=self.monitor.get_model_dir(), history_dict=self.history)
-                    progress.save()
+                steps_before_validate += 1
 
             epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
             epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
             log.info("train: epoch {0} loss mean: {1} acc mean: {2}".format(e, epoch_loss_means, epoch_acc_means))
-            log.info("average val accuracy: {}".format(sum(val_accuracies) / validations))
 
-            # if np.alltrue(epoch_acc_means >= self.current_max_train_acc):
-            #     samples_per_class = self.data_feeder.get_samples_per_class()
-            #     log.info("Augmenting dataset: doubling the samples per class ({0})".format(
-            #         2 * self.data_feeder.get_samples_per_class()))
-            #     self.current_max_train_acc = epoch_acc_means
-            #     samples_per_class *= 2
-            #     self.data_feeder.set_samples_per_class(samples_per_class)
-
-            # # validate the model
-            # if e % self.val_frequency == 0:
-            #     self.validate(steps_before_validate, e)
-            #     self.monitor.save_history_and_model(self.history, epoch_count=epochs)
-            #     steps_before_validate = 0
+            # validate the model
+            if e % self.checkpoint_frequency == self.checkpoint_frequency-1:
+                self.validate(steps_before_validate, e)
+                self.monitor.save_train_history(self.history, e, False, msg="best")
+                steps_before_validate = 0
+                progress = ProgressView(model_name=self.model.get_name(),
+                                        data_dir=self.monitor.get_model_dir(), history_dict=self.history)
+                progress.save()
 
     def validate(self, steps_before_validate, epoch):
         val_loss_means, val_acc_means, val_per_class_accs_means, val_predictions, val_targets, _ = self._test(
@@ -202,7 +163,8 @@ class ModelTrainer(object):
     def get_test_hidden_activations(self):
         for prots, inputs in self.data_feeder.iterate_test_data():
             # do just a single minibatch
-            return prots, self.model.get_hidden_activations(inputs[0])
+            output = self.model.get_hidden_activations(inputs[0])
+            return prots, inputs[1:], output[:-1], output[-1]
 
 
 def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0):
@@ -257,11 +219,12 @@ def test_enz_from_grids(config, model_name, params_file, mode='test'):
 
     save_pickle(os.path.join(trainer.monitor.get_model_dir(), "{}_predictions.pickle".format(mode)), test_predictions)
     save_pickle(os.path.join(trainer.monitor.get_model_dir(), "{}_targets.pickle".format(mode)), test_targets)
+    save_pickle(os.path.join(trainer.monitor.get_model_dir(), "{}_proteins.pickle".format(mode)), proteins)
 
 
 def get_hidden_activations(config, model_name, params_file):
     _, model, trainer = _build_enz_feeder_model_trainer(config, model_name=model_name)
     trainer.monitor.load_model(params_filename=params_file,
                                network=model.get_output_layers())
-    prots, activations = trainer.get_test_hidden_activations()
-    return prots, activations
+    prots, targets, activations, preds = trainer.get_test_hidden_activations()
+    return prots, targets, preds, activations

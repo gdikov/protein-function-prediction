@@ -29,7 +29,7 @@ def add_shallow_conv_maxpool(network):
                                                 num_filters=32,
                                                 filter_size=filter_size,
                                                 nonlinearity=lasagne.nonlinearities.leaky_rectify)
-    network = lasagne.layers.DropoutLayer(incoming=network, p=0.7)
+    network = lasagne.layers.DropoutLayer(incoming=network, p=0.8)
     network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network,
                                                    pool_size=(2, 2, 2),
                                                    stride=2)
@@ -38,7 +38,7 @@ def add_shallow_conv_maxpool(network):
                                                 num_filters=64,
                                                 filter_size=filter_size,
                                                 nonlinearity=lasagne.nonlinearities.leaky_rectify)
-    network = lasagne.layers.DropoutLayer(incoming=network, p=0.7)
+    network = lasagne.layers.DropoutLayer(incoming=network, p=0.8)
     network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network,
                                                    pool_size=(2, 2, 2),
                                                    stride=2)
@@ -50,5 +50,5 @@ def add_dense_layers(network, n_layers, n_units):
     for i in range(0, n_layers):
         network = lasagne.layers.DenseLayer(incoming=network, num_units=n_units,
                                             nonlinearity=lasagne.nonlinearities.leaky_rectify)
-        network = lasagne.layers.DropoutLayer(incoming=network, p=0.7)
+        network = lasagne.layers.DropoutLayer(incoming=network, p=0.8)
     return network

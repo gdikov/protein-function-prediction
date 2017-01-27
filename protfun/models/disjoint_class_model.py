@@ -56,7 +56,8 @@ class DisjointClassModel(object):
 
         self.get_hidden_activations = theano.function(inputs=input_vars,
                                                       outputs=lasagne.layers.get_output(
-                                                          lasagne.layers.get_all_layers(output_layer)))
+                                                          lasagne.layers.get_all_layers(output_layer))
+                                                              + [T.stack(val_predictions)])
         log.info("Computational graph compiled")
 
     def get_output_layers(self):
@@ -98,8 +99,9 @@ class GridsDisjointClassifier(DisjointClassModel):
 
         self.minibatch_size = minibatch_size
         grids = T.TensorType(floatX, (False,) * 5)()
-        input_layer = lasagne.layers.InputLayer(shape=(self.minibatch_size, n_channels, grid_size, grid_size, grid_size),
-                                                input_var=grids)
+        input_layer = lasagne.layers.InputLayer(
+            shape=(self.minibatch_size, n_channels, grid_size, grid_size, grid_size),
+            input_var=grids)
         rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size, n_channels=n_channels)
 
         # apply the network to the preprocessed input

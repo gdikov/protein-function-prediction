@@ -3,7 +3,14 @@ import pickle
 import os
 import colorlog as log
 import logging
+import matplotlib
 
+matplotlib.use('Agg')
+import seaborn as sns
+
+sns.set_style("whitegrid")
+colors = ['#1b9e77', '#d95f02', '#7570b3', '#e7298a']
+sns.set_palette(colors)
 log.basicConfig(level=logging.DEBUG)
 
 text = {
@@ -48,10 +55,6 @@ class ProgressView(object):
                    filename='per_class_accs.png', checkpoint=checkpoint)
 
     def _save(self, artifacts, type, y_range=None, filename='loss_history.png', checkpoint=None):
-        import matplotlib
-        matplotlib.use('Agg')
-        import seaborn as sns
-        sns.set_style("whitegrid")
         import matplotlib.pyplot as plt
         fig = plt.figure()
         ax = fig.gca()
@@ -79,24 +82,21 @@ class ProgressView(object):
             ax.set_xlim([0, max_length])
 
             if checkpoint:
-                ax.axvline(x=checkpoint)
+                ax.axvline(x=checkpoint, c='#e7298a')
 
             # define the legend
             legend_position = 'upper right' if artifacts[0].endswith('loss') else 'lower right'
 
-            ax.legend(loc=legend_position, fancybox=True, shadow=True, ncol=1, prop={'size': 12}, frameon=True)
-            ax.set_title(text['titles'][type], size=15)
+            ax.legend(loc=legend_position, fancybox=True, shadow=True, ncol=1, prop={'size': 9}, frameon=True)
+            # ax.set_title(text['titles'][type], size=15)
             ax.set_ylabel(text['y_labels'][type], size=12)
             ax.set_xlabel("Mini-batch count", size=12)
 
             # adjust styles before saving
-            sns.despine()
-            colors = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
-            sns.set_palette(colors)
 
             if not os.path.exists(self.model_figures_path):
                 os.makedirs(self.model_figures_path)
-            fig.savefig(os.path.join(self.model_figures_path, filename))
+            fig.savefig(os.path.join(self.model_figures_path, filename), bbox_inches='tight')
         plt.close(fig)
 
     def _plot_single(self, fig, values, artifact):

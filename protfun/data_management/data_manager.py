@@ -5,7 +5,7 @@ import colorlog as log
 import numpy as np
 import os
 
-import protfun.data_management.preprocess as prep
+# import protfun.data_management.preprocess as prep
 from protfun.data_management.label_factory import LabelFactory
 from protfun.data_management.validation import EnzymeValidator
 from protfun.utils import save_pickle, load_pickle, construct_hierarchical_tree
@@ -51,7 +51,6 @@ class DataManager(object):
     def get_validation_set(self):
         raise NotImplementedError
 
-
     @staticmethod
     def split_data_on_level(data_dict, percentage, level=3):
         if not 0 <= percentage <= 100:
@@ -94,7 +93,6 @@ class DataManager(object):
                 second_data_dict[cls] = list(second_samples)
 
         return first_data_dict, second_data_dict
-
 
     @staticmethod
     # TODO: maybe this function is redundant. Refactor using construct_hierarchical_tree from data_utils if possibel
@@ -165,14 +163,15 @@ class EnzymeDataManager(DataManager):
 
         # Download the data if required
         if self.force_download:
-            ef = prep.EnzymeFetcher(categories=self.enzyme_classes,
-                                    enzyme_dir=self.dirs['data_raw'])
-            self.all_proteins = ef.fetch_enzymes()
-            prep.download_pdbs(base_dir=self.dirs['data_raw'],
-                               protein_codes=self.all_proteins)
-            save_pickle(file_path=os.path.join(self.dirs["data_raw"], "all_prot_codes.pickle"),
-                        data=self.all_proteins)
-            self._save_enzyme_list(target_dir=self.dirs["data_raw"], proteins_dict=self.all_proteins)
+            pass
+            # ef = prep.EnzymeFetcher(categories=self.enzyme_classes,
+            #                         enzyme_dir=self.dirs['data_raw'])
+            # self.all_proteins = ef.fetch_enzymes()
+            # prep.download_pdbs(base_dir=self.dirs['data_raw'],
+            #                    protein_codes=self.all_proteins)
+            # save_pickle(file_path=os.path.join(self.dirs["data_raw"], "all_prot_codes.pickle"),
+            #             data=self.all_proteins)
+            # self._save_enzyme_list(target_dir=self.dirs["data_raw"], proteins_dict=self.all_proteins)
         else:
             log.info("Skipping downloading step")
             self.all_proteins = load_pickle(
@@ -185,17 +184,18 @@ class EnzymeDataManager(DataManager):
 
         # Process the data if required
         if self.force_memmaps or self.force_grids:
-            edp = prep.EnzymeDataProcessor(protein_codes=self.all_proteins,
-                                           from_dir=self.dirs['data_raw'],
-                                           target_dir=self.dirs['data_processed'],
-                                           process_grids=self.force_grids,
-                                           process_memmaps=self.force_memmaps,
-                                           use_esp=False)
-            self.valid_proteins = edp.process()
-            self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
-            save_pickle(file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"),
-                        data=self.valid_proteins)
-            self._save_enzyme_list(target_dir=self.dirs["data_processed"], proteins_dict=self.valid_proteins)
+            pass
+            # edp = prep.EnzymeDataProcessor(protein_codes=self.all_proteins,
+            #                                from_dir=self.dirs['data_raw'],
+            #                                target_dir=self.dirs['data_processed'],
+            #                                process_grids=self.force_grids,
+            #                                process_memmaps=self.force_memmaps,
+            #                                use_esp=False)
+            # self.valid_proteins = edp.process()
+            # self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
+            # save_pickle(file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"),
+            #             data=self.valid_proteins)
+            # self._save_enzyme_list(target_dir=self.dirs["data_processed"], proteins_dict=self.valid_proteins)
         else:
             log.info("Skipping preprocessing step")
             self.valid_proteins = load_pickle(file_path=os.path.join(self.dirs["data_processed"],
@@ -212,8 +212,8 @@ class EnzymeDataManager(DataManager):
                 val_dataset, train_dataset = self.split_data_on_level(trainval_data,
                                                                       percentage=self.p_val, level=3)
 
-                self.validator.check_splitting(self.valid_proteins, trainval_data, test_dataset)
-                self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
+                # self.validator.check_splitting(self.valid_proteins, trainval_data, test_dataset)
+                # self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
 
                 # recreate the train and test dirs
                 shutil.rmtree(self.dirs['data_train'])
@@ -246,7 +246,7 @@ class EnzymeDataManager(DataManager):
                 val_dataset, train_dataset = self.split_data_on_level(trainval_data,
                                                                       percentage=self.p_val, level=3)
 
-                self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
+                # self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
 
                 save_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
                                        os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],

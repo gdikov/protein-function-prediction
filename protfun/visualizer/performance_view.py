@@ -67,7 +67,7 @@ class PerformanceAnalyser(object):
 
         # adjust styles before saving
         sns.despine()
-        colors = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+        colors = colors = ['#1b9e77','#d95f02','#7570b3','#e7298a']
         sns.set_palette(colors)
 
         return fig
