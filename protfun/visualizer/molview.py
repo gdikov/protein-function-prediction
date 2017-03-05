@@ -22,8 +22,10 @@ class MoleculeView(object):
             self.molecule_name = info["name"]
 
         if data is not None:
-            self.electron_density = data["density"]
-            self.electron_potential = data["potential"]
+            if "density" in data:
+                self.electron_density = data["density"]
+            if "potential" in data:
+                self.electron_potential = data["potential"]
 
     def density3d(self, plot_params=None, export_figure=True):
         """
@@ -189,8 +191,8 @@ class MoleculeView(object):
             n = self.electron_potential.shape[0]
             range = 100
             x, y, z = np.mgrid[-range / 2:range / 2:complex(n),
-                               -range / 2:range / 2:complex(n),
-                               -range / 2:range / 2:complex(n)]
+                      -range / 2:range / 2:complex(n),
+                      -range / 2:range / 2:complex(n)]
             mlab.contour3d(x, y, z, self.electron_potential,
                            contours=10,
                            opacity=0.5)

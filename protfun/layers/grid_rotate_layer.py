@@ -214,20 +214,19 @@ if __name__ == "__main__":
     grid_file = "/home/valor/workspace/DLCV_ProtFun/data/full/processed_single_64/1A0H/grid.memmap"
 
     # visualize the original grid
-    test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64))
+    test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 1, 64, 64, 64))
     log.debug(test_grid.shape)
-    viewer = MoleculeView(data_dir=data_dir, data={"potential": test_grid[0, 1],
-                                                   "density": test_grid[0, 1]},
+    viewer = MoleculeView(data_dir=data_dir, data={"density": test_grid[0, 0]},
                           info={"name": "test"})
     viewer.density3d()
     grid_side = test_grid.shape[3]
 
     # initialize the rotation layer
     input_grid = T.TensorType(floatX, (False,) * 5)()
-    input_layer = lasagne.layers.InputLayer(shape=(1, 2, grid_side, grid_side, grid_side),
+    input_layer = lasagne.layers.InputLayer(shape=(1, 1, grid_side, grid_side, grid_side),
                                             input_var=input_grid)
     rotate_layer = GridRotationLayer(incoming=input_layer, grid_side=grid_side,
-                                     n_channels=2, interpolation='nearest')
+                                     n_channels=1, interpolation='nearest')
 
     # create a small function to test the rotation layer
     func = theano.function(inputs=[input_grid],
@@ -235,12 +234,12 @@ if __name__ == "__main__":
 
     # show 10 different rotations of the test grid
     import time
+
     for i in range(0, 10):
         start = time.time()
         rotated_grid = func(test_grid)
         log.info("took time: {}".format(time.time() - start))
         viewer = MoleculeView(data_dir=data_dir,
-                              data={"potential": rotated_grid[0, 1],
-                                    "density": rotated_grid[0, 1]},
+                              data={"density": rotated_grid[0, 0]},
                               info={"name": "test"})
         viewer.density3d()
