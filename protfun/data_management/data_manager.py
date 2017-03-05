@@ -22,7 +22,7 @@ class DataManager(object):
                  force_download=False, force_process=False, force_split=False,
                  percentage_test=10, percentage_val=20):
         """
-        :param data_dit: the path to the root data directory
+        :param data_dir: the path to the root data directory
         :param force_download: forces the downloading of the enzymes
         :param force_process: forces the pre-processing steps
         :param force_split: forces the splitting of the data into training ,validation and test sets
@@ -102,7 +102,7 @@ class DataManager(object):
             first_samples = np.random.choice(samples,
                                              replace=False,
                                              size=int((
-                                                      num_samples * percentage) // 100.0))
+                                                          num_samples * percentage) // 100.0))
             second_samples = np.setdiff1d(samples, first_samples,
                                           assume_unique=True)
 
@@ -119,7 +119,6 @@ class DataManager(object):
                 second_data_dict[cls] = list(second_samples)
 
         return first_data_dict, second_data_dict
-
 
     @staticmethod
     def merge_data(data=None):
@@ -153,6 +152,7 @@ class EnzymeDataManager(DataManager):
         [download] -> [pre-process] -> [split test/train] -> provide
     where [.] designates a step that can be omitted if already done.
     """
+
     def __init__(self, data_dir,
                  force_download=False, force_memmaps=False,
                  force_grids=False, force_split=False,
@@ -334,7 +334,6 @@ class EnzymeDataManager(DataManager):
         self.validator.check_labels(self.train_labels, self.val_labels,
                                     self.test_labels)
 
-
     def _select_enzymes(self, dataset):
         """
         Extracts a subset of a data dictionary according to the enzyme classes of interest.
@@ -352,7 +351,6 @@ class EnzymeDataManager(DataManager):
                 filtered_set[cls] = enzymes
         return filtered_set
 
-
     def _remove_failed_downloads(self, failed=None):
         """
         Deprecated. It was meant to clean-up the list of all fetched proteins after the download is completed.
@@ -367,7 +365,6 @@ class EnzymeDataManager(DataManager):
             self.all_proteins[cls] = list(
                 set(self.all_proteins[cls]) - set(failed[cls]))
 
-
     def get_training_set(self):
         return self.train_dataset, self.train_labels
 
@@ -376,7 +373,6 @@ class EnzymeDataManager(DataManager):
 
     def get_test_set(self):
         return self.test_dataset, self.test_labels
-
 
     def _copy_processed(self, target_dir, proteins_dict):
         """
@@ -391,10 +387,9 @@ class EnzymeDataManager(DataManager):
         for prot_codes in proteins_dict.values():
             for prot_code in prot_codes:
                 os.system("cp -R %s %s" % (
-                os.path.join(src_dir, prot_code.upper()),
-                os.path.join(target_dir, ".")))
+                    os.path.join(src_dir, prot_code.upper()),
+                    os.path.join(target_dir, ".")))
                 log.info("Copied {0} to {1}".format(prot_code, target_dir))
-
 
     @staticmethod
     def _save_enzyme_list(target_dir, proteins_dict):

@@ -10,6 +10,7 @@ class EnzymeValidator(object):
     EnzymeValidator has the task to validate the correctness and completeness of the essential data management steps,
     e.g. downloading and splitting. This should help finding bugs.
     """
+
     def __init__(self, enz_classes=None, dirs=None):
         self.enzyme_classes = enz_classes
         self.dirs = dirs
@@ -23,7 +24,6 @@ class EnzymeValidator(object):
         """
         return sum([not bool(re.compile(r'[^0-9.]').search(cls)) for cls in
                     classes]) == len(classes)
-
 
     def check_downloaded_codes(self):
         """
@@ -64,7 +64,7 @@ class EnzymeValidator(object):
                             failed += 1
                             log.warning(
                                 "PDB file for enzyme {0} is not found (residing in class {1})"
-                                .format(e, enzyme_class_leaf))
+                                    .format(e, enzyme_class_leaf))
                             if enzyme_class_leaf in missing_enzymes.keys():
                                 missing_enzymes[enzyme_class_leaf].append(
                                     e.upper())
@@ -74,7 +74,6 @@ class EnzymeValidator(object):
                             successful += 1
 
         return missing_enzymes, successful, failed
-
 
     def check_class_representation(self, data_dict, clean_dict=True,
                                    clean_duplicates=True):
@@ -113,7 +112,6 @@ class EnzymeValidator(object):
                 if k in bad_keys:
                     del data_dict[k]
 
-
     def check_splitting(self, all_proteins, first_partition, second_partition):
         """
         checks if the splits are disjoint and complete, i.e. their union amounts to the whole dataset
@@ -148,7 +146,6 @@ class EnzymeValidator(object):
                 second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls) == \
                    set(
                        all_prot_codes_in_cls), "The splits are not a partition of all proteins!"
-
 
     def check_labels(self, train_labels=None, val_labels=None,
                      test_lables=None):

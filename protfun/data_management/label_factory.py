@@ -5,6 +5,7 @@ class LabelFactory(object):
     """
     LabelFactory is generating the labels from the hierarchical structure of the data classes.
     """
+
     def __init__(self, train_dict, val_dict, test_dict, hierarchical_depth=1):
         """
         a data dictionady is a dict with keys - classes and values - list of protein codes
@@ -18,7 +19,6 @@ class LabelFactory(object):
         self.val_dict = val_dict
         self.test_dict = test_dict
         self.h_depth = hierarchical_depth
-
 
     def generate_hierarchical_labels(self):
         """
@@ -64,8 +64,9 @@ class LabelFactory(object):
         # for each of the hierarchical levels in depth, check how many different protein classes there are
         # for the given example, this would result in:
         # [['2', '3'], ['2.1', '3.1'], ['2.1.2', '2.1.3', '2.1.4', '2.1.8', '3.1.1', '3.1.2']]
-        unique_labels_at_depth = [sorted(list(set(['.'.join(x.split('.')[:h + 1]) for x in all_classes])))
-                                  for h in range(self.h_depth)]
+        unique_labels_at_depth = [
+            sorted(list(set(['.'.join(x.split('.')[:h + 1]) for x in all_classes])))
+            for h in range(self.h_depth)]
 
         # go over all sets (train, test, val) and for each go over all items (i.e. class and list of protein codes)
         #  and for each item go over all protein codes and create a label for each class-level
