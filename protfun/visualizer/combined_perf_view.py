@@ -20,6 +20,13 @@ sns.set_palette(colors)
 
 
 def my_roc(predicted, expected):
+    """
+    a home-made ROC data generation. Should be deprecated as sklearn.metrics works just fine...
+
+    :param predicted: a numpy array of predictions
+    :param expected: a numpy array of targets
+    :return: a tuple of numpy arrays for the false and true positive rates
+    """
     smoothness = 1001
     T = np.array(predicted[:])
     Y = np.array(expected[:])
@@ -48,11 +55,18 @@ def my_roc(predicted, expected):
 
 
 class ROCView(object):
+    """
+    ROCView generates and plots the ROC curves of a model.
+    """
     def __init__(self, data_dir):
         self.data_dir = data_dir
         self.ax, self.fig = self._init_ROC()
 
     def _init_ROC(self):
+        """
+        initialise the plots (figure, axes)
+        :return:
+        """
         sns.set_style("whitegrid")
 
         fig = plt.figure()
@@ -70,6 +84,14 @@ class ROCView(object):
         return ax, fig
 
     def add_curve(self, predicted, expected, label):
+        """
+        computes and draws a ROC curve for a given label (class)
+
+        :param predicted: a numpy array of predictions
+        :param expected: a numpy array of targets
+        :param label: the class for which the ROC is computed and drawn
+        :return:
+        """
         # fpr, tpr, _ = roc_curve(expected, predicted, drop_intermediate=1)
         fpr, tpr = my_roc(predicted, expected)
         # roc_auc = auc(fpr, tpr)
@@ -84,6 +106,12 @@ class ROCView(object):
         plt.plot(fpr, tpr, lw=2, label='{0} (AUC = {1:0.2f})'.format(label, roc_auc))
 
     def save_anc_close(self, filename):
+        """
+        saves the figure into a file.
+
+        :param filename: the name of the file for the figure of the ROC curve
+        :return:
+        """
         # Put a legend below current axis
         self.ax.legend(loc='lower right', fancybox=True, shadow=True, ncol=1, prop={'size': 9},
                        frameon=True)
@@ -92,6 +120,15 @@ class ROCView(object):
 
 
 def add_curve(view, dir, label, suffix=""):
+    """
+    unpacks the pickeled data and passes it to the method responsible for ROC curve computation.
+
+    :param view: the ROCViewer object
+    :param dir: the directory where the predictions and targets are stored
+    :param label: the class for which a ROC curve is computed and drawn
+    :param suffix: additional identifying information for the filename, e.g. epoch count or accuracy
+    :return:
+    """
     predictions = np.asarray(
         load_pickle(os.path.join(dir, "test_predictions{}.pickle".format(suffix))))[:, 0]
     targets = np.asarray(load_pickle(os.path.join(dir, "test_targets{}.pickle".format(suffix))))[:,

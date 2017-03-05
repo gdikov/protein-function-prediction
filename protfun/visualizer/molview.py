@@ -5,14 +5,20 @@ import colorlog as log
 
 class MoleculeView(object):
     """
-     Parameters:
-        - data : a dictionary with keys "density" and "potential" containing
-        3-dimensional numpy arrays with the molecule's electron density and
-        electron potential distribution.
-        - info : a dictionary with keys "id", "name" (and more).
+    MoleculeView visualizes the generated 3D input maps of electron density and electrostatic potential
     """
 
     def __init__(self, data_dir, data=None, info=None):
+        """
+
+     Parameters:
+        - data :
+        - info : a dictionary with keys "id", "name" (and more).
+        :param data_dir: a directory where the figures should be stored
+        :param data: a dictionary with keys "density" and "potential" containing 3d numpy arrays
+        with the molecule's electron density and electron potential distribution.
+        :param info: additional info to be printed in the title/legend such as the molecule PDB code
+        """
         self.data_dir = data_dir
         self.figures_dir = os.path.join(self.data_dir, "figures")
         if not os.path.exists(self.figures_dir):
@@ -32,8 +38,7 @@ class MoleculeView(object):
         Plots a scalar field of the 3D electron density.
 
         :param plot_params: e.g. {"minmax_ratio": 0.3}
-        :param export_figure: boolean to tell whether to export images from the
-            generated figure.
+        :param export_figure: boolean to tell whether to export images from the generated figure.
         """
         from mayavi import mlab
 
