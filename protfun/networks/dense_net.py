@@ -1,11 +1,30 @@
-import theano.tensor as T
 import lasagne
 import lasagne.layers.dnn
 
 
 def dense_network(input, n_outputs, last_nonlinearity):
+    """
+    dense_network is an example implementation of the DenseNet paper:
+    https://arxiv.org/abs/1608.06993
+
+    Usage::
+        >>> import theano.tensor as T
+        >>> from lasagne.nonlinearities import sigmoid
+        >>>
+        >>> inputs = T.tensor4("inputs")
+        >>> n_classes = 2
+        >>> # apply the network
+        >>> output_layer, l2_terms = dense_network(inputs, n_classes, sigmoid)
+
+    :param input: a theano variable for the overall network input
+    :param n_outputs: number of output units in the last layer
+    :param last_nonlinearity: what the non-linearity in the last layer should be
+    :return: the last lasagne layer of the network, and L2 regularization terms
+            if there are any (otherwise 0).
+    """
     network = input
     network = transition_layers(network, num_filters=8)
+
     # add deep convolutional structure
     network = dense_net_block(network, depth=3, num_filters=8)
     network = transition_layers(network, num_filters=8)
@@ -19,7 +38,7 @@ def dense_network(input, n_outputs, last_nonlinearity):
     network = dense_net_block(network, depth=6, num_filters=8)
     network = transition_layers(network, num_filters=8)
 
-    # add the sigmoid outputs
+    # add the output layer non-linearity
     output = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
                                        nonlinearity=last_nonlinearity)
     return output, 0
@@ -31,17 +50,19 @@ def dense_net_block(network, depth=6, num_filters=16):
         previous += [network]
         input = lasagne.layers.ConcatLayer(incomings=previous, axis=1)
 
-        # network = lasagne.layers.BatchNormLayer(incoming=network)
-        network = lasagne.layers.NonlinearityLayer(incoming=input, nonlinearity=lasagne.nonlinearities.leaky_rectify)
+        network = lasagne.layers.BatchNormLayer(incoming=input)
+        network = lasagne.layers.NonlinearityLayer(incoming=network,
+                                                   nonlinearity=lasagne.nonlinearities.leaky_rectify)
 
-        # add a bottleneck
+        # add a bottleneck convolution
         network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
                                                     num_filters=4 * num_filters,
                                                     filter_size=(1, 1, 1),
                                                     nonlinearity=lasagne.nonlinearities.identity)
 
-        # network = lasagne.layers.BatchNormLayer(incoming=network)
-        network = lasagne.layers.NonlinearityLayer(incoming=network, nonlinearity=lasagne.nonlinearities.leaky_rectify)
+        network = lasagne.layers.BatchNormLayer(incoming=network)
+        network = lasagne.layers.NonlinearityLayer(incoming=network,
+                                                   nonlinearity=lasagne.nonlinearities.leaky_rectify)
 
         # add the proper convolution
         network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',

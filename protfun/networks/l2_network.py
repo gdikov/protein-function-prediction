@@ -5,15 +5,37 @@ from lasagne.regularization import regularize_layer_params_weighted, l2
 
 
 def l2_network(input, n_outputs, last_nonlinearity):
+    """
+    l2_network is a shallow network with L2-norm regularization on all ConvLayers
+    and DenseLayers (corresponds to a gaussian prior assumption on all weights).
+
+    Usage::
+        >>> import theano.tensor as T
+        >>> from lasagne.nonlinearities import sigmoid
+        >>>
+        >>> inputs = T.tensor4("inputs")
+        >>> n_classes = 2
+        >>> # apply the network
+        >>> output_layer, l2_terms = l2_network(inputs, n_classes, sigmoid)
+
+    :param input: a theano variable for the overall network input
+    :param n_outputs: number of output units in the last layer
+    :param last_nonlinearity: what the non-linearity in the last layer should be
+    :return: the last lasagne layer of the network, and L2 regularization terms
+            if there are any (otherwise 0).
+    """
     regularization = 0
     network = input
+
     # add deep convolutional structure
     network, penalty = add_shallow_conv_maxpool(network)
     regularization += penalty
+
     # add deep dense fully connected layers
     network, penalty = add_dense_layers(network, n_layers=1, n_units=256)
     regularization += penalty
-    # end each branch with a softmax
+
+    # add the output layer non-linearity
     network = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
                                         nonlinearity=last_nonlinearity)
     l2_penalty = regularize_layer_params_weighted({network: 0.2}, l2)

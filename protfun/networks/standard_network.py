@@ -1,15 +1,34 @@
-import theano.tensor as T
 import lasagne
 import lasagne.layers.dnn
 
 
-def single_trunk_network(input, n_outputs, last_nonlinearity):
+def standard_network(input, n_outputs, last_nonlinearity):
+    """
+    standard_network is a straightforward ConvNet with a total
+    of 7 ConvLayers and 4 MaxPool layers. The network ends with
+    fully connected layers before the last_nonlinearity is applied.
+
+    Usage::
+        >>> import theano.tensor as T
+        >>> from lasagne.nonlinearities import sigmoid
+        >>>
+        >>> inputs = T.tensor4("inputs")
+        >>> n_classes = 2
+        >>> # apply the network
+        >>> output_layer, l2_terms = standard_network(inputs, n_classes, sigmoid)
+
+    :param input: a theano variable for the overall network input
+    :param n_outputs: number of output units in the last layer
+    :param last_nonlinearity: what the non-linearity in the last layer should be
+    :return: the last lasagne layer of the network, and L2 regularization terms
+            if there are any (otherwise 0).
+    """
     network = input
     # add deep convolutional structure
     network = add_deep_conv_maxpool(network)
     # add deep dense fully connected layers
     network = add_dense_layers(network, n_layers=2, n_units=256)
-    # end each branch with a softmax
+    # add the output layer non-linearity
     output = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
                                        nonlinearity=last_nonlinearity)
     return output, 0
