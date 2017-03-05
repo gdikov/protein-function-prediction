@@ -1,21 +1,45 @@
 import numpy as np
 import theano
-from theano import tensor as T
 import lasagne
-import colorlog as log
 import logging
+import colorlog as log
+
+from theano import tensor as T
 
 log.basicConfig(level=logging.DEBUG)
-
 floatX = theano.config.floatX
 
 
 class GridRotationLayer(lasagne.layers.Layer):
+    """
+    GridRotationLayer is a dynamic 3D augmentation layer that can be used in the beginning of
+    any neural network. It performs random rotations and (small) translations in 3D space on the
+    fly.
+
+    Usage::
+        >>> from lasagne.layers import InputLayer
+        >>> minibatch_size = 8
+        >>> n_channels = 2
+        >>> side = 32
+        >>> input_layer = InputLayer(shape=(minibatch_size, n_channels, side, side, side),
+        >>>                          input_var=input_grid)
+        >>> # apply the rotation layer
+        >>> rotation_layer = GridRotationLayer(incoming=input_layer, grid_side=side,
+        >>>                                    n_channels=n_channels, interpolation='linear')
+    """
     min_dist_from_border = 5
 
     def __init__(self, incoming, grid_side, n_channels, interpolation='linear',
-                 avg_rotation_angle=np.pi,
-                 **kwargs):  # 0.392 = pi/8
+                 avg_rotation_angle=np.pi, **kwargs):
+        """
+        :param incoming: the incoming lasagne layer (usually an InputLayer)
+            expected shape is (minibatch_size, n_channels, grid_side, grid_side, grid_side)
+        :param grid_side: number of points on each side of the 3D input
+        :param n_channels: number of channels in the 3D input
+        :param interpolation: 'linear' or 'nearest'
+        :param avg_rotation_angle: default is np.pi
+        :param kwargs: lasagne **kwargs
+        """
         super(GridRotationLayer, self).__init__(incoming, **kwargs)
         self.grid_side = grid_side
         self.n_channels = n_channels
@@ -53,17 +77,17 @@ class GridRotationLayer(lasagne.layers.Layer):
         indices_grids = T.sub(indices_grids, origin)
 
         # T.tensordot is a generalized version of a dot product.
-        # The axes parameter is of length 2, and it gives the axis for each of the two tensors passed,
-        # over which the summation will occur. Of course, those two axis need to be of the same dimension.
-        # Just like in standard matrix multiplication, just generalized.
-        # Here we have a (3 x 3) matrix <dot product> (3, width, height, depth) grid,
-        # and the summation happens over the first axis (index 0).
-        # The result is of size (3 x width x height x depth) and contains again 3 train_grids
-        # of this time **rotated** indices for each dimension X, Y, Z respectively.
+        # The axes parameter is of length 2, and it gives the axis for each of the two tensors
+        # passed, over which the summation will occur. Of course, those two axis need to be of the
+        # same dimension. Just like in standard matrix multiplication, just generalized.
+        # Here we have a (3 x 3) matrix <dot product> (3, width, height, depth) grid, and the
+        # summation happens over the first axis (index 0). The result is of size
+        # (3 x width x height x depth) and contains again 3 train_grids of this time
+        # **rotated** indices for each dimension X, Y, Z respectively.
         indices_grids = T.tensordot(self._rotation_matrix(), indices_grids,
                                     axes=(0, 0))
 
-        # Uncenter
+        # Decenter
         indices_grids = T.add(indices_grids, origin)
 
         # Since indices_grids was transformed, we now might have indices at certain locations
@@ -77,13 +101,15 @@ class GridRotationLayer(lasagne.layers.Layer):
         z_indices = T.clip(indices_grids[2], 0, depth - 1 - .001)
 
         if self.interpolation == "nearest":
-            # Here we just need to round the indices for each spatial dimension to the closest integer,
-            # and than index the original input grid with the 3 indices train_grids (numpy style indexing with arrays)
-            # to obtain the final result. Note that here, as usual, the multi-dim array that you index with has the
+            # Here we just need to round the indices for each spatial dimension to the closest
+            # integer, and than index the original input grid with the 3 indices train_grids
+            # (numpy style indexing with arrays) to obtain the final result. Note that here,
+            # as usual, the multi-dim array that you index with has the
             # same spatial dimensionality as the multi-dim array being index.
 
-            # We intentionally flatten everything before indexing, so that Theano can use ArraySubtensor1 instead
-            # of ArraySubtensor, because only the former can be run on the GPU.
+            # We intentionally flatten everything before indexing, so that Theano can use
+            # ArraySubtensor1 instead of ArraySubtensor, because only the former can be run
+            # on the GPU.
             # https://groups.google.com/forum/#!topic/theano-users/XkPJP6on50Y
             flat_grids, flat_indices = grids.reshape(
                 (grids.shape[0], grids.shape[1], -1)), \
@@ -95,11 +121,13 @@ class GridRotationLayer(lasagne.layers.Layer):
             output = output.reshape(grids.shape)
         else:
             flat_grids = grids.reshape((grids.shape[0], grids.shape[1], -1))
-            # For linear interpolation, we use the transformed indices x_indices, y_indices and z_indices
-            # to linearly calculate the desired values at each of the original indices in each dimension.
+            # For linear interpolation, we use the transformed indices x_indices, y_indices and
+            # z_indices to linearly calculate the desired values at each of the original indices
+            # in each dimension.
 
-            # Again, everythin is flattened so that Theano can put it on the GPU, just as in the other part
-            # of this if block.
+            # Again, everything is flattened so that Theano can put it on the GPU, just as in
+            # the other part of this if block.
+            # https://groups.google.com/forum/#!topic/theano-users/XkPJP6on50Y
             top = T.cast(y_indices, 'int32').flatten()
             left = T.cast(x_indices, 'int32').flatten()
             forward = T.cast(z_indices, 'int32').flatten()
@@ -108,7 +136,7 @@ class GridRotationLayer(lasagne.layers.Layer):
             y_indices = y_indices.flatten()
             z_indices = z_indices.flatten()
 
-            # this computs the amount of shift into each direction from the original position
+            # this computes the amount of shift into each direction from the original position
             fraction_y = T.cast(y_indices - top, theano.config.floatX).flatten()
             fraction_x = T.cast(x_indices - left,
                                 theano.config.floatX).flatten()
@@ -117,36 +145,22 @@ class GridRotationLayer(lasagne.layers.Layer):
 
             # then the new value is the linear combination based on the shifts in all
             # of the 8 possible directions in 3D
-            output = flat_grids[:, :,
-                     self.grid_side ** 2 * top + self.grid_side * left + forward] * \
-                     (1 - fraction_y) * (1 - fraction_x) * (1 - fraction_z) + \
-                     flat_grids[:, :,
-                     self.grid_side ** 2 * top + self.grid_side * left + (
-                     forward + 1)] * \
-                     (1 - fraction_y) * (1 - fraction_x) * fraction_z + \
-                     flat_grids[:, :,
-                     self.grid_side ** 2 * top + self.grid_side * (
-                     left + 1) + forward] * \
-                     (1 - fraction_y) * fraction_x * (1 - fraction_z) + \
-                     flat_grids[:, :,
-                     self.grid_side ** 2 * top + self.grid_side * (left + 1) + (
-                     forward + 1)] * \
-                     (1 - fraction_y) * fraction_x * fraction_z + \
-                     flat_grids[:, :, self.grid_side ** 2 * (
-                     top + 1) + self.grid_side * left + forward] * \
-                     fraction_y * (1 - fraction_x) * (1 - fraction_z) + \
-                     flat_grids[:, :,
-                     self.grid_side ** 2 * (top + 1) + self.grid_side * left + (
-                     forward + 1)] * \
-                     fraction_y * (1 - fraction_x) * fraction_z + \
-                     flat_grids[:, :,
-                     self.grid_side ** 2 * (top + 1) + self.grid_side * (
-                     left + 1) + forward] * \
-                     fraction_y * fraction_x * (1 - fraction_z) + \
-                     flat_grids[:, :,
-                     self.grid_side ** 2 * (top + 1) + self.grid_side * (
-                     left + 1) + (forward + 1)] * \
-                     fraction_y * fraction_x * fraction_z
+            output = flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * left + forward] \
+                     * (1 - fraction_y) * (1 - fraction_x) * (1 - fraction_z) + \
+                     flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * left + (forward + 1)] \
+                     * (1 - fraction_y) * (1 - fraction_x) * fraction_z + \
+                     flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * (left + 1) + forward] \
+                     * (1 - fraction_y) * fraction_x * (1 - fraction_z) + \
+                     flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * (left + 1) + (forward + 1)] \
+                     * (1 - fraction_y) * fraction_x * fraction_z + \
+                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * left + forward] \
+                     * fraction_y * (1 - fraction_x) * (1 - fraction_z) + \
+                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * left + (forward + 1)] \
+                     * fraction_y * (1 - fraction_x) * fraction_z + \
+                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * (left + 1) + forward] \
+                     * fraction_y * fraction_x * (1 - fraction_z) + \
+                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * (left + 1) + (forward + 1)] \
+                     * fraction_y * fraction_x * fraction_z
             output = output.reshape(grids.shape)
 
         return output
@@ -173,7 +187,6 @@ class GridRotationLayer(lasagne.layers.Layer):
 
     @staticmethod
     def _translation_vector():
-        # TODO: make min and max dependent on the molecule being translated
         min = T.constant(-2.5, 'min_translation', dtype=floatX)
         max = T.constant(2.5, 'max_translation', dtype=floatX)
         random_streams = T.shared_randomstreams.RandomStreams()
