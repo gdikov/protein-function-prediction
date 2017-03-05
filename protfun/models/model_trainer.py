@@ -22,8 +22,44 @@ log.basicConfig(level=logging.DEBUG)
 
 
 class ModelTrainer(object):
-    def __init__(self, model, data_feeder, checkpoint_frequency=1,
-                 first_epoch=0):
+    """
+    ModelTrainer is responsible for the training & testing of a model. It supervises the training
+    procedure, saves information about the training into files and can also validate & test
+    a trained model in the end.
+
+    It takes a data feeder as an argument in the constructor, and then fetches mini-batches from the
+    data feeder during each training iteration and forwards them to the model under training.
+    The model to be trained is provided as a parameter to the constructor of the model trainer.
+
+    Usage::
+        >>> model = GridsDisjointClassifier(...)
+        >>> feeder = EnzymesGridFeeder(...)
+        >>> trainer = ModelTrainer(model=model, data_feeder=feeder)
+        >>> # train the model
+        >>> trainer.train(epochs=1000)
+        >>> # test the model performance
+        >>> trainer.test()
+
+    """
+
+    def __init__(self, model, data_feeder, checkpoint_frequency=1, first_epoch=0):
+        """
+        On initialization, the ModelTrainer will check if there is previous training history for
+        the current model (based on its unique name), and if so will load it and continue from
+        there. Otherwise it will start from scratch.
+
+        IMPORTANT: in the case of continued training, the user is required to load the model weights
+        into the model himself. The ModelTrainer will only load the training history so far, but
+        not the checkpointed model weights.
+
+        :param model: the model to be trained (supervised)
+        :param data_feeder: a data feeder that can provide the minibatches from the training, test
+            or validation set.
+        :param checkpoint_frequency: specifies the frequency (in terms of epochs) for model
+            validation and checkpointing of trained weights.
+        :param first_epoch: in case the training was interrupted, one can tell the trainer from
+            which epoch it should start.
+        """
         self.model = model
         self.data_feeder = data_feeder
         self.checkpoint_frequency = checkpoint_frequency
@@ -51,6 +87,16 @@ class ModelTrainer(object):
                             'time_epoch': list()}
 
     def train(self, epochs=100):
+        """
+        Train the model for that many epochs, on the training set.
+        Under the model's directory, the ModelTrainer also saves:
+            * the current train / val / test split information
+            * a diagram of the neural network architecture of the model
+            * continuously saves the training history (diagram and .pickle) for the trained model.
+            * continuously saves the best model weights determined during training
+
+        :param epochs: for how many epochs to train.
+        """
         try:
             log.info("Training model {}".format(self.model.get_name()))
             save_pickle(file_path=[os.path.join(self.monitor.get_model_dir(),
@@ -75,11 +121,14 @@ class ModelTrainer(object):
         used_proteins = set()
         steps_before_validate = 0
 
+        # iterate over epochs
         for e in xrange(self.first_epoch, self.first_epoch + epochs):
             log.info("Unique proteins used during training so far: {}".format(
                 len(used_proteins)))
             epoch_losses = []
             epoch_accs = []
+
+            # iterate over minibatches (via the data_feeder)
             for proteins, inputs in self.data_feeder.iterate_train_data():
                 output = self.model.train_function(*inputs)
                 loss = output['loss']
@@ -90,6 +139,7 @@ class ModelTrainer(object):
                 # this can be enabled to profile the forward pass
                 # self.model.train_function.profile.print_summary()
 
+                # save history information
                 epoch_losses.append(loss)
                 epoch_accs.append(accuracy)
                 self.history['train_loss'].append(loss)
@@ -106,7 +156,7 @@ class ModelTrainer(object):
                                                                             epoch_loss_means,
                                                                             epoch_acc_means))
 
-            # validate the model
+            # validate the model, save model weights if a new best accuracy was achieved
             if e % self.checkpoint_frequency == self.checkpoint_frequency - 1:
                 self.validate(steps_before_validate, e)
                 self.monitor.save_train_history(self.history, e, False,
@@ -118,6 +168,14 @@ class ModelTrainer(object):
                 progress.save()
 
     def validate(self, steps_before_validate, epoch):
+        """
+        Validate the perfomance of the model currently under training, on the validation set.
+        Saves the model parameters in case a new best accuracy score was reached.
+        Meant to be used in self.train(), but could be called separately if required.
+
+        :param steps_before_validate: how many minibatches have passed since the last validation.
+        :param epoch: current epoch
+        """
         val_loss_means, val_acc_means, val_per_class_accs_means, val_predictions, val_targets, _ = self._test(
             mode='val')
         self.history['val_loss'] += [val_loss_means] * steps_before_validate
@@ -126,19 +184,37 @@ class ModelTrainer(object):
                                                   val_per_class_accs_means] * steps_before_validate
         self.history['val_predictions'].append(val_predictions)
         self.history['val_targets'].append(val_targets)
-        # save parameters if an improvement is observed
+
+        # save parameters if an improvement in accuracy observed
         if np.alltrue(val_acc_means > self.current_max_val_acc):
             self.current_max_val_acc = val_acc_means
             self.monitor.save_model(epoch, "meanvalacc{0}".format(
                 pp_array(self.current_max_val_acc)))
 
     def test(self):
+        """
+        Test the overall performance of the model on the test set.
+        Returns detail information about the:
+            * mean loss over the test set
+            * mean accuracy over the test set
+            * mean per class accuracy over the test set
+            * predictions for the test set
+            * targets (ground truths) corresponding to the predictions
+            * protein codes of the proteins that were tested
+
+        :return: loss_means, accuracy_means, per_class_accs_means,
+                 predictions, targets, proteins
+        """
         log.warning(
             "You are testing a model with the secret test set! " +
             "You are not allowed to change the model after seeing the results!!! ")
         return self._test(mode='test')
 
     def _test(self, mode='test'):
+        """
+        Private method, does one iteration over either the validation or test set (controlled by
+        mode) and tests the model performance.
+        """
         if mode == 'test':
             log.info("Testing model...")
             data_iter_function = self.data_feeder.iterate_test_data
@@ -170,14 +246,19 @@ class ModelTrainer(object):
 
         epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
         epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
-        epoch_per_class_accs_means = np.mean(np.array(epoch_per_class_accs),
-                                             axis=0)
+        epoch_per_class_accs_means = np.mean(np.array(epoch_per_class_accs), axis=0)
         log.info(
-            "{0}: loss mean: {1} acc mean: {2}".format(mode, epoch_loss_means,
-                                                       epoch_acc_means))
+            "{0}: loss mean: {1} acc mean: {2}".format(mode, epoch_loss_means, epoch_acc_means))
         return epoch_loss_means, epoch_acc_means, epoch_per_class_accs_means, epoch_predictions, epoch_targets, proteins
 
     def get_test_hidden_activations(self):
+        """
+        Get example activations of all hidden layers in the current model by running a forward
+        pass on a single mini-batch from the test set.
+
+        :return: protein codes, targets (ground truths), activations, predictions
+            for the single mini-batch from the test set that was used.
+        """
         for prots, inputs in self.data_feeder.iterate_test_data():
             # do just a single minibatch
             output = self.model.get_hidden_activations(inputs[0])
@@ -185,6 +266,16 @@ class ModelTrainer(object):
 
 
 def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0):
+    """
+    Helper function, that constructs a GridsDisjointClassifer model given a config, and constructs
+    the respective EnzymesGridFeeder (provides the minibatches from the train / test / val. sets)
+    and the ModelTrainer that will be used to train the model.
+
+    :param config: the contents of a config.yaml that specifies all the details around the model.
+    :param model_name: if left out, a unique name will be given to the model.
+    :param start_epoch: default is 0, can be set to something else if a training is being continued.
+    :return: data_feeder, model, model_trainer
+    """
     data_feeder = EnzymesGridFeeder(data_dir=config['data']['dir'],
                                     minibatch_size=config['training'][
                                         'minibatch_size'],
@@ -224,11 +315,20 @@ def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0):
 
 
 def train_enz_from_grids(config, model_name=None, start_epoch=0):
-    _, _, trainer = _build_enz_feeder_model_trainer(config,
-                                                    model_name=model_name,
+    """
+    Utility function to train a GridsDisjointClassifier model on the train set, consisting of
+    already precomputed electron density grids. The model need not exist, but if it does exist
+    the model trainer will try to load the previous training history and continue (without loading
+    any checkpointed parameters, though - this is left to the user).
+
+    :param config: the contents of a config.yaml, specifying the details for the training
+    :param model_name: can be left out, then a unique name will be given to the newly trained model
+    :param start_epoch: default is 0; can be set to something else in case a previous training must
+        be continued.
+    """
+    _, _, trainer = _build_enz_feeder_model_trainer(config, model_name=model_name,
                                                     start_epoch=start_epoch)
-    save_config(config,
-                os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
+    save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
     if start_epoch != 0:
         trainer.monitor.load_model("params_{}ep_best.npz".format(start_epoch),
                                    network=trainer.model.get_output_layers())
@@ -236,6 +336,20 @@ def train_enz_from_grids(config, model_name=None, start_epoch=0):
 
 
 def test_enz_from_grids(config, model_name, params_file, mode='test'):
+    """
+    Utility function to test a GridsDisjointClassifer model on the test (or optionally validation)
+    set. The model must already exist (and must have been trained).
+
+    The function also saves the predictions, targets and protein codes resulting from the testing
+    into pickles (under the model directory).
+
+    :param config: the contents of config.yaml for the model. Must match the configuration with
+        which the model was originally trained.
+    :param model_name: name of the model (should be unique)
+    :param params_file: file with parameter weights (from a previous training) that should be
+        loaded into the model before it gets tested.
+    :param mode: whether to test on the test set ('test') or validation set ('val')
+    """
     _, model, trainer = _build_enz_feeder_model_trainer(config,
                                                         model_name=model_name)
     trainer.monitor.load_model(params_filename=params_file,
@@ -262,6 +376,19 @@ def test_enz_from_grids(config, model_name, params_file, mode='test'):
 
 
 def get_hidden_activations(config, model_name, params_file):
+    """
+    Utility function to get the hidden activations of the hidden layers in a GridsDisjointClassifier
+    model. The model must have already been trained. The hidden activations are produced for a
+    single minibatch from the test set.
+
+    :param config: the contents of config.yaml for the model. Must match the configuration with
+        which the model was originally trained.
+    :param model_name: name of the model (should be unique)
+    :param params_file: file with parameter weights (from a previous training) that should be
+        loaded into the model before the hidden activations are extracted.
+    :return: protein codes, targets (ground truths), activations, predictions
+        for the single mini-batch from the test set that was used to get the hidden activations.
+    """
     _, model, trainer = _build_enz_feeder_model_trainer(config,
                                                         model_name=model_name)
     trainer.monitor.load_model(params_filename=params_file,
