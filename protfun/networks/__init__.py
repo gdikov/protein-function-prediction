@@ -20,4 +20,10 @@ networks = {
 
 
 def get_network(network_name):
+    """
+    get_network returns a network function given a network name.
+
+    :param network_name: the name of the requested network
+    :return: the network function
+    """
     return networks[network_name]
