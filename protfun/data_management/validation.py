@@ -6,15 +6,31 @@ from glob import glob
 
 
 class EnzymeValidator(object):
+    """
+    EnzymeValidator has the task to validate the correctness and completeness of the essential data management steps,
+    e.g. downloading and splitting. This should help finding bugs.
+    """
     def __init__(self, enz_classes=None, dirs=None):
         self.enzyme_classes = enz_classes
         self.dirs = dirs
 
     def check_naming(self, classes):
+        """
+        checks if the EC classes listed comply with the naming convention, e.g. 1.1.1.1
+
+        :param classes: a list of the EC classes
+        :return:
+        """
         return sum([not bool(re.compile(r'[^0-9.]').search(cls)) for cls in
                     classes]) == len(classes)
 
+
     def check_downloaded_codes(self):
+        """
+        verifies if the to-be-downloaded proteins have actually been downloaded
+
+        :return: a tuple of a list of the missing protein codes, the number of successfully downloaded and failed.
+        """
         log.info("Checking downloaded proteins")
         num_errors = 0
         raw_pdb_files = [ntpath.basename(y) for x in
@@ -59,8 +75,18 @@ class EnzymeValidator(object):
 
         return missing_enzymes, successful, failed
 
+
     def check_class_representation(self, data_dict, clean_dict=True,
                                    clean_duplicates=True):
+        """
+        checks if there are classes with no proteins inside and removes them from the list of all classes.
+        removes proteins from two different classes so that they do not end up in train and test sets after splitting.
+
+        :param data_dict: the main data dictionary
+        :param clean_dict: a flag whether the dictionary should be cleaned from empty classes
+        :param clean_duplicates: a flag whether the dictionry should be cleaned from duplicates
+        :return:
+        """
         bad_keys = []
         duplicates = set()
         checked_classes = set()
@@ -87,7 +113,16 @@ class EnzymeValidator(object):
                 if k in bad_keys:
                     del data_dict[k]
 
+
     def check_splitting(self, all_proteins, first_partition, second_partition):
+        """
+        checks if the splits are disjoint and complete, i.e. their union amounts to the whole dataset
+
+        :param all_proteins: the data dict of all proteins that has been split
+        :param first_partition: the first data partition
+        :param second_partition: the second data partition
+        :return:
+        """
         # log.info("Checking the data splits for consistency and completeness")
         # leaf_classes = [x for x in os.listdir(self.dirs['data_processed']) if x.endswith('.proteins')]
         for cls in all_proteins.keys():
@@ -114,7 +149,16 @@ class EnzymeValidator(object):
                    set(
                        all_prot_codes_in_cls), "The splits are not a partition of all proteins!"
 
+
     def check_labels(self, train_labels=None, val_labels=None,
                      test_lables=None):
+        """
+        tests whether the labels are correctly generated. Not sure how though...
+
+        :param train_labels: training set labels
+        :param val_labels: validation set labels
+        :param test_lables: test set labels
+        :return:
+        """
         log.warning("Label checking is not implemented yet")
         pass
