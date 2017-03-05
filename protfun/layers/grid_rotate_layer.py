@@ -56,11 +56,10 @@ class GridRotationLayer(lasagne.layers.Layer):
         # The first grid contains the X coordinate of each point at the location of the point.
         # The second grid contains the Y coordinate of each point at the location of the point.
         # The third grid contains the Z coordinate of each point at the location of the point.
-        indices_grids = T.as_tensor_variable(
-            np.indices((width, height, depth), dtype=floatX),
-            name="grid_indices")
+        indices_grids = T.as_tensor_variable(np.indices((width, height, depth), dtype=floatX),
+                                             name="grid_indices")
 
-        # Translate
+        # Translate:
         # the translation vector will be broad-casted:
         # t_x will be added to all values in the first indices grid
         # t_y will be added to all values in the second indices grid
@@ -68,18 +67,17 @@ class GridRotationLayer(lasagne.layers.Layer):
         # resulting in a translation in the direction of translation_vector
         indices_grids = T.add(indices_grids, self._translation_vector())
 
-        # Rotate
+        # Rotate:
         # the origin is just the center point in the grid
-        origin = T.as_tensor_variable(
-            np.array((width // 2, height // 2, depth // 2),
-                     dtype=floatX).reshape((3, 1, 1, 1)), name='origin')
+        origin = T.as_tensor_variable(np.array((width // 2, height // 2, depth // 2),
+                                               dtype=floatX).reshape((3, 1, 1, 1)), name='origin')
         # We first center all indices, just as in the translation above
         indices_grids = T.sub(indices_grids, origin)
 
         # T.tensordot is a generalized version of a dot product.
         # The axes parameter is of length 2, and it gives the axis for each of the two tensors
         # passed, over which the summation will occur. Of course, those two axis need to be of the
-        # same dimension. Just like in standard matrix multiplication, just generalized.
+        # same dimension.
         # Here we have a (3 x 3) matrix <dot product> (3, width, height, depth) grid, and the
         # summation happens over the first axis (index 0). The result is of size
         # (3 x width x height x depth) and contains again 3 train_grids of this time
@@ -147,19 +145,26 @@ class GridRotationLayer(lasagne.layers.Layer):
             # of the 8 possible directions in 3D
             output = flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * left + forward] \
                      * (1 - fraction_y) * (1 - fraction_x) * (1 - fraction_z) + \
-                     flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * left + (forward + 1)] \
+                     flat_grids[:, :,
+                     self.grid_side ** 2 * top + self.grid_side * left + (forward + 1)] \
                      * (1 - fraction_y) * (1 - fraction_x) * fraction_z + \
-                     flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * (left + 1) + forward] \
+                     flat_grids[:, :,
+                     self.grid_side ** 2 * top + self.grid_side * (left + 1) + forward] \
                      * (1 - fraction_y) * fraction_x * (1 - fraction_z) + \
-                     flat_grids[:, :, self.grid_side ** 2 * top + self.grid_side * (left + 1) + (forward + 1)] \
+                     flat_grids[:, :,
+                     self.grid_side ** 2 * top + self.grid_side * (left + 1) + (forward + 1)] \
                      * (1 - fraction_y) * fraction_x * fraction_z + \
-                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * left + forward] \
+                     flat_grids[:, :,
+                     self.grid_side ** 2 * (top + 1) + self.grid_side * left + forward] \
                      * fraction_y * (1 - fraction_x) * (1 - fraction_z) + \
-                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * left + (forward + 1)] \
+                     flat_grids[:, :,
+                     self.grid_side ** 2 * (top + 1) + self.grid_side * left + (forward + 1)] \
                      * fraction_y * (1 - fraction_x) * fraction_z + \
-                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * (left + 1) + forward] \
+                     flat_grids[:, :,
+                     self.grid_side ** 2 * (top + 1) + self.grid_side * (left + 1) + forward] \
                      * fraction_y * fraction_x * (1 - fraction_z) + \
-                     flat_grids[:, :, self.grid_side ** 2 * (top + 1) + self.grid_side * (left + 1) + (forward + 1)] \
+                     flat_grids[:, :,
+                     self.grid_side ** 2 * (top + 1) + self.grid_side * (left + 1) + (forward + 1)] \
                      * fraction_y * fraction_x * fraction_z
             output = output.reshape(grids.shape)
 
@@ -190,19 +195,26 @@ class GridRotationLayer(lasagne.layers.Layer):
         min = T.constant(-2.5, 'min_translation', dtype=floatX)
         max = T.constant(2.5, 'max_translation', dtype=floatX)
         random_streams = T.shared_randomstreams.RandomStreams()
-        rand01 = random_streams.uniform((3, 1, 1, 1),
-                                        dtype=floatX)  # unifom random in open interval ]0;1[
+
+        # unifom random in open interval ]0;1[
+        rand01 = random_streams.uniform((3, 1, 1, 1), dtype=floatX)
         rand_translation = T.add(T.mul(rand01 * T.sub(max, min)), min)
         return rand_translation
 
 
 if __name__ == "__main__":
+    """
+    A quick test of the grid rotation layer.
+    The rotations are visualized using the MoleculeView.
+    """
     from protfun.visualizer.molview import MoleculeView
 
+    # set those directories to something meaningful in your environment
     data_dir = "/home/valor/workspace/DLCV_ProtFun/data/full/processed_single_64/1A0H"
     grid_file = "/home/valor/workspace/DLCV_ProtFun/data/full/processed_single_64/1A0H/grid.memmap"
-    test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape(
-        (1, 2, 64, 64, 64))
+
+    # visualize the original grid
+    test_grid = np.memmap(grid_file, mode='r', dtype=floatX).reshape((1, 2, 64, 64, 64))
     log.debug(test_grid.shape)
     viewer = MoleculeView(data_dir=data_dir, data={"potential": test_grid[0, 1],
                                                    "density": test_grid[0, 1]},
@@ -210,18 +222,19 @@ if __name__ == "__main__":
     viewer.density3d()
     grid_side = test_grid.shape[3]
 
+    # initialize the rotation layer
     input_grid = T.TensorType(floatX, (False,) * 5)()
-    input_layer = lasagne.layers.InputLayer(
-        shape=(1, 2, grid_side, grid_side, grid_side), input_var=input_grid)
+    input_layer = lasagne.layers.InputLayer(shape=(1, 2, grid_side, grid_side, grid_side),
+                                            input_var=input_grid)
     rotate_layer = GridRotationLayer(incoming=input_layer, grid_side=grid_side,
-                                     n_channels=2, interpolation='linear')
+                                     n_channels=2, interpolation='nearest')
 
+    # create a small function to test the rotation layer
     func = theano.function(inputs=[input_grid],
                            outputs=lasagne.layers.get_output(rotate_layer))
 
-    log.info("compiled rotation layer")
+    # show 10 different rotations of the test grid
     import time
-
     for i in range(0, 10):
         start = time.time()
         rotated_grid = func(test_grid)
