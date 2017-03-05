@@ -80,7 +80,6 @@ class EnzymeDataProcessor(DataProcessor):
             # skip if we know this protein cannot be processed
             if pc in invalid_codes:
                 continue
-            pc = '1URK'
             prot_dir = os.path.join(self.target_dir, pc.upper())
             f_path = os.path.join(self.from_dir, pc.upper(),
                                   'pdb' + pc.lower() + '.ent')
