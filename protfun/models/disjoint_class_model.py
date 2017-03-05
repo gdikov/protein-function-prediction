@@ -151,15 +151,17 @@ class MemmapsDisjointClassifier(DisjointClassModel):
             minibatch_size=self.minibatch_size, rotate=True)
 
         # apply the network to the preprocessed input
-        self.output_layers = network(grids, n_outputs=n_classes,
-                                     last_nonlinearity=lasagne.nonlinearities.sigmoid)
+        self.output_layers, self.penalty = network(grids, n_outputs=n_classes,
+                                                   last_nonlinearity=lasagne.nonlinearities.sigmoid)
         self.define_forward_pass(input_vars=[coords, vdwradii, n_atoms],
-                                 output_layer=self.output_layers)
+                                 output_layer=self.output_layers,
+                                 penalty=self.penalty)
 
 
 class GridsDisjointClassifier(DisjointClassModel):
     """
     GridsDisjointClassifier extends the DisjointClassModel.
+    It allows for a sample to be in multiple classes at once.
     It uses the GridRotationLayer to **only rotate** the already computed electron density grids,
     i.e. it does require the electron densities as input and does not compute them on the fly.
     Thus this model is very efficient.
@@ -170,7 +172,6 @@ class GridsDisjointClassifier(DisjointClassModel):
     def __init__(self, name, n_classes, network, grid_size, n_channels, minibatch_size,
                  learning_rate=1e-4):
         """
-
         :param name: name of the model, used by external mechanisms for saving training history etc.
         :param n_classes: total number of different classes for the classification.
         :param network: neural network function which should be applied on the input variables
