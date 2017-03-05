@@ -7,6 +7,15 @@ def save_pickle(file_path, data):
     """
     Saves a pickle with the provided data.
 
+    Usage::
+        >>> # single save
+        >>> train_prot_codes = dict()
+        >>> save_pickle("data/train_prot_codes.pickle", train_prot_codes)
+
+        >>> # multi save
+        >>> train_prot_codes, test_prot_codes = dict(), dict()
+        >>> save_pickle(["data/train_prot_codes.pickle", "data/test_prot_codes.pickle"],
+        >>>             [train_prot_codes, test_prot_codes])
     :param file_path: path (or paths) of the file(s) to be saved
     :param data: data object (or list of data objects) that will be saved
     :raises: ValueError if the number of paths and data objects do not match
@@ -29,6 +38,13 @@ def load_pickle(file_path):
     """
     Loads data from saved pickle files.
 
+    Usage::
+        >>> # single load
+        >>> traing_prot_codes = load_pickle("data/train_prot_codes.pickle")
+
+        >>> # multi load
+        >>> train_prot_codes, test_prot_codes = load_pickle(["data/train_prot_codes.pickle",
+        >>>                                                  "data/test_prot_codes.pickle"])
     :param file_path: path (or list of paths) to the files to load data from
     :return: the loaded data objects
     """
@@ -63,12 +79,22 @@ def construct_hierarchical_tree(data_dict, prediction_depth=4):
     with keys on the specified depth by aggregating all the leaves' proteins
     bottom up.
 
+    Usage::
+        >>> data_dict = {'3.4.21.8': ['1A08', '1A09'],
+        >>>              '3.4.21.10': ['2A08', '2A09'],
+        >>>              '3.4.24.2': ['3A08', '3A09'],
+        >>>              }
+        >>> level_3_tree = construct_hierarchical_tree(data_dict, prediction_depth=3)
+        >>> # level_3_tree == {'3.4.21': ['1A08', '1A09', '2A08', '2A09'],
+        >>> #                  '3.4.21': ['3A08', '3A09']}
+
     :param data_dict: dictionary with keys given by the maximal depth leaves of
     the EC2PDB hierarchy, and values the respective protein codes.
     :param prediction_depth: desired prediction depth
     :return: dictionary with keys given by the classes at the desired depth, and
     values the (aggregated) proteins corresponding to those keys.
     """
+
     def merge_prots(subpath, is_leaf):
         merged = []
         if not is_leaf:
@@ -83,7 +109,9 @@ def construct_hierarchical_tree(data_dict, prediction_depth=4):
 
     keys_at_max_hdepth = set(
         ['.'.join(x.split('.')[:prediction_depth]) for x in data_dict.keys()])
+
     tree_at_max_hdepth = {key: merge_prots(key, is_leaf=False)
     if prediction_depth < 4 else merge_prots(key, is_leaf=True)
                           for key in keys_at_max_hdepth}
+
     return tree_at_max_hdepth
