@@ -12,15 +12,23 @@ from protfun.utils import save_pickle, load_pickle, construct_hierarchical_tree
 
 
 class DataManager(object):
+    """
+    DataManager is a parent class for EnzymeDataManager which stores all data directories and implements
+    a *naive* split strategy described below.
+    """
     __metaclass__ = abc.ABCMeta
-    """
-    The data management cycle is: [[download] -> [preprocess] -> [split test/train]] -> provide
-    Each datatype has its own _fetcher and _preprocessor
-    """
 
     def __init__(self, data_dir,
                  force_download=False, force_process=False, force_split=False,
                  percentage_test=10, percentage_val=20):
+        """
+        :param data_dit: the path to the root data directory
+        :param force_download: forces the downloading of the enzymes
+        :param force_process: forces the pre-processing steps
+        :param force_split: forces the splitting of the data into training ,validation and test sets
+        :param percentage_test: the portion in % of the test data
+        :param percentage_val: the portion in % of the validation data
+        """
         self.force_download = force_download
         self.force_process = force_process or force_download
         self.force_split = force_split or force_process or force_download
@@ -53,6 +61,17 @@ class DataManager(object):
 
     @staticmethod
     def split_data_on_level(data_dict, percentage, level=3):
+        """
+        performs a *naive* split, i.e. splitting proteins codes within a leaf-node from the
+        hierarchical category tree, or a *semi-naive* split when spliting on a higher level node.
+        In the latter case, the proteins within all sublevels of a higher-level node are merged
+        into a pool of protein codes and then split according to the percentage value.
+
+        :param data_dict: a dictionary with keys categories and value per key - list of pdb codes
+        :param percentage: the portion of the data in % that should be put into the first split
+        :param level: the hierarchical tree depth level on which the split is made.
+        :return: a tuple of the two splits as data dictionaries
+        """
         if not 0 <= percentage <= 100:
             log.error("Bad percentage number. Must be in [0, 100]")
             raise ValueError
@@ -101,37 +120,15 @@ class DataManager(object):
 
         return first_data_dict, second_data_dict
 
-    @staticmethod
-    # TODO: maybe this function is redundant. Refactor using construct_hierarchical_tree from data_utils if possibel
-    def split_data_on_sublevel(data_dict, percentage, hierarchical_depth):
-        import itertools
-        first_data_dict = dict()
-        second_data_dict = dict()
-
-        target_classes = set(
-            ['.'.join(cls.split('.')[:hierarchical_depth]) for cls in
-             data_dict])
-
-        for target_cls in target_classes:
-            children = [(cls, enzymes) for cls, enzymes in data_dict.items() if
-                        cls.startswith(target_cls + '.')]
-            target_cls_prots = set(
-                itertools.chain.from_iterable(zip(*children)[1]))
-            required_count = ((100 - percentage) * len(target_cls_prots)) // 100
-            sorted_children = sorted(children, key=lambda x: len(x[1]),
-                                     reverse=True)
-            collected_so_far = set()
-            for cls, enzymes in sorted_children:
-                if len(collected_so_far) < required_count:
-                    collected_so_far |= set(enzymes)
-                    second_data_dict[cls] = enzymes
-                else:
-                    first_data_dict[cls] = enzymes
-
-        return first_data_dict, second_data_dict
 
     @staticmethod
     def merge_data(data=None):
+        """
+        merges two or more data dictionaries into a single one.
+
+        :param data: a list of data dictionaries with key - EC-class and value - list of protein codes.
+        :return: a single data dictionary (a union over the input dictionaries)
+        """
         if isinstance(data, list):
             all_keys = set(sum([d.keys() for d in data], []))
             merged_data_dict = {k: [] for k in all_keys}
@@ -149,6 +146,13 @@ class DataManager(object):
 
 
 class EnzymeDataManager(DataManager):
+    """
+    EnzymeDataManager inherits from DataManager the *naive* and *sami-naive* splitting method and implements
+    the essential management processes, required for the EnzymeCategory and ProteinDataBank
+    data maintenance. Roughly the management pipeline can be described as:
+        [download] -> [pre-process] -> [split test/train] -> provide
+    where [.] designates a step that can be omitted if already done.
+    """
     def __init__(self, data_dir,
                  force_download=False, force_memmaps=False,
                  force_grids=False, force_split=False,
@@ -156,6 +160,17 @@ class EnzymeDataManager(DataManager):
                  hierarchical_depth=4,
                  percentage_test=30,
                  percentage_val=30):
+        """
+        :param data_dir: the path to the root data directory
+        :param force_download: forces the downloading of the protein pdb files should be done
+        :param force_memmaps: forces the memmapping of protein data, i.e. vdw-radii, atom coords. and charges
+        :param force_grids: forces the 3D maps of electron density and potential generation
+        :param force_split: forces the splitting into train/val/test sets
+        :param enzyme_classes: a subset of EC given by a list of only those classes that should be considered
+        :param hierarchical_depth: the maximal depth of prediction
+        :param percentage_test: the portion of the data in % for the test set
+        :param percentage_val: the portion of the data in % for the validation set
+        """
         super(EnzymeDataManager, self).__init__(data_dir=data_dir,
                                                 force_download=force_download,
                                                 force_process=force_memmaps or force_grids,
@@ -172,6 +187,10 @@ class EnzymeDataManager(DataManager):
         self._setup_enzyme_data()
 
     def _setup_enzyme_data(self):
+        """
+        performs the abovementioned steps in the data management cycle.
+        :return:
+        """
         if self.enzyme_classes is None or not self.validator.check_naming(
                 self.enzyme_classes):
             log.error("Unknown enzyme classes")
@@ -315,7 +334,17 @@ class EnzymeDataManager(DataManager):
         self.validator.check_labels(self.train_labels, self.val_labels,
                                     self.test_labels)
 
+
     def _select_enzymes(self, dataset):
+        """
+        Extracts a subset of a data dictionary according to the enzyme classes of interest.
+        E.g. if the data dictionary contains the whole database and in the new experiment only a subset is needed,
+        in order not to download, process and split the data again, a subset is extracted from the existing data.
+
+        :param dataset: a data dictionary with keys the enzyme classes and values
+        - lists of protein codes for each class
+        :return: the subset of this data dictionary
+        """
         filtered_set = dict()
         for cls, enzymes in dataset.items():
             if any([cls.startswith(enzyme_cls + '.') for enzyme_cls in
@@ -323,11 +352,21 @@ class EnzymeDataManager(DataManager):
                 filtered_set[cls] = enzymes
         return filtered_set
 
+
     def _remove_failed_downloads(self, failed=None):
+        """
+        Deprecated. It was meant to clean-up the list of all fetched proteins after the download is completed.
+        This was necessary since the list of all proteins was generated from the EC database and the proteins
+        were downloaded from the PDB database, hence some proteins might be taken into account by fail to download.
+
+        :param failed: the list of all failed-to-download protein codes
+        :return:
+        """
         # here the protein codes are stored in a dict according to their classes
         for cls in failed.keys():
             self.all_proteins[cls] = list(
                 set(self.all_proteins[cls]) - set(failed[cls]))
+
 
     def get_training_set(self):
         return self.train_dataset, self.train_labels
@@ -338,7 +377,16 @@ class EnzymeDataManager(DataManager):
     def get_test_set(self):
         return self.test_dataset, self.test_labels
 
+
     def _copy_processed(self, target_dir, proteins_dict):
+        """
+        After the data is split, the test proteins are moved to a separate directory so that they do not interfere
+        with the training and validation proteins. This method copies the proteins from one directory to another.
+
+        :param target_dir: the target directory to which proteins are copied
+        :param proteins_dict: the source directory from which proteins are copied
+        :return:
+        """
         src_dir = self.dirs["data_processed"]
         for prot_codes in proteins_dict.values():
             for prot_code in prot_codes:
@@ -347,8 +395,17 @@ class EnzymeDataManager(DataManager):
                 os.path.join(target_dir, ".")))
                 log.info("Copied {0} to {1}".format(prot_code, target_dir))
 
+
     @staticmethod
     def _save_enzyme_list(target_dir, proteins_dict):
+        """
+        Logger of the list of proteins, so that directories are not walked later when a list of all proteins in test
+        or training set is needed.
+
+        :param target_dir: the directory in which the lists should be stored
+        :param proteins_dict: the data dictionary of protein classes and list of corresponding codes.
+        :return:
+        """
         for cls, prot_codes in proteins_dict.items():
             with open(os.path.join(target_dir, cls + '.proteins'),
                       mode='w') as f:
