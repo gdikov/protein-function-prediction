@@ -10,14 +10,16 @@ def standard_network(input, n_outputs, last_nonlinearity):
 
     Usage::
         >>> import theano.tensor as T
+        >>> from lasagne.layers import InputLayer
         >>> from lasagne.nonlinearities import sigmoid
         >>>
         >>> inputs = T.tensor4("inputs")
+        >>> input_layer = InputLayer(input_var=inputs, shape=(None, 2, 32, 32, 32))
         >>> n_classes = 2
         >>> # apply the network
-        >>> output_layer, l2_terms = standard_network(inputs, n_classes, sigmoid)
+        >>> output_layer, l2_terms = dense_network(input_layer, n_classes, sigmoid)
 
-    :param input: a theano variable for the overall network input
+    :param input: a lasagne layer, on top of which the network is applied
     :param n_outputs: number of output units in the last layer
     :param last_nonlinearity: what the non-linearity in the last layer should be
     :return: the last lasagne layer of the network, and L2 regularization terms
