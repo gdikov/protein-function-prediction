@@ -19,7 +19,7 @@ def heavy_regularized_net(input, n_outputs, last_nonlinearity):
     # end each branch with a softmax
     output = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
                                        nonlinearity=last_nonlinearity)
-    return output
+    return output, 0
 
 
 def add_shallow_conv_maxpool(network):

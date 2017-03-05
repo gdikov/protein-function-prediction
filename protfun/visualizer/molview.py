@@ -6,8 +6,9 @@ import colorlog as log
 class MoleculeView(object):
     """
      Parameters:
-        - data : a dictionary with keys "density" and "potential" containing 3-dimensional numpy arrays
-         with the molecule's electron density and electron potential distribution.
+        - data : a dictionary with keys "density" and "potential" containing
+        3-dimensional numpy arrays with the molecule's electron density and
+        electron potential distribution.
         - info : a dictionary with keys "id", "name" (and more).
     """
 
@@ -26,12 +27,11 @@ class MoleculeView(object):
 
     def density3d(self, plot_params=None, export_figure=True):
         """
-        Create a 3D interactive plot and export images of molecule's electron density.
+        Plots a scalar field of the 3D electron density.
 
-        Input:
-            - plot_params : a dictionary with keys "xmin", "xmax", "ymin", "ymax", "zmin", "zmax"
-                containing the boundaries of the plot in units of length.
-            - export_figure : boolean to tell whether to export images from the generated figure.
+        :param plot_params: e.g. {"minmax_ratio": 0.3}
+        :param export_figure: boolean to tell whether to export images from the
+            generated figure.
         """
         from mayavi import mlab
 
@@ -44,20 +44,26 @@ class MoleculeView(object):
         min = density.min()
         max = density.max()
 
-        mlab.pipeline.volume(grid, vmin=min, vmax=min + plot_params["mimax_ratio"] * (max - min))
+        mlab.pipeline.volume(grid,
+                             vmin=min,
+                             vmax=min + plot_params["mimax_ratio"] * (max - min))
 
         mlab.axes()
         if export_figure:
-            mlab.savefig(filename=os.path.join(self.figures_dir, "{0}_elden3d.png".format(self.molecule_name)))
+            mlab.savefig(filename=os.path.join(self.figures_dir,
+                                               "{0}_elden3d.png".format(self.molecule_name)))
 
         mlab.show()
 
     def density2d(self, plot_params=None, export_figure=True):
         """
-        Create a 2D interactive plot and export images of molecule's electron density.
+        Creates a series of 2D slices representing the 3D density of a molecule.
 
-        Input:
-            - export_figure : boolean to tell whether to export images from the generated figure.
+        :param plot_params: parameters for the plot, e.g.:
+            {"im_shape": (3, 3),
+            "orientation": "z"}
+        :param export_figure: boolean, whether to save an image or not.
+        :raises ValueError if the specified orientation is incorrect.
         """
         if plot_params is None:
             # use default:
@@ -75,30 +81,37 @@ class MoleculeView(object):
         min = density.min()
         max = density.max()
         if plot_params["orientation"] == "z":
-            for ax, slice, index in zip(axs.flat, density[::(density.shape[2] / n_slices), :, :], xrange(n_slices)):
+            for ax, slice, index in zip(axs.flat,
+                                        density[::(density.shape[2] / n_slices), :, :],
+                                        xrange(n_slices)):
                 im = ax.imshow(slice,
                                interpolation="nearest",
-                               vmin=min, vmax=max)
+                               vmin=min,
+                               vmax=max)
                 ax.set_title("z {0}".format(index + 1), fontsize=10)
                 ax.get_xaxis().set_ticks([])
                 ax.get_yaxis().set_ticks([])
                 ax.set_aspect('equal')
 
         elif plot_params["orientation"] == "y":
-            for ax, slice, index in zip(axs.flat, density[:, ::(density.shape[1] / n_slices), :], xrange(n_slices)):
+            for ax, slice, index in zip(axs.flat, density[:, ::(
+                        density.shape[1] / n_slices), :], xrange(n_slices)):
                 im = ax.imshow(slice,
                                interpolation="nearest",
-                               vmin=min, vmax=max)
+                               vmin=min,
+                               vmax=max)
                 ax.set_title("y {0}".format(index + 1), fontsize=10)
                 ax.get_xaxis().set_ticks([])
                 ax.get_yaxis().set_ticks([])
                 ax.set_aspect('equal')
 
         elif plot_params["orientation"] == "x":
-            for ax, slice, index in zip(axs.flat, density[:, :, ::(density.shape[0] / n_slices)], xrange(n_slices)):
+            for ax, slice, index in zip(axs.flat, density[:, :, ::(
+                        density.shape[0] / n_slices)], xrange(n_slices)):
                 im = ax.imshow(slice,
                                interpolation="nearest",
-                               vmin=min, vmax=max)
+                               vmin=min,
+                               vmax=max)
                 ax.set_title("x {0}".format(index + 1), fontsize=10)
                 ax.get_xaxis().set_ticks([])
                 ax.get_yaxis().set_ticks([])
@@ -107,25 +120,26 @@ class MoleculeView(object):
             raise ValueError('Orientation can be only "x", "y" or "z".')
 
         fig.subplots_adjust(wspace=0.1, hspace=0.35, left=0.01, right=0.92)
-        fig.suptitle('Electron Density of Molecule {0}'.format(self.molecule_name))
+        fig.suptitle(
+            'Electron Density of Molecule {0}'.format(self.molecule_name))
 
         cax = fig.add_axes([0.9, 0.1, 0.02, 0.8])
         cbar = fig.colorbar(im, cax=cax)
         cbar.set_label('Electron Density', rotation=270)
 
         if export_figure:
-            plt.savefig(filename=os.path.join(self.figures_dir, '{0}_elden2d.png'.format(self.molecule_name)))
+            plt.savefig(filename=os.path.join(self.figures_dir,
+                                              '{0}_elden2d.png'.format(self.molecule_name)))
 
         plt.show()
 
     def potential3d(self, mode='', export_figure=True):
         """
-        Create a 3D interactive plot and export images of molecule's electrostatic potential.
+        Creates a 3D interactive ESP potential plot.
 
-        Input:
-            - plot_params : a dictionary with keys "xmin", "xmax", "ymin", "ymax", "zmin", "zmax"
-                containing the boundaries of the plot in units of length.
-            - export_figure : boolean to tell whether to export images from the generated figure.
+        :param mode: mode of the plot: '', 'iso_surface', 'contour'
+        :param export_figure: boolean, whether to save an image or not
+        :raises: ValueError when the visualization mode is invalid
         """
         from mayavi import mlab
 
@@ -165,28 +179,27 @@ class MoleculeView(object):
             otf.add_point(max, 1.0)
             vol._otf = otf
             vol._volume_property.set_scalar_opacity(otf)
-
             mlab.axes()
 
         elif mode == 'iso_surface':
             source = mlab.pipeline.scalar_field(potential)
             clip = mlab.pipeline.data_set_clipper(source)
             mlab.pipeline.iso_surface(clip)
-
         elif mode == 'contour':
             n = self.electron_potential.shape[0]
             range = 100
             x, y, z = np.mgrid[-range / 2:range / 2:complex(n),
-                      -range / 2:range / 2:complex(n),
-                      -range / 2:range / 2:complex(n)]
-            mlab.contour3d(x, y, z, self.electron_potential, contours=10, opacity=0.5)
-
+                               -range / 2:range / 2:complex(n),
+                               -range / 2:range / 2:complex(n)]
+            mlab.contour3d(x, y, z, self.electron_potential,
+                           contours=10,
+                           opacity=0.5)
         else:
             log.error("The visualisation mode of the electrostatic potential"
                       " can be one of ['', 'iso_surface', 'contour']")
             raise ValueError
 
         if export_figure:
-            mlab.savefig(filename=os.path.join(self.figures_dir, '{0}_elstpot3d.png'.format(self.molecule_name)))
-
+            mlab.savefig(filename=os.path.join(self.figures_dir,
+                                               '{0}_elstpot3d.png'.format(self.molecule_name)))
         mlab.show()

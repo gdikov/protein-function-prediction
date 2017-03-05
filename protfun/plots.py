@@ -4,8 +4,9 @@ import logging
 import colorlog as log
 import numpy as np
 import os
+
 # os.environ["THEANO_FLAGS"] = "device=gpu0,lib.cnmem=2000,base_compiledir=~/.atcremers11"
-os.environ["THEANO_FLAGS"] = "device=gpu6,lib.cnmem=2500,base_compiledir=~/.tiptop"
+# os.environ["THEANO_FLAGS"] = "device=gpu6,lib.cnmem=2500,base_compiledir=~/.tiptop"
 from protfun.config import get_config
 from protfun.models import test_enz_from_grids, get_hidden_activations
 from protfun.utils import save_pickle, load_pickle
@@ -33,7 +34,8 @@ def measure_performance():
         epochs = np.array([int(f.split('_')[1][:-2]) for f in param_files], dtype=np.int32)
         best_params_file = param_files[np.argmax(epochs)]
 
-        test_enz_from_grids(config=local_config, model_name=model_name, params_file=best_params_file, mode="test")
+        test_enz_from_grids(config=local_config, model_name=model_name,
+                            params_file=best_params_file, mode="test")
         # test_enz_from_grids(config=local_config, model_name=model_name, params_file=best_params_file, mode="val")
 
 
@@ -65,7 +67,8 @@ def save_hidden_activations():
     param_files = [f for f in os.listdir(model_dir) if f.startswith("params_") and "best" in f]
     epochs = np.array([int(f.split('_')[1][:-2]) for f in param_files], dtype=np.int32)
     best_params_file = param_files[np.argmax(epochs)]
-    prots, targets, preds, activations = get_hidden_activations(config=local_config, model_name=model_name,
+    prots, targets, preds, activations = get_hidden_activations(config=local_config,
+                                                                model_name=model_name,
                                                                 params_file=best_params_file)
     save_pickle(file_path=os.path.join(model_dir, "activations.pickle"), data=activations)
     save_pickle(file_path=os.path.join(model_dir, "activations_targets.pickle"), data=targets)
@@ -74,16 +77,22 @@ def save_hidden_activations():
 
 
 def visualize_hidden_activations():
-    model_name = "transferred_model"
-    model_dir = os.path.join(root_config["data"]["dir"], "models", model_name)
-    activations = load_pickle(file_path=os.path.join(model_dir, "activations.pickle"))
+    import numpy as np
+    # model_name = "transferred_model"
+    # model_dir = os.path.join(root_config["data"]["dir"], "models", model_name)
+    file_path = "/home/valor/workspace/DLCV_ProtFun/data/restricted/processed_multi_128/3V7T/grid.memmap"
+    grid = np.memmap(file_path, mode='r',
+                     dtype="float32").reshape((1, -1,
+                                               128,
+                                               128,
+                                               128))
 
-    # for i in range(64):
-    viewer = MoleculeView(data_dir=root_config['data']['dir'],
-                          data={"potential": None, "density": activations[0][0, 1]},
-                          info={"name": "test"})
+    for i in range(21):
+        viewer = MoleculeView(data_dir=root_config['data']['dir'],
+                              data={"potential": None, "density": grid[0, i]},
+                              info={"name": "test"})
 
-    viewer.density3d()
+        viewer.density3d()
 
 
 if __name__ == "__main__":
@@ -107,7 +116,7 @@ if __name__ == "__main__":
     #                      checkpoint=checkpoint)
     # create_history_plots()
     # measure_performance()
-    save_hidden_activations()
-    # visualize_hidden_activations()
+    # save_hidden_activations()
+    visualize_hidden_activations()
     # create_history_plots("grids_umyfbmdxjg_2-classes_1-21-2017_16-50", "train_history_best.pickle", checkpoint=8950,
     #                      until=30000)

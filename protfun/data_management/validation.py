@@ -11,12 +11,14 @@ class EnzymeValidator(object):
         self.dirs = dirs
 
     def check_naming(self, classes):
-        return sum([not bool(re.compile(r'[^0-9.]').search(cls)) for cls in classes]) == len(classes)
+        return sum([not bool(re.compile(r'[^0-9.]').search(cls)) for cls in
+                    classes]) == len(classes)
 
     def check_downloaded_codes(self):
         log.info("Checking downloaded proteins")
         num_errors = 0
-        raw_pdb_files = [ntpath.basename(y) for x in os.walk(self.dirs['data_raw']) for y in
+        raw_pdb_files = [ntpath.basename(y) for x in
+                         os.walk(self.dirs['data_raw']) for y in
                          glob(os.path.join(x[0], '*.ent'))]
         raw_enzyme_lists = [x.strip('.proteins')
                             for x in os.listdir(self.dirs['data_raw'])
@@ -25,25 +27,31 @@ class EnzymeValidator(object):
         successful = 0
         failed = 0
         for enzyme_class in self.enzyme_classes:
-            if not any(enzyme_class in end_class for end_class in raw_enzyme_lists):
-                log.warning("Enzyme class {0} has not been downloaded".format(enzyme_class))
+            if not any(enzyme_class in end_class for end_class in
+                       raw_enzyme_lists):
+                log.warning("Enzyme class {0} has not been downloaded".format(
+                    enzyme_class))
                 num_errors += 1
             else:
                 # for all leaf nodes check if their enzymes are there
                 for enzyme_class_leaf in raw_enzyme_lists:
                     if not enzyme_class_leaf.startswith(enzyme_class):
                         continue
-                    with open(os.path.join(self.dirs['data_raw'], enzyme_class_leaf + '.proteins')) \
+                    with open(os.path.join(self.dirs['data_raw'],
+                                           enzyme_class_leaf + '.proteins')) \
                             as enz_class_file:
-                        all_enzymes_in_class = [e.strip() for e in enz_class_file.readlines()]
+                        all_enzymes_in_class = [e.strip() for e in
+                                                enz_class_file.readlines()]
                     # check if the codes are in the pdb folder
                     for e in all_enzymes_in_class:
                         if "pdb" + e.lower() + ".ent" not in raw_pdb_files:
                             failed += 1
-                            log.warning("PDB file for enzyme {0} is not found (residing in class {1})"
-                                        .format(e, enzyme_class_leaf))
+                            log.warning(
+                                "PDB file for enzyme {0} is not found (residing in class {1})"
+                                .format(e, enzyme_class_leaf))
                             if enzyme_class_leaf in missing_enzymes.keys():
-                                missing_enzymes[enzyme_class_leaf].append(e.upper())
+                                missing_enzymes[enzyme_class_leaf].append(
+                                    e.upper())
                             else:
                                 missing_enzymes[enzyme_class_leaf] = [e.upper()]
                         else:
@@ -51,7 +59,8 @@ class EnzymeValidator(object):
 
         return missing_enzymes, successful, failed
 
-    def check_class_representation(self, data_dict, clean_dict=True, clean_duplicates=True):
+    def check_class_representation(self, data_dict, clean_dict=True,
+                                   clean_duplicates=True):
         bad_keys = []
         duplicates = set()
         checked_classes = set()
@@ -72,7 +81,8 @@ class EnzymeValidator(object):
                     bad_keys.append(cls)
 
         if clean_dict and len(bad_keys) > 0:
-            log.warning("Class(es) %r will be deleted from the data dictionary" % bad_keys)
+            log.warning(
+                "Class(es) %r will be deleted from the data dictionary" % bad_keys)
             for k in data_dict.keys():
                 if k in bad_keys:
                     del data_dict[k]
@@ -93,13 +103,18 @@ class EnzymeValidator(object):
             # with open(path_to_test_cls, 'r') as f:
             first_partition_prot_codes_in_cls = first_partition[cls]
 
-            assert len(set(second_partition_prot_codes_in_cls)) + len(set(first_partition_prot_codes_in_cls)) == \
-                   len(set(second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls)), \
+            assert len(set(second_partition_prot_codes_in_cls)) + len(
+                set(first_partition_prot_codes_in_cls)) == \
+                   len(set(
+                       second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls)), \
                 "The splits are not disjoint!"
 
-            assert set(second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls) == \
-                   set(all_prot_codes_in_cls), "The splits are not a partition of all proteins!"
+            assert set(
+                second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls) == \
+                   set(
+                       all_prot_codes_in_cls), "The splits are not a partition of all proteins!"
 
-    def check_labels(self, train_labels=None, val_labels=None, test_lables=None):
+    def check_labels(self, train_labels=None, val_labels=None,
+                     test_lables=None):
         log.warning("Label checking is not implemented yet")
         pass

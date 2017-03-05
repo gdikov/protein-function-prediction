@@ -1,33 +1,36 @@
-import theano.tensor as T
 import lasagne
 import lasagne.layers.dnn
 
-"""
-Note: this network architecture was motivated by the following speculations:
-    If we want the network to disregard the overall shape of the protein and look instead into the
-    specific binding sites, let us naively restrict its receptive field by limiting the number of
-    layers in depth. A crude estimate of the size of these sites was 10-15k A^3 which amounts to
-    about 12x12x12 voxel receptive field size.
-"""
-def shallow_network(input, n_outputs, last_nonlinearity):
+from lasagne.regularization import regularize_layer_params_weighted, l2
+
+
+def l2_network(input, n_outputs, last_nonlinearity):
+    regularization = 0
     network = input
     # add deep convolutional structure
-    network = add_shallow_conv_maxpool(network)
+    network, penalty = add_shallow_conv_maxpool(network)
+    regularization += penalty
     # add deep dense fully connected layers
-    network = add_dense_layers(network, n_layers=1, n_units=256)
+    network, penalty = add_dense_layers(network, n_layers=1, n_units=256)
+    regularization += penalty
     # end each branch with a softmax
-    output = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
-                                       nonlinearity=last_nonlinearity)
-    return output, 0
+    network = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
+                                        nonlinearity=last_nonlinearity)
+    l2_penalty = regularize_layer_params_weighted({network: 0.2}, l2)
+    regularization += l2_penalty
+    return network, regularization
 
 
 def add_shallow_conv_maxpool(network):
+    regularization = 0
     filter_size = (3, 3, 3)
 
     network = lasagne.layers.dnn.Conv3DDNNLayer(incoming=network, pad='same',
                                                 num_filters=32,
                                                 filter_size=filter_size,
                                                 nonlinearity=lasagne.nonlinearities.leaky_rectify)
+    l2_penalty = regularize_layer_params_weighted({network: 0.2}, l2)
+    regularization += l2_penalty
     network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network,
                                                    pool_size=(2, 2, 2),
                                                    stride=2)
@@ -36,16 +39,20 @@ def add_shallow_conv_maxpool(network):
                                                 num_filters=64,
                                                 filter_size=filter_size,
                                                 nonlinearity=lasagne.nonlinearities.leaky_rectify)
+    l2_penalty = regularize_layer_params_weighted({network: 0.2}, l2)
+    regularization += l2_penalty
     network = lasagne.layers.dnn.MaxPool3DDNNLayer(incoming=network,
                                                    pool_size=(2, 2, 2),
                                                    stride=2)
 
-
-    return network
+    return network, regularization
 
 
 def add_dense_layers(network, n_layers, n_units):
+    regularization = 0
     for i in range(0, n_layers):
         network = lasagne.layers.DenseLayer(incoming=network, num_units=n_units,
                                             nonlinearity=lasagne.nonlinearities.leaky_rectify)
-    return network
+        l2_penalty = regularize_layer_params_weighted({network: 0.2}, l2)
+        regularization += l2_penalty
+    return network, regularization

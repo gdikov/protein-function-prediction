@@ -23,19 +23,19 @@ class DisjointClassModel(object):
         self.get_hidden_activations = None
         self.output_layers = None
 
-    def define_forward_pass(self, input_vars, output_layer):
+    def define_forward_pass(self, input_vars, output_layer, penalty=0):
         train_params = lasagne.layers.get_all_params(output_layer, trainable=True)
         targets = T.imatrix('targets')
 
         # define objective and training parameters
         train_predictions = lasagne.layers.get_output(output_layer)
-        train_loss = T.sum(lasagne.objectives.binary_crossentropy(train_predictions, targets))
+        train_loss = T.sum(lasagne.objectives.binary_crossentropy(train_predictions, targets)) + penalty
         train_accuracy = T.mean(T.all(T.eq(train_predictions > 0.5, targets), axis=-1), axis=0,
                                 dtype=theano.config.floatX)
         per_class_train_accuracies = T.mean(T.eq(train_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
 
         val_predictions = lasagne.layers.get_output(output_layer, deterministic=True)
-        val_loss = T.sum(lasagne.objectives.binary_crossentropy(val_predictions, targets))
+        val_loss = T.sum(lasagne.objectives.binary_crossentropy(val_predictions, targets)) + penalty
         val_accuracy = T.mean(T.all(T.eq(val_predictions > 0.5, targets), axis=-1), axis=0, dtype=theano.config.floatX)
         per_class_val_accuracies = T.mean(T.eq(val_predictions > 0.5, targets), axis=0, dtype=theano.config.floatX)
 
@@ -105,6 +105,6 @@ class GridsDisjointClassifier(DisjointClassModel):
         rotated_grids = GridRotationLayer(incoming=input_layer, grid_side=grid_size, n_channels=n_channels)
 
         # apply the network to the preprocessed input
-        self.output_layers = network(rotated_grids, n_outputs=n_classes,
-                                     last_nonlinearity=lasagne.nonlinearities.sigmoid)
-        self.define_forward_pass(input_vars=[grids], output_layer=self.output_layers)
+        self.output_layers, self.penalty = network(rotated_grids, n_outputs=n_classes,
+                                                   last_nonlinearity=lasagne.nonlinearities.sigmoid)
+        self.define_forward_pass(input_vars=[grids], output_layer=self.output_layers, penalty=self.penalty)

@@ -7,7 +7,8 @@ log.basicConfig(level=logging.DEBUG)
 
 class EnzymeFetcher(object):
     """ Generate and filter enzyme IDs which are to be downloaded
-     :param categories: list of strings in the form 1.1 or 4.3.2.1 giving the most general category of interest. """
+     :param categories: list of strings in the form 1.1 or 4.3.2.1 giving the
+     most general category of interest. """
 
     def __init__(self, categories, excluded_categories=list(), enzyme_dir=None):
         self.enzyme_dir = enzyme_dir
@@ -38,14 +39,20 @@ class EnzymeFetcher(object):
         first_child_index = hierarchy_level * 2 + 2
 
         try:
-            children_table = page.find('body').find_all('table', recursive=False)[2]
-            children = children_table.find('tr').find('td').find_all('table', recursive=False)[first_child_index:]
+            children_table = \
+            page.find('body').find_all('table', recursive=False)[2]
+            children = children_table.find('tr').find('td').find_all('table',
+                                                                     recursive=False)[
+                       first_child_index:]
         except (AttributeError, IndexError):
-            log.warning("No subcategory table found for parent category {0}".format(cat))
+            log.warning(
+                "No subcategory table found for parent category {0}".format(
+                    cat))
             return
         for child in children:
             try:
-                child_cat = child.find('a', {'class': 'menuClass'}, href=True).text
+                child_cat = child.find('a', {'class': 'menuClass'},
+                                       href=True).text
             except (AttributeError, IndexError):
                 log.warning("Wno link to child category")
                 continue
@@ -55,8 +62,9 @@ class EnzymeFetcher(object):
 
     def fetch_enzymes(self):
         if self.leaf_categories is not None:
-            log.info("Processing html pages for each enzyme classes ({0} in total). "
-                     "This may take a while...".format(len(self.leaf_categories)))
+            log.info(
+                "Processing html pages for each enzyme classes ({0} in total). "
+                "This may take a while...".format(len(self.leaf_categories)))
             self.fetched_prot_codes = self._ecs2pdbs()
         return self.fetched_prot_codes
 
@@ -80,16 +88,20 @@ class EnzymeFetcher(object):
         try:
             pdb_table = parsed_html.find('body').find_all('p')[2].find('table')
         except (AttributeError, IndexError):
-            log.warning("Something went wrong while parsing " + str(cat) + " Probably no PDB table present.")
+            log.warning("Something went wrong while parsing " + str(
+                cat) + " Probably no PDB table present.")
             return None
 
         if pdb_table is None:
-            log.warning("A pdbs-containing table was not found while parsing " + str(cat))
+            log.warning(
+                "A pdbs-containing table was not found while parsing " + str(
+                    cat))
             return None
 
         pdbs = []
 
-        # skip the first three rows as they don't contain any pdbs and iterate over all others
+        # skip the first three rows as they don't contain any pdbs and iterate
+        # over all others
         pdb_rows = pdb_table.find_all('tr')[3:]
         for row in pdb_rows:
             # get the first data entry and the href argument
@@ -126,7 +138,8 @@ def download_pdbs(base_dir, protein_codes):
             log.warning("Failed to download protein {}".format(code))
             failed += 1
             continue
-    log.info("Downloaded {0}/{1} molecules".format(attempted - failed, attempted))
+    log.info(
+        "Downloaded {0}/{1} molecules".format(attempted - failed, attempted))
 
 
 if __name__ == "__main__":

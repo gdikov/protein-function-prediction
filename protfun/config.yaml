@@ -1,5 +1,5 @@
 data:
-  dir: /usr/data/cvpr_shared/proteins/enzymes_w073/split_by_level4/restricted_single_64
+  dir: data
 proteins:
   enzyme_trees:
   - 3.4.21
@@ -11,6 +11,6 @@ proteins:
 training:
   epochs: 1000
   init_samples_per_class: 2000
-  learning_rate: 0.00005
+  learning_rate: 0.00002
   minibatch_size: 128
-  network: single_trunk_network
+  network: l2_network

@@ -55,8 +55,10 @@ class DataFeeder(object):
 
 
 class EnzymeDataFeeder(DataFeeder):
-    def __init__(self, data_dir, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
-        super(EnzymeDataFeeder, self).__init__(data_dir, minibatch_size, init_samples_per_class)
+    def __init__(self, data_dir, minibatch_size, init_samples_per_class,
+                 prediction_depth, enzyme_classes):
+        super(EnzymeDataFeeder, self).__init__(data_dir, minibatch_size,
+                                               init_samples_per_class)
 
         self.data_manager = EnzymeDataManager(data_dir=data_dir,
                                               enzyme_classes=enzyme_classes,
@@ -101,10 +103,13 @@ class EnzymeDataFeeder(DataFeeder):
             log.error("iter_mode can only be 'train', 'val' or 'test'")
             raise ValueError
 
-        grouped_samples = construct_hierarchical_tree(samples, prediction_depth=self.prediction_depth)
+        grouped_samples = construct_hierarchical_tree(samples,
+                                                      prediction_depth=self.prediction_depth)
 
         represented_classes, data_sizes = \
-            map(list, zip(*[(cls, len(prots)) for cls, prots in grouped_samples.items() if len(prots) > 0]))
+            map(list, zip(
+                *[(cls, len(prots)) for cls, prots in grouped_samples.items() if
+                  len(prots) > 0]))
         data_size = sum(data_sizes)
         num_classes = len(represented_classes)
 
@@ -123,14 +128,18 @@ class EnzymeDataFeeder(DataFeeder):
                                              size=self.minibatch_size,
                                              replace=True)
 
-            prots_in_minibatch = [np.random.choice(grouped_samples[class_][:self.samples_per_class])
+            prots_in_minibatch = [np.random.choice(
+                grouped_samples[class_][:self.samples_per_class])
                                   for class_ in class_choices]
 
-            next_samples = self._form_samples_minibatch(prot_codes=prots_in_minibatch, from_dir=data_dir)
+            next_samples = self._form_samples_minibatch(
+                prot_codes=prots_in_minibatch, from_dir=data_dir)
 
-            # labels are accessed at a fixed hierarchical depth counting from the root
+            # labels are accessed at a fixed hierarchical depth counting from
+            # the root
             next_targets = [np.vstack(
-                [labels[prot_code][self.prediction_depth - 1].astype(intX) for prot_code in prots_in_minibatch])]
+                [labels[prot_code][self.prediction_depth - 1].astype(intX) for
+                 prot_code in prots_in_minibatch])]
 
             yield prots_in_minibatch, next_samples + next_targets
 
@@ -140,9 +149,12 @@ class EnzymeDataFeeder(DataFeeder):
 
 
 class EnzymesMolDataFeeder(EnzymeDataFeeder):
-    def __init__(self, data_dir, minibatch_size, init_samples_per_class, prediction_depth, enzyme_classes):
-        super(EnzymesMolDataFeeder, self).__init__(data_dir, minibatch_size, init_samples_per_class,
-                                                   prediction_depth, enzyme_classes)
+    def __init__(self, data_dir, minibatch_size, init_samples_per_class,
+                 prediction_depth, enzyme_classes):
+        super(EnzymesMolDataFeeder, self).__init__(data_dir, minibatch_size,
+                                                   init_samples_per_class,
+                                                   prediction_depth,
+                                                   enzyme_classes)
 
     def _form_samples_minibatch(self, prot_codes, from_dir):
         assert len(prot_codes) == self.minibatch_size, \
@@ -154,9 +166,14 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
         for i, prot_id in enumerate(prot_codes):
             path_to_prot = path.join(from_dir, prot_id.upper())
             coords_tmp.append(
-                np.memmap(path.join(path_to_prot, 'coords.memmap'), mode='r', dtype=floatX).reshape(-1, 3))
-            charges_tmp.append(np.memmap(path.join(path_to_prot, 'charges.memmap'), mode='r', dtype=floatX))
-            vdwradii_tmp.append(np.memmap(path.join(path_to_prot, 'vdwradii.memmap'), mode='r', dtype=floatX))
+                np.memmap(path.join(path_to_prot, 'coords.memmap'), mode='r',
+                          dtype=floatX).reshape(-1, 3))
+            charges_tmp.append(
+                np.memmap(path.join(path_to_prot, 'charges.memmap'), mode='r',
+                          dtype=floatX))
+            vdwradii_tmp.append(
+                np.memmap(path.join(path_to_prot, 'vdwradii.memmap'), mode='r',
+                          dtype=floatX))
             n_atoms[i] = vdwradii_tmp[i].shape[0]
 
         max_atoms = max(n_atoms)
@@ -176,8 +193,10 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
     def __init__(self, data_dir, minibatch_size,
                  init_samples_per_class, prediction_depth,
                  enzyme_classes, num_channels, grid_size):
-        super(EnzymesGridFeeder, self).__init__(data_dir, minibatch_size, init_samples_per_class,
-                                                prediction_depth, enzyme_classes)
+        super(EnzymesGridFeeder, self).__init__(data_dir, minibatch_size,
+                                                init_samples_per_class,
+                                                prediction_depth,
+                                                enzyme_classes)
         self.num_channels = num_channels
         self.grid_size = grid_size
 
@@ -188,12 +207,14 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
         for prot_id in prot_codes:
             path_to_prot = path.join(from_dir, prot_id.upper())
             grids.append(
-                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r', dtype=floatX).reshape((1, -1,
-                                                                                                   self.grid_size,
-                                                                                                   self.grid_size,
-                                                                                                   self.grid_size)))
+                np.memmap(path.join(path_to_prot, 'grid.memmap'), mode='r',
+                          dtype=floatX).reshape((1, -1,
+                                                 self.grid_size,
+                                                 self.grid_size,
+                                                 self.grid_size)))
 
         stacked = np.vstack(grids)
 
-        # a small hack to work around the molecules that still contain ESP channel
+        # a small hack to work around the molecules that still contain ESP
+        # channel
         return [stacked[:, stacked.shape[1] - self.num_channels:]]

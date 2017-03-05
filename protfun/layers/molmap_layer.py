@@ -35,7 +35,8 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         super(MoleculeMapLayer, self).__init__(incomings, **kwargs)
         if minibatch_size is None:
             minibatch_size = 1
-            log.info("Minibatch size not provided - assuming {}.".format(minibatch_size))
+            log.info("Minibatch size not provided - assuming {}.".format(
+                minibatch_size))
 
         self.minibatch_size = minibatch_size
         self.rotate = rotate
@@ -51,9 +52,11 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
             np.mgrid[-self.endx:self.endx:self.side_points_count * 1j,
             -self.endx:self.endx:self.side_points_count * 1j,
             -self.endx:self.endx:self.side_points_count * 1j])
-        grid_coords = np.reshape(grid_coords, newshape=(grid_coords.shape[0], -1))
+        grid_coords = np.reshape(grid_coords,
+                                 newshape=(grid_coords.shape[0], -1))
         # share grid coordinates on the GPU
-        self.grid_coords = self.add_param(grid_coords, grid_coords.shape, 'grid_coords', trainable=False)
+        self.grid_coords = self.add_param(grid_coords, grid_coords.shape,
+                                          'grid_coords', trainable=False)
 
     def get_output_shape_for(self, input_shape):
         """
@@ -78,7 +81,8 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         mols_coords, mols_vdwradii, mols_natoms = mols_info
         zeros = np.zeros(
             (self.minibatch_size, 1, self.side_points_count ** 3), dtype=floatX)
-        grids_density = self.add_param(zeros, zeros.shape, 'grids_density', trainable=False)
+        grids_density = self.add_param(zeros, zeros.shape, 'grids_density',
+                                       trainable=False)
 
         free_gpu_memory = self.get_free_gpu_memory()
         if self.rotate:
@@ -88,7 +92,8 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         # TODO: keep in mind the declarative implementation (regular for loop) is faster
         # but it takes exponentially more time to compile as the batch_size increases
         # for i in range(0, self.minibatch_size):
-        def compute_grid_per_mol(i, mol_natoms, mol_coords, mol_vdwradii, grid_density,
+        def compute_grid_per_mol(i, mol_natoms, mol_coords, mol_vdwradii,
+                                 grid_density,
                                  grid_coords):
             """
             The function is used in theano scan to compute the grids for a single molecule from the mini-batch.
@@ -107,11 +112,13 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
             # add 100 % overhead to make sure there's some free memory left
             approx_extra_space_factor = 2
             # (n_atoms x 3 coords x 4 bytes) memory per (grid point, molecule)
-            needed_bytes_per_grid_point = (mol_natoms * 3 * 4) * approx_extra_space_factor
+            needed_bytes_per_grid_point = (
+                                          mol_natoms * 3 * 4) * approx_extra_space_factor
             grid_points_per_step = free_gpu_memory // needed_bytes_per_grid_point
             niter = points_count ** 3 // grid_points_per_step + 1
 
-            def compute_grid_part(j, grid_density, mol_coords, mol_vdwradii, grid_coords):
+            def compute_grid_part(j, grid_density, mol_coords, mol_vdwradii,
+                                  grid_coords):
                 """
                 The function is used to iteratively compute parts of the grid for a single molecule. The size of those
                 parts is dynamically optimized to fit into GPU memory.
@@ -127,11 +134,16 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
                 grid_idx_end = (j + 1) * grid_points_per_step
 
                 distances_i = T.sqrt(
-                    T.sum((grid_coords[None, :, grid_idx_start:grid_idx_end] - mol_coords) ** 2, axis=1))
+                    T.sum((grid_coords[None, :,
+                           grid_idx_start:grid_idx_end] - mol_coords) ** 2,
+                          axis=1))
 
-                density_i = T.sum(T.exp((-distances_i ** 2) / mol_vdwradii ** 2), axis=0, keepdims=True)
+                density_i = T.sum(
+                    T.exp((-distances_i ** 2) / mol_vdwradii ** 2), axis=0,
+                    keepdims=True)
 
-                grid_density = T.set_subtensor(grid_density[i, :, grid_idx_start:grid_idx_end], density_i)
+                grid_density = T.set_subtensor(
+                    grid_density[i, :, grid_idx_start:grid_idx_end], density_i)
                 return grid_density
 
             partial_result, _ = theano.scan(fn=compute_grid_part,
@@ -158,8 +170,10 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
 
         grids_density = result[-1]
         grids_density = T.reshape(grids_density, newshape=(
-            self.minibatch_size, 1, self.side_points_count, self.side_points_count, self.side_points_count))
-        import gc; gc.collect()
+            self.minibatch_size, 1, self.side_points_count,
+            self.side_points_count, self.side_points_count))
+        import gc;
+        gc.collect()
         return grids_density
 
     @staticmethod
@@ -172,7 +186,8 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
         free_gpu_memory = cuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
         return free_gpu_memory
 
-    def rotate_and_translate(self, coords, golkov=False, angle_std=0.392):  # pi/8 ~= 0.392
+    def rotate_and_translate(self, coords, golkov=False,
+                             angle_std=0.392):  # pi/8 ~= 0.392
         """
         Rotates and translates the coordinates of a molecule.
 
@@ -191,17 +206,21 @@ class MoleculeMapLayer(lasagne.layers.MergeLayer):
             # QR decomposition, Q is orthogonal, see Golkov MSc thesis, Lemma 1
             Q, R = T.nlinalg.qr(randn_matrix)
             # Mezzadri 2007 "How to generate random matrices from the classical compact groups"
-            Q = T.dot(Q, T.nlinalg.AllocDiag()(T.sgn(R.diagonal())))  # stackoverflow.com/questions/30692742
+            Q = T.dot(Q, T.nlinalg.AllocDiag()(
+                T.sgn(R.diagonal())))  # stackoverflow.com/questions/30692742
             Q = Q * T.nlinalg.Det()(Q)  # stackoverflow.com/questions/30132036
             R = Q
         else:
-            angle = random_streams.normal((3,), avg=0., std=angle_std, ndim=1, dtype=floatX)
+            angle = random_streams.normal((3,), avg=0., std=angle_std, ndim=1,
+                                          dtype=floatX)
             R_X = T.as_tensor([1, 0, 0,
                                0, T.cos(angle[0]), -T.sin(angle[0]),
-                               0, T.sin(angle[0]), T.cos(angle[0])]).reshape((3, 3))
+                               0, T.sin(angle[0]), T.cos(angle[0])]).reshape(
+                (3, 3))
             R_Y = T.as_tensor([T.cos(angle[1]), 0, -T.sin(angle[1]),
                                0, 1, 0,
-                               T.sin(angle[1]), 0, T.cos(angle[1])]).reshape((3, 3))
+                               T.sin(angle[1]), 0, T.cos(angle[1])]).reshape(
+                (3, 3))
             R_Z = T.as_tensor([T.cos(angle[2]), -T.sin(angle[2]), 0,
                                T.sin(angle[2]), T.cos(angle[2]), 0,
                                0, 0, 1]).reshape((3, 3))
@@ -239,24 +258,29 @@ if __name__ == "__main__":
                                                input_var=vdwradii_var)
     natoms_input = lasagne.layers.InputLayer(shape=(1,),
                                              input_var=n_atoms_var)
-    preprocess = MoleculeMapLayer(incomings=[coords_input, charges_input, vdwradii_input, natoms_input],
-                                  minibatch_size=1,
-                                  rotate=False)
+    preprocess = MoleculeMapLayer(
+        incomings=[coords_input, charges_input, vdwradii_input, natoms_input],
+        minibatch_size=1,
+        rotate=False)
 
-    path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data_new/processed")
+    path_to_moldata = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                   "../../data_new/processed")
     for i in ['1DJC']:
         coords = np.memmap(os.path.join(path_to_moldata, i, 'coords.memmap'),
                            mode='r', dtype=floatX).reshape(1, -1, 3)
         charges = np.memmap(os.path.join(path_to_moldata, i, 'charges.memmap'),
                             mode='r', dtype=floatX).reshape(1, -1)
-        vdwradii = np.memmap(os.path.join(path_to_moldata, i, 'vdwradii.memmap'),
-                             mode='r', dtype=floatX).reshape(1, -1)
+        vdwradii = np.memmap(
+            os.path.join(path_to_moldata, i, 'vdwradii.memmap'),
+            mode='r', dtype=floatX).reshape(1, -1)
         n_atoms = np.array(vdwradii.shape[1], dtype=np.int32).reshape(1, )
 
         mol_info = [theano.shared(coords), theano.shared(charges),
                     theano.shared(vdwradii), theano.shared(n_atoms)]
 
         grids = preprocess.get_output_for(mols_info=mol_info).eval()
-        viewer = MoleculeView(data={"potential": grids[0, 0], "density": grids[0, 1]}, info={"name": i})
+        viewer = MoleculeView(
+            data={"potential": grids[0, 0], "density": grids[0, 1]},
+            info={"name": i})
         viewer.density3d()
         viewer.potential3d()

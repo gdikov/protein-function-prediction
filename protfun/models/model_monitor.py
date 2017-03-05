@@ -30,15 +30,18 @@ class ModelMonitor(object):
         :param epoch_count: the number of epochs that the model is trained
         :return:
         """
-        log.info("Saving {0} model parameters".format(lasagne.layers.count_params(self.network_outputs,
-                                                                                  trainable=True)))
+        log.info("Saving {0} model parameters".format(
+            lasagne.layers.count_params(self.network_outputs,
+                                        trainable=True)))
         filename = 'params'
         if epoch_count >= 0:
             filename += '_{0}ep'.format(epoch_count)
         if msg != '':
             filename += '_' + msg
-        np.savez(os.path.join(self.path_to_model_dir, '{0}.npz'.format(filename)),
-                 *lasagne.layers.get_all_param_values(self.network_outputs, trainable=True))
+        np.savez(
+            os.path.join(self.path_to_model_dir, '{0}.npz'.format(filename)),
+            *lasagne.layers.get_all_param_values(self.network_outputs,
+                                                 trainable=True))
 
     def load_model(self, params_filename, network):
         """
@@ -52,24 +55,29 @@ class ModelMonitor(object):
             log.error("Model not found")
             raise ValueError
 
-        with np.load(os.path.join(self.path_to_model_dir, params_filename)) as f:
+        with np.load(
+                os.path.join(self.path_to_model_dir, params_filename)) as f:
             param_values = [f['arr_%d' % i] for i in range(len(f.files))]
 
-        lasagne.layers.set_all_param_values(network, param_values, trainable=True)
+        lasagne.layers.set_all_param_values(network, param_values,
+                                            trainable=True)
 
-    def save_train_history(self, history, epoch_count, save_human_readable=False, msg=''):
+    def save_train_history(self, history, epoch_count,
+                           save_human_readable=False, msg=''):
         log.info("Saving training history")
         # Refactored: instead of saving in a text file, dump the history as a pickle and provide
         # the saving to a human-readable format as an option
         filename = 'train_history_ep{}'.format(epoch_count)
         if msg != '':
             filename += '_' + msg
-        with open(os.path.join(self.path_to_model_dir, "{0}.pickle".format(filename)), mode='wb') as f:
+        with open(os.path.join(self.path_to_model_dir,
+                               "{0}.pickle".format(filename)), mode='wb') as f:
             cPickle.dump(history, f)
 
         if save_human_readable:
             # TODO: save in a plain text, tsv, csv, or something better
-            with open(os.path.join(self.path_to_model_dir, "train_history.tsv"), mode='w') as f:
+            with open(os.path.join(self.path_to_model_dir, "train_history.tsv"),
+                      mode='w') as f:
                 f.write("# BEGIN PREAMBLE")
                 f.write("# {}".format(history.keys()))
                 f.write("# END PREAMBLE")
@@ -79,15 +87,20 @@ class ModelMonitor(object):
 
     def load_train_history(self, epoch):
         try:
-            with open(os.path.join(self.path_to_model_dir, 'train_history_ep{}_best.pickle'.format(epoch)), mode='rb') as f:
+            with open(os.path.join(self.path_to_model_dir,
+                                   'train_history_ep{}_best.pickle'.format(
+                                           epoch)), mode='rb') as f:
                 history = cPickle.load(f)
-                log.info("Loaded history from previous training, continuing from where it was stopped.")
+                log.info(
+                    "Loaded history from previous training, continuing from where it was stopped.")
                 return history
         except:
-            log.info("No previous history was loaded, proceeding with a new training.")
+            log.info(
+                "No previous history was loaded, proceeding with a new training.")
             return None
 
-    def save_history_and_model(self, history, epoch_count=-1, msg='', save_human_readable=False):
+    def save_history_and_model(self, history, epoch_count=-1, msg='',
+                               save_human_readable=False):
         self.save_model(epoch_count, msg)
         self.save_train_history(history, epoch_count, save_human_readable, msg)
 

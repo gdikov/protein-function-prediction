@@ -1,1 +1,1 @@
-from molmap_layer import *
+from protfun.layers.molmap_layer import *

@@ -4,11 +4,9 @@ import matplotlib
 matplotlib.use('Agg')
 import seaborn as sns
 import matplotlib.pyplot as plt
-import cPickle
 import os
 
-from sklearn.metrics import roc_curve, auc, roc_auc_score
-from scipy import interp
+from sklearn.metrics import roc_auc_score
 from protfun.utils.data_utils import load_pickle
 
 classes = ['3.4.21', '3.4.24']
@@ -27,9 +25,6 @@ def my_roc(predicted, expected):
     Y = np.array(expected[:])
     T[T == 1.0] = 0.999
     thresholds = np.linspace(1, 0, smoothness)
-
-    ROC = np.zeros((smoothness, 2))
-
     fpr = []
     tpr = []
     for i in range(smoothness):
@@ -50,6 +45,7 @@ def my_roc(predicted, expected):
         tpr.append(TPR_t)
 
     return fpr, tpr
+
 
 class ROCView(object):
     def __init__(self, data_dir):
@@ -89,14 +85,17 @@ class ROCView(object):
 
     def save_anc_close(self, filename):
         # Put a legend below current axis
-        self.ax.legend(loc='lower right', fancybox=True, shadow=True, ncol=1, prop={'size': 9}, frameon=True)
+        self.ax.legend(loc='lower right', fancybox=True, shadow=True, ncol=1, prop={'size': 9},
+                       frameon=True)
         path_to_fig = os.path.join(self.data_dir, 'figures', filename)
         self.fig.savefig(filename=path_to_fig, bbox_inches='tight')
 
 
 def add_curve(view, dir, label, suffix=""):
-    predictions = np.asarray(load_pickle(os.path.join(dir, "test_predictions{}.pickle".format(suffix))))[:, 0]
-    targets = np.asarray(load_pickle(os.path.join(dir, "test_targets{}.pickle".format(suffix))))[:, 0]
+    predictions = np.asarray(
+        load_pickle(os.path.join(dir, "test_predictions{}.pickle".format(suffix))))[:, 0]
+    targets = np.asarray(load_pickle(os.path.join(dir, "test_targets{}.pickle".format(suffix))))[:,
+              0]
     view.add_curve(predictions, targets, label)
 
 

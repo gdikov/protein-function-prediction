@@ -19,7 +19,8 @@ from protfun.layers import MoleculeMapLayer
 
 floatX = theano.config.floatX
 intX = np.int32
-CNS = 24  # number of sidechain channels (20 amino, all, nonhydro, hydro, backbone)
+# number of sidechain channels (20 amino, all, nonhydro, hydro, backbone)
+CNS = 24
 
 
 class DataProcessor(object):
@@ -42,9 +43,12 @@ class EnzymeDataProcessor(DataProcessor):
     numpy.memmap's are created for molecules (from the PDB files with no errors)
     """
 
-    def __init__(self, from_dir, target_dir, protein_codes, process_grids=True, process_memmaps=True,
-                 force_recreate=False, add_sidechain_channels=True, use_esp=False):
-        super(EnzymeDataProcessor, self).__init__(from_dir=from_dir, target_dir=target_dir)
+    def __init__(self, from_dir, target_dir, protein_codes, process_grids=True,
+                 process_memmaps=True,
+                 force_recreate=False, add_sidechain_channels=True,
+                 use_esp=False):
+        super(EnzymeDataProcessor, self).__init__(from_dir=from_dir,
+                                                  target_dir=target_dir)
         self.prot_codes = protein_codes
         self.process_grids = process_grids
         self.process_memmaps = process_memmaps
@@ -59,7 +63,8 @@ class EnzymeDataProcessor(DataProcessor):
             self.grid_processor = GridProcessor()
 
     def process(self):
-        # will store the valid proteins for each enzyme class, which is the key in the dict()
+        # will store the valid proteins for each enzyme class, which is the key
+        # in the dict()
         valid_codes = dict()
         invalid_codes = set()
         invalid_codes_path = os.path.join(self.from_dir, 'invalid_codes.pickle')
@@ -67,7 +72,8 @@ class EnzymeDataProcessor(DataProcessor):
             with open(invalid_codes_path, 'r') as f:
                 invalid_codes = cPickle.load(f)
 
-        prot_codes = list(itertools.chain.from_iterable(self.prot_codes.values()))
+        prot_codes = list(
+            itertools.chain.from_iterable(self.prot_codes.values()))
         prot_codes = list(set(prot_codes))
         prot_codes = sorted(prot_codes)
         for i, pc in enumerate(prot_codes):
@@ -76,44 +82,58 @@ class EnzymeDataProcessor(DataProcessor):
                 continue
 
             prot_dir = os.path.join(self.target_dir, pc.upper())
-            f_path = os.path.join(self.from_dir, pc.upper(), 'pdb' + pc.lower() + '.ent')
+            f_path = os.path.join(self.from_dir, pc.upper(),
+                                  'pdb' + pc.lower() + '.ent')
 
             # if required, process the memmaps for the protein again
             if self.process_memmaps and (not self.memmaps_exists(prot_dir,
-                                                                 num_channels=CNS if self.add_sidechain_channels else 1)
-                                         or self.force_recreate):
+                                                                 num_channels=CNS if self.add_sidechain_channels else 1) or self.force_recreate):
                 # attempt to process the molecule from the PDB file
-                mol = self.molecule_processor.process_molecule(f_path, use_esp=self.use_esp)
+                mol = self.molecule_processor.process_molecule(f_path,
+                                                               use_esp=self.use_esp)
                 if mol is None:
-                    log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
+                    log.warning(
+                        "Ignoring PDB file {} for invalid molecule".format(pc))
                     invalid_codes.add(pc)
                     continue
-                # persist the molecule and add the resulting memmaps to mol_info if processing was successful
+                # persist the molecule and add the resulting memmaps to mol_info
+                # if processing was successful
                 self._persist_processed(prot_dir=prot_dir, mol=mol)
             else:
                 log.info("Skipping already processed PDB file: {}".format(pc))
 
             # if required, process the ESP and density grids as well
-            if self.process_grids and (not self.grid_exists(prot_dir) or self.force_recreate):
+            if self.process_grids and (
+                        not self.grid_exists(prot_dir) or self.force_recreate):
                 grid = self.grid_processor.process(prot_dir)
                 if grid is None:
-                    log.warning("Ignoring PDB file {}, grid could not be processed".format(pc))
+                    log.warning(
+                        "Ignoring PDB file {}, grid could not be processed".format(
+                            pc))
                     invalid_codes.add(pc)
                     continue
                 if not os.path.exists(prot_dir):
                     os.makedirs(prot_dir)
                 # persist the computed grid as a memmap file
-                self.save_to_memmap(file_path=os.path.join(prot_dir, "grid.memmap"), data=grid, dtype=floatX)
+                self.save_to_memmap(
+                    file_path=os.path.join(prot_dir, "grid.memmap"), data=grid,
+                    dtype=floatX)
 
             # copy the PDB file to the target directory
-            if not os.path.exists(os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')):
-                os.system("cp %s %s" % (f_path, os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')))
+            if not os.path.exists(
+                    os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')):
+                os.system("cp %s %s" % (
+                    f_path,
+                    os.path.join(prot_dir, 'pdb' + pc.lower() + '.ent')))
 
         # persist the invalid codes for next time
         with open(invalid_codes_path, 'wb') as f:
             cPickle.dump(invalid_codes, f)
 
-        log.info("Total proteins: {} Invalid proteins: {}".format(len(prot_codes), len(invalid_codes)))
+        log.info(
+            "Total proteins: {} Invalid proteins: {}".format(len(prot_codes),
+                                                             len(
+                                                                 invalid_codes)))
         for cls, prots in self.prot_codes.items():
             valid_codes[cls] = [pc for pc in prots if pc not in invalid_codes]
 
@@ -124,15 +144,17 @@ class EnzymeDataProcessor(DataProcessor):
             os.makedirs(prot_dir)
         # generate and save the memmaps
         for key, value in mol.items():
-            self.save_to_memmap(os.path.join(prot_dir, '{0}.memmap'.format(key)),
-                                value, dtype=floatX)
+            self.save_to_memmap(
+                os.path.join(prot_dir, '{0}.memmap'.format(key)),
+                value, dtype=floatX)
 
     @staticmethod
     def save_to_memmap(file_path, data, dtype):
         if data.size == 0:
             data = np.array([np.nan])
         tmp = np.memmap(file_path, shape=data.shape, mode='w+', dtype=dtype)
-        log.info("Saving memmap. Shape of {0} is {1}".format(file_path, data.shape))
+        log.info(
+            "Saving memmap. Shape of {0} is {1}".format(file_path, data.shape))
         tmp[:] = data[:]
         tmp.flush()
         del tmp
@@ -144,8 +166,10 @@ class EnzymeDataProcessor(DataProcessor):
                 return False
             memmaps = [f for f in os.listdir(prot_dir) if f.endswith('.memmap')]
             # TODO this is hardcoded and semi-correct sanity check: refactor!
-            return len([f for f in memmaps if f.startswith('coords')]) == num_channels and \
-                   len([f for f in memmaps if f.startswith('vdwradii')]) == num_channels
+            return len([f for f in memmaps if
+                        f.startswith('coords')]) == num_channels and \
+                   len([f for f in memmaps if
+                        f.startswith('vdwradii')]) == num_channels
         else:
             return os.path.exists(os.path.join(prot_dir, 'coords.memmap')) and \
                    os.path.exists(os.path.join(prot_dir, 'charges.memmap')) and \
@@ -162,7 +186,8 @@ class GODataProcessor(DataProcessor):
     """
 
     def __init__(self, from_dir, target_dir):
-        super(GODataProcessor, self).__init__(from_dir=from_dir, target_dir=target_dir)
+        super(GODataProcessor, self).__init__(from_dir=from_dir,
+                                              target_dir=target_dir)
         self.molecule_processor = PDBMoleculeProcessor()
         self.go_processor = GeneOntologyProcessor()
 
@@ -196,7 +221,8 @@ class GODataProcessor(DataProcessor):
 
 class PDBMoleculeProcessor(object):
     """
-    MoleculeProcessor can produce a ProcessedMolecule from the contents of a PDB file.
+    MoleculeProcessor can produce a ProcessedMolecule from the contents of a
+    PDB file.
     """
 
     def __init__(self):
@@ -205,15 +231,18 @@ class PDBMoleculeProcessor(object):
 
     def process_molecule(self, pdb_file, use_esp=False):
         """
-        Processes a molecule from the passed PDB file if the file contents has no errors.
+        Processes a molecule from the passed PDB file if the file contents has
+        no errors.
         :param pdb_file: path to the PDB file to process the molecule from.
         :return: a ProcessedMolecule object
         """
 
-        # TODO: this is the old code using rdkit for the charge computations. Gasteiger is an inappropriate algorithm
+        # TODO: this is the old code using rdkit for the charge computations.
+        # Gasteiger is an inappropriate algorithm
         # read a molecule from the PDB file
         try:
-            mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
+            mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False,
+                                      sanitize=True)
         except IOError:
             log.warning("Could not read PDB file.")
             return None
@@ -247,10 +276,14 @@ class PDBMoleculeProcessor(object):
 
         # set the coordinates, charges, VDW radii and atom count
         res = {
-            "coords": np.asarray([get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
+            "coords": np.asarray(
+                [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
                 [center.x, center.y, center.z]),
-            # "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for atom in atoms]),
-            "vdwradii": np.asarray([self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in atoms]),
+            # "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for
+            # atom in atoms]),
+            "vdwradii": np.asarray(
+                [self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in
+                 atoms]),
             "atoms_count": atoms_count
         }
         return res
@@ -261,10 +294,13 @@ class PDBSideChainProcessor(object):
         self.periodic_table = Chem.GetPeriodicTable()
 
     def process_molecule(self, pdb_file, use_esp=False):
-        hydro_file_name = '_hydrogenized.'.join(os.path.basename(pdb_file).split('.'))
-        hydrogenized_pdb_file = os.path.join(os.path.dirname(pdb_file), hydro_file_name)
+        hydro_file_name = '_hydrogenized.'.join(
+            os.path.basename(pdb_file).split('.'))
+        hydrogenized_pdb_file = os.path.join(os.path.dirname(pdb_file),
+                                             hydro_file_name)
         try:
-            mol_rdkit = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False, sanitize=True)
+            mol_rdkit = Chem.MolFromPDBFile(molFileName=pdb_file,
+                                            removeHs=False, sanitize=True)
             if mol_rdkit is not None:
                 mol_rdkit = rdMO.AddHs(mol_rdkit, addCoords=True)
                 # get the conformation of the molecule
@@ -298,10 +334,12 @@ class PDBSideChainProcessor(object):
                            'LEU', 'LYS', 'MET', 'PHE', 'PRO',
                            'SER', 'THR', 'TRP', 'TYR', 'VAL']
 
-        canonical_notation = lambda x: x[0].upper() + x[1:].lower() if len(x) > 1 else x
+        canonical_notation = lambda x: x[0].upper() + x[1:].lower() if len(
+            x) > 1 else x
         res = {'coords': mol.getCoords() - mol_center,
                'vdwradii': np.asarray([self.periodic_table.GetRvdw(
-                   self.periodic_table.GetAtomicNumber(canonical_notation(atom)))
+                   self.periodic_table.GetAtomicNumber(
+                       canonical_notation(atom)))
                                        for atom in mol.getElements()])}
 
         # find the data for all the 20 amino acids
@@ -339,7 +377,8 @@ class GeneOntologyProcessor(object):
 
     def process_gene_ontologies(self, pdb_file):
         """
-        Processes a PDB file and returns a list with GO ids that can be associated with it.
+        Processes a PDB file and returns a list with GO ids that can be
+        associated with it.
         :param pdb_file: the path to the PDB file that is to be processed.
         :return: a list of GO ids for the molecule contained in the PDB file.
         """
@@ -355,7 +394,8 @@ class GeneOntologyProcessor(object):
 
         go_ids = []
         for uniprot_id in uniprot_ids:
-            url = "http://www.ebi.ac.uk/QuickGO/GAnnotation?protein=" + uniprot_id + "&format=tsv"
+            url = "http://www.ebi.ac.uk/QuickGO/GAnnotation?protein=" + \
+                  uniprot_id + "&format=tsv"
             response = requests.get(url)
             go_ids += self._parse_gene_ontology(response.text)
 
@@ -379,13 +419,17 @@ class GridProcessor(object):
         dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
         dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
         dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
-        self.processor = MoleculeMapLayer(incomings=[dummy_coords_input, dummy_vdwradii_input, dummy_natoms_input],
-                                          minibatch_size=1, rotate=False)
+        self.processor = MoleculeMapLayer(
+            incomings=[dummy_coords_input, dummy_vdwradii_input,
+                       dummy_natoms_input],
+            minibatch_size=1, rotate=False)
 
     def process(self, prot_dir):
         try:
-            coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))
-            vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))
+            coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'),
+                               mode='r', dtype=floatX).reshape((1, -1, 3))
+            vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'),
+                                 mode='r', dtype=floatX).reshape((1, -1))
             n_atoms = np.array(coords.shape[1], dtype=intX).reshape((1,))
         except IOError:
             return None
@@ -411,24 +455,36 @@ class GridSideChainProcessor(object):
 
     def process(self, prot_dir):
         try:
-            memmaps_sufix = ['_backbone.memmap', '_heavy.memmap', '_hydro.memmap',
-                             '_ALA.memmap', '_ARG.memmap', '_ASN.memmap', '_ASP.memmap',
-                             '_CYS.memmap', '_GLN.memmap', '_GLU.memmap', '_GLY.memmap',
-                             '_HIS.memmap', '_ILE.memmap', '_LEU.memmap', '_LYS.memmap',
-                             '_MET.memmap', '_PHE.memmap', '_PRO.memmap', '_SER.memmap',
-                             '_THR.memmap', '_TRP.memmap', '_TYR.memmap', '_VAL.memmap']
-            coords = [np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r', dtype=floatX).reshape((1, -1, 3))]
-            vdwradii = [np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r', dtype=floatX).reshape((1, -1))]
+            memmaps_sufix = ['_backbone.memmap', '_heavy.memmap',
+                             '_hydro.memmap',
+                             '_ALA.memmap', '_ARG.memmap', '_ASN.memmap',
+                             '_ASP.memmap',
+                             '_CYS.memmap', '_GLN.memmap', '_GLU.memmap',
+                             '_GLY.memmap',
+                             '_HIS.memmap', '_ILE.memmap', '_LEU.memmap',
+                             '_LYS.memmap',
+                             '_MET.memmap', '_PHE.memmap', '_PRO.memmap',
+                             '_SER.memmap',
+                             '_THR.memmap', '_TRP.memmap', '_TYR.memmap',
+                             '_VAL.memmap']
+            coords = [
+                np.memmap(os.path.join(prot_dir, 'coords.memmap'), mode='r',
+                          dtype=floatX).reshape((1, -1, 3))]
+            vdwradii = [
+                np.memmap(os.path.join(prot_dir, 'vdwradii.memmap'), mode='r',
+                          dtype=floatX).reshape((1, -1))]
             n_atoms = [np.array([vdwradii[0].size], dtype=intX)]
             for suffix in memmaps_sufix[:self.channels_count - 1]:
                 next_coords = np.zeros_like(coords[0])
                 next_vdwradii = np.zeros_like(vdwradii[0])
 
                 try:
-                    masked_coords = np.memmap(os.path.join(prot_dir, 'coords' + suffix), mode='r',
-                                              dtype=floatX).reshape((1, -1, 3))
-                    masked_vdwradii = np.memmap(os.path.join(prot_dir, 'vdwradii' + suffix), mode='r',
-                                                dtype=floatX).reshape((1, -1))
+                    masked_coords = np.memmap(
+                        os.path.join(prot_dir, 'coords' + suffix), mode='r',
+                        dtype=floatX).reshape((1, -1, 3))
+                    masked_vdwradii = np.memmap(
+                        os.path.join(prot_dir, 'vdwradii' + suffix), mode='r',
+                        dtype=floatX).reshape((1, -1))
                     masked_natoms = np.array([masked_vdwradii.size], dtype=intX)
                     next_coords[:, :masked_natoms[0]] = masked_coords
                     next_vdwradii[:, :masked_natoms[0]] = masked_vdwradii

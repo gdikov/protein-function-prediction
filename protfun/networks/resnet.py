@@ -21,7 +21,7 @@ def resnet(input, n_outputs, last_nonlinearity):
     # add the sigmoid outputs
     output = lasagne.layers.DenseLayer(incoming=network, num_units=n_outputs,
                                        nonlinearity=last_nonlinearity)
-    return output
+    return output, 0
 
 
 def resnet_block(network, depth=6, num_filters=16):
