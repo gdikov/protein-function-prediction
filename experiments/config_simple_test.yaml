@@ -4,10 +4,11 @@ data:
 proteins:
   # define the nodes in the EC tree, the proteins under which we are interested in
   enzyme_trees:
-  - 3.4.21
-  - 3.4.24
+  # these classes contain 12 and 9 proteins respectively and are suitable for fairly fast tests
+  - 1.1.2
+  - 1.1.5
   # number of points per side of each computed 3D map
-  grid_side: 128
+  grid_side: 64
   # how many channels will the computed maps have
   n_channels: 1
   # how many classes are being discriminated
@@ -16,9 +17,9 @@ proteins:
   prediction_depth: 3
 training:
   # split strategy can be naive or strict
-  split_strategy: strict
+  split_strategy: naive
   # max. number of epochs during training
-  epochs: 1000
+  epochs: 10
   # max. number of samples to pick as representatives of each class
   init_samples_per_class: 2000
   # training hyperparameters

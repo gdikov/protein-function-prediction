@@ -10,6 +10,7 @@ from protfun.utils import save_pickle
 
 from protfun.config import save_config
 from protfun.data_management.data_feed import EnzymesGridFeeder
+from protfun.data_management.data_manager import EnzymeDataManager
 from protfun.models import GridsDisjointClassifier
 from protfun.models.model_monitor import ModelMonitor
 from protfun.networks import get_network
@@ -268,12 +269,19 @@ def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0):
     :param start_epoch: default is 0, can be set to something else if a training is being continued.
     :return: data_feeder, model, model_trainer
     """
-    data_feeder = EnzymesGridFeeder(data_dir=config['data']['dir'],
+    data_manager = EnzymeDataManager(data_dir=config['data']['dir'],
+                                     enzyme_classes=config['proteins']['enzyme_trees'],
+                                     force_download=False,
+                                     force_memmaps=False,
+                                     force_grids=False,
+                                     force_split=False,
+                                     split_strategy=config['training']['split_strategy'])
+
+    data_feeder = EnzymesGridFeeder(data_manager=data_manager,
                                     minibatch_size=config['training']['minibatch_size'],
                                     init_samples_per_class=config['training'][
                                         'init_samples_per_class'],
                                     prediction_depth=config['proteins']['prediction_depth'],
-                                    enzyme_classes=config['proteins']['enzyme_trees'],
                                     num_channels=config['proteins']['n_channels'],
                                     grid_size=config['proteins']['grid_side'])
     if model_name is None:

@@ -7,14 +7,16 @@ proteins:
   - 3.4.21
   - 3.4.24
   # number of points per side of each computed 3D map
-  grid_side: 64
+  grid_side: 128
   # how many channels will the computed maps have
-  n_channels: 1
+  n_channels: 24
   # how many classes are being discriminated
   n_classes: 2
   # on which level of the EC tree does the classification occur
   prediction_depth: 3
 training:
+  # split strategy can be naive or strict
+  split_strategy: naive
   # max. number of epochs during training
   epochs: 1000
   # max. number of samples to pick as representatives of each class

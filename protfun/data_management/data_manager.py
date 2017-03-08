@@ -46,6 +46,9 @@ class DataManager(object):
             if not os.path.exists(d) and not os.path.islink(d):
                 os.makedirs(d)
 
+    def get_data_dir(self):
+        return self.dirs['data']
+
     @abc.abstractmethod
     def get_test_set(self):
         raise NotImplementedError
@@ -57,6 +60,34 @@ class DataManager(object):
     @abc.abstractmethod
     def get_validation_set(self):
         raise NotImplementedError
+
+    @staticmethod
+    def split_data_on_sublevel(data_dict, percentage, hierarchical_depth):
+        import itertools
+        first_data_dict = dict()
+        second_data_dict = dict()
+
+        target_classes = set(
+            ['.'.join(cls.split('.')[:hierarchical_depth]) for cls in
+             data_dict])
+
+        for target_cls in target_classes:
+            children = [(cls, enzymes) for cls, enzymes in data_dict.items() if
+                        cls.startswith(target_cls + '.')]
+            target_cls_prots = set(
+                itertools.chain.from_iterable(zip(*children)[1]))
+            required_count = ((100 - percentage) * len(target_cls_prots)) // 100
+            sorted_children = sorted(children, key=lambda x: len(x[1]),
+                                     reverse=True)
+            collected_so_far = set()
+            for cls, enzymes in sorted_children:
+                if len(collected_so_far) < required_count:
+                    collected_so_far |= set(enzymes)
+                    second_data_dict[cls] = enzymes
+                else:
+                    first_data_dict[cls] = enzymes
+
+        return first_data_dict, second_data_dict
 
     @staticmethod
     def split_data_on_level(data_dict, percentage, level=3):
@@ -153,7 +184,8 @@ class EnzymeDataManager(DataManager):
                  enzyme_classes=None,
                  hierarchical_depth=4,
                  percentage_test=30,
-                 percentage_val=30):
+                 percentage_val=30,
+                 split_strategy='strict'):
         """
         :param data_dir: the path to the root data directory
         :param force_download: forces the downloading of the protein pdb files should be done
@@ -175,6 +207,7 @@ class EnzymeDataManager(DataManager):
         self.force_memmaps = force_memmaps or force_download
         self.enzyme_classes = enzyme_classes
         self.max_hierarchical_depth = hierarchical_depth
+        self.split_strategy = split_strategy
 
         self.validator = EnzymeValidator(enz_classes=enzyme_classes,
                                          dirs=self.dirs)
@@ -238,12 +271,23 @@ class EnzymeDataManager(DataManager):
                 "Do you really want to split a test set into a separate directory?" +
                 " This will change the existing test set / train set split! y/[n]\n")
             if resp.startswith('y'):
-                test_dataset, trainval_data = self.split_data_on_level(
-                    self.valid_proteins,
-                    percentage=self.p_test, level=3)
-                val_dataset, train_dataset = self.split_data_on_level(
-                    trainval_data,
-                    percentage=self.p_val, level=3)
+                if self.split_strategy == 'naive':
+                    test_dataset, trainval_data = self.split_data_on_level(
+                        self.valid_proteins,
+                        percentage=self.p_test, level=3)
+                    val_dataset, train_dataset = self.split_data_on_level(
+                        trainval_data,
+                        percentage=self.p_val, level=3)
+                elif self.split_strategy == 'strict':
+                    test_dataset, trainval_data = self.split_data_on_sublevel(
+                        self.valid_proteins,
+                        percentage=self.p_test, hierarchical_depth=4)
+                    val_dataset, train_dataset = self.split_data_on_sublevel(
+                        trainval_data,
+                        percentage=self.p_val, hierarchical_depth=4)
+                else:
+                    log.error("Split strategy can be 'naive' or 'strict'")
+                    raise ValueError
 
                 self.validator.check_splitting(self.valid_proteins, trainval_data, test_dataset)
                 self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
@@ -440,6 +484,7 @@ if __name__ == "__main__":
                            force_memmaps=False,
                            force_grids=False,
                            force_split=True,
+                           split_strategy='strict',
                            percentage_test=30,
                            percentage_val=30,
                            hierarchical_depth=3,

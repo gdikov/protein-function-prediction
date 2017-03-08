@@ -34,17 +34,13 @@ class DataFeeder(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, data_dir, minibatch_size, init_samples_per_class):
+    def __init__(self, minibatch_size, init_samples_per_class):
         """
-        :param data_dir: root directory where all data that the feeder will provide is placed.
-            Specific data feeder implementing classes will have their own heuristics for how the
-            data should be structured under data_dir/
         :param minibatch_size: minibatch_size for the minibatches that the data feeder will generate
         :param init_samples_per_class: (optional) restrict the number of samples in each class in
             the data set, i.e. the data feeder will provide only that many unique objects from each
             class, and not more.
         """
-        self.data_dir = data_dir
         self.samples_per_class = init_samples_per_class
         self.minibatch_size = minibatch_size
 
@@ -107,8 +103,6 @@ class DataFeeder(object):
         """
         return self.samples_per_class
 
-    def get_data_dir(self):
-        return self.data_dir
 
 
 class EnzymeDataFeeder(DataFeeder):
@@ -122,10 +116,10 @@ class EnzymeDataFeeder(DataFeeder):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, data_dir, minibatch_size, init_samples_per_class,
-                 prediction_depth, enzyme_classes):
+    def __init__(self, data_manager, minibatch_size, init_samples_per_class,
+                 prediction_depth):
         """
-        :param data_dir: see docs for DataFeeder.
+        :param data_manager: data manager to download and process the protein files.
         :param minibatch_size: see docs for DataFeeder.
         :param init_samples_per_class: see docs for DataFeeder.
         :param prediction_depth: integer depth in the EC tree of enzymes proteins, it is the
@@ -134,17 +128,12 @@ class EnzymeDataFeeder(DataFeeder):
             data set (white list). E.g. ['3.4.21', '3.4.24']. Can be at any level of the hierarchy,
             all child proteins of the specified classes will be in the data set.
         """
-        super(EnzymeDataFeeder, self).__init__(data_dir, minibatch_size,
+        super(EnzymeDataFeeder, self).__init__(minibatch_size,
                                                init_samples_per_class)
 
         # instantiate an enzyme data manager that can download, preprocess and split
         # the enzymes data
-        self.data_manager = EnzymeDataManager(data_dir=data_dir,
-                                              enzyme_classes=enzyme_classes,
-                                              force_download=False,
-                                              force_memmaps=False,
-                                              force_grids=False,
-                                              force_split=False)
+        self.data_manager = data_manager
         self.prediction_depth = prediction_depth
 
     def iterate_test_data(self):
@@ -167,6 +156,9 @@ class EnzymeDataFeeder(DataFeeder):
         """
         for inputs in self._iter_minibatches(iter_mode='val'):
             yield inputs
+
+    def get_data_dir(self):
+        return self.data_manager.get_data_dir()
 
     def get_test_data(self):
         """
@@ -269,15 +261,14 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
     [coordinates, vdwradii, n_atoms], for each enzyme protein in the mini-batch.
     """
 
-    def __init__(self, data_dir, minibatch_size, init_samples_per_class,
-                 prediction_depth, enzyme_classes):
+    def __init__(self, data_manager, minibatch_size, init_samples_per_class,
+                 prediction_depth):
         """
         See doc for EnzymeDataFeeder.
         """
-        super(EnzymesMolDataFeeder, self).__init__(data_dir, minibatch_size,
+        super(EnzymesMolDataFeeder, self).__init__(data_manager, minibatch_size,
                                                    init_samples_per_class,
-                                                   prediction_depth,
-                                                   enzyme_classes)
+                                                   prediction_depth)
 
     def _form_samples_minibatch(self, prot_codes, from_dir):
         """
@@ -322,9 +313,9 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
     the electron density of side chains in the protein, electron density of the backbone, etc.
     """
 
-    def __init__(self, data_dir, minibatch_size,
+    def __init__(self, data_manager, minibatch_size,
                  init_samples_per_class, prediction_depth,
-                 enzyme_classes, num_channels, grid_size):
+                 num_channels, grid_size):
         """
         See EnzymeDataFeeder for remaining parameters.
         :param num_channels: how many channels do the electron density grids have (normally it
@@ -332,10 +323,9 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
         :param grid_size: what is the number of points on each side of the electron density grid,
             e.g. 128
         """
-        super(EnzymesGridFeeder, self).__init__(data_dir, minibatch_size,
+        super(EnzymesGridFeeder, self).__init__(data_manager, minibatch_size,
                                                 init_samples_per_class,
-                                                prediction_depth,
-                                                enzyme_classes)
+                                                prediction_depth)
         self.num_channels = num_channels
         self.grid_size = grid_size
 
