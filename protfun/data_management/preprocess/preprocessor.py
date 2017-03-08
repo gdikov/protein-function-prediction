@@ -47,6 +47,16 @@ class EnzymeDataProcessor(DataProcessor):
                  process_memmaps=True,
                  force_recreate=False, add_sidechain_channels=True,
                  use_esp=False):
+        """
+        :param from_dir: base data directory
+        :param target_dir: target directory for the pre-processed data
+        :param protein_codes: a list of protein codes to be pre-processed
+        :param process_grids: a boolean flag setting the grid-generation
+        :param process_memmaps: a boolean flag setting the memmaping of coords, vdwradii and charges from pdb files
+        :param force_recreate: a boolean flag setting the recreation of everything (used after bugs were discovered)
+        :param add_sidechain_channels: whether additional channels should be added to the default ones (density)
+        :param use_esp: whether electrostatic potential should be used
+        """
         super(EnzymeDataProcessor, self).__init__(from_dir=from_dir,
                                                   target_dir=target_dir)
         self.prot_codes = protein_codes
@@ -63,6 +73,10 @@ class EnzymeDataProcessor(DataProcessor):
             self.grid_processor = GridProcessor()
 
     def process(self):
+        """
+        Runs all pre-processing steps needed to generate a 3D map from pdb files
+        :return: a list of all correctly pre-processed protein codes
+        """
         # will store the valid proteins for each enzyme class, which is the key
         # in the dict()
         valid_codes = dict()
@@ -139,6 +153,12 @@ class EnzymeDataProcessor(DataProcessor):
         return valid_codes
 
     def _persist_processed(self, prot_dir, mol):
+        """
+        Saves the processed molecule on disk.
+        :param prot_dir: the directory for the processed molecules to be sotred in
+        :param mol: the molecule to be stored
+        :return:
+        """
         if not os.path.exists(prot_dir):
             os.makedirs(prot_dir)
         # generate and save the memmaps
@@ -149,6 +169,13 @@ class EnzymeDataProcessor(DataProcessor):
 
     @staticmethod
     def save_to_memmap(file_path, data, dtype):
+        """
+        Saves the parsed pdb data to memmaps which are accessed later for the grid generation.
+        :param file_path: the file location for the memmap to be stored
+        :param data: the array to be memmapped
+        :param dtype: the data type ot the array to be memmaped
+        :return:
+        """
         if data.size == 0:
             data = np.array([np.nan])
         tmp = np.memmap(file_path, shape=data.shape, mode='w+', dtype=dtype)
@@ -160,6 +187,12 @@ class EnzymeDataProcessor(DataProcessor):
 
     @staticmethod
     def memmaps_exists(prot_dir, num_channels=1):
+        """
+        Checks if a memmap already extist
+        :param prot_dir: the directory where the protein memmap are stored
+        :param num_channels: the number of channels for the protein (i.e. number of additional memmaps per protein)
+        :return:
+        """
         if num_channels > 1:
             if not os.path.exists(prot_dir):
                 return False
@@ -181,7 +214,7 @@ class EnzymeDataProcessor(DataProcessor):
 
 class GODataProcessor(DataProcessor):
     """
-    Gene ontology data processor
+    Gene ontology data processor. Never used.
     """
 
     def __init__(self, from_dir, target_dir):
@@ -289,10 +322,18 @@ class PDBMoleculeProcessor(object):
 
 
 class PDBSideChainProcessor(object):
+    """
+    Processor for the additional channels, like amino acids and other stuff.
+    """
     def __init__(self):
         self.periodic_table = Chem.GetPeriodicTable()
 
-    def process_molecule(self, pdb_file, use_esp=False):
+    def process_molecule(self, pdb_file):
+        """
+        Splits the molecules into separate channels.
+        :param pdb_file: the pdb file to be processed
+        :return: a dictionary of the coordinates and vdwradii for each channel
+        """
         hydro_file_name = '_hydrogenized.'.join(
             os.path.basename(pdb_file).split('.'))
         hydrogenized_pdb_file = os.path.join(os.path.dirname(pdb_file),
@@ -414,7 +455,13 @@ class GeneOntologyProcessor(object):
 
 
 class GridProcessor(object):
+    """
+    Processor for the 3D maps of electron density and potential.
+    """
     def __init__(self):
+        """
+        Uses separate input layer for each input, i.e. vdwradii, coords, etc. Sets the MolMap as grid generator.
+        """
         dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
         dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
         dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
@@ -424,6 +471,11 @@ class GridProcessor(object):
             minibatch_size=1, rotate=False)
 
     def process(self, prot_dir):
+        """
+        Calls the MolMap layer to generate the 3D grid.
+        :param prot_dir: the directory of the stored memmaps (vdwradii, coords, etc.) for the protein.
+        :return: a multidimensional array containing the 3D maps generated by the MolMap layer.
+        """
         try:
             coords = np.memmap(os.path.join(prot_dir, 'coords.memmap'),
                                mode='r', dtype=floatX).reshape((1, -1, 3))
@@ -440,9 +492,15 @@ class GridProcessor(object):
 
 
 class GridSideChainProcessor(object):
+    """
+    Processor for the proteins with additional channels, like amino acids and other stuff.
+    """
     channels_count = 24
 
     def __init__(self):
+        """
+        Similar to the GridProcessor
+        """
         dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
         dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
         dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
@@ -453,6 +511,11 @@ class GridSideChainProcessor(object):
                                           minibatch_size=1)
 
     def process(self, prot_dir):
+        """
+        Generates the molecule's memmaped coords and vdwradii into 3D grids.
+        :param prot_dir: the directory where the protein is sotred
+        :return: a multidimensional array of the processed molecule (all 3D maps are concatenated)
+        """
         try:
             memmaps_sufix = ['_backbone.memmap', '_heavy.memmap',
                              '_hydro.memmap',
