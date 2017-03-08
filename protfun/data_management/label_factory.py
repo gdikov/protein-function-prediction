@@ -61,15 +61,16 @@ class LabelFactory(object):
         val_labels = dict()
         test_labels = dict()
 
-        # for each of the hierarchical levels in depth, check how many different protein classes there are
-        # for the given example, this would result in:
+        # for each of the hierarchical levels in depth, check how many different protein classes
+        # there are for the given example, this would result in:
         # [['2', '3'], ['2.1', '3.1'], ['2.1.2', '2.1.3', '2.1.4', '2.1.8', '3.1.1', '3.1.2']]
         unique_labels_at_depth = [
             sorted(list(set(['.'.join(x.split('.')[:h + 1]) for x in all_classes])))
             for h in range(self.h_depth)]
 
-        # go over all sets (train, test, val) and for each go over all items (i.e. class and list of protein codes)
-        #  and for each item go over all protein codes and create a label for each class-level
+        # go over all sets (train, test, val) and for each go over all items (i.e. class and list
+        # of protein codes) and for each item go over all protein codes and create a label for each
+        # class-level
         for data_dict, label_dict in zip(
                 [self.train_dict, self.val_dict, self.test_dict],
                 [train_labels, val_labels, test_labels]):

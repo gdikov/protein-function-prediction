@@ -1,11 +1,10 @@
 import shutil
-
 import abc
 import colorlog as log
 import numpy as np
 import os
 
-# import protfun.data_management.preprocess as prep
+import protfun.data_management.preprocess as prep
 from protfun.data_management.label_factory import LabelFactory
 from protfun.data_management.validation import EnzymeValidator
 from protfun.utils import save_pickle, load_pickle, construct_hierarchical_tree
@@ -13,8 +12,8 @@ from protfun.utils import save_pickle, load_pickle, construct_hierarchical_tree
 
 class DataManager(object):
     """
-    DataManager is a parent class for EnzymeDataManager which stores all data directories and implements
-    a *naive* split strategy described below.
+    DataManager is a parent class for EnzymeDataManager which stores all data directories and
+    implements a *naive* split strategy described below.
     """
     __metaclass__ = abc.ABCMeta
 
@@ -79,8 +78,7 @@ class DataManager(object):
         first_data_dict = {key: [] for key in data_dict.keys()}
         second_data_dict = {key: [] for key in data_dict.keys()}
         if level < 4:
-            merged_on_level = construct_hierarchical_tree(data_dict,
-                                                          prediction_depth=level)
+            merged_on_level = construct_hierarchical_tree(data_dict, prediction_depth=level)
             prots2classes_dict = dict()
             for cls, prot_codes in data_dict.items():
                 for p in prot_codes:
@@ -94,17 +92,12 @@ class DataManager(object):
             second_part_size = num_samples - first_part_size
             if first_part_size == 0 or second_part_size == 0:
                 log.warning(
-                    "Data size of leaf class: {0} percentage: {1}".format(
-                        num_samples, percentage))
+                    "Data size of leaf class: {0} percentage: {1}".format(num_samples, percentage))
                 log.warning(
-                    "Class {} will not be represented in one part of the split.".format(
-                        cls))
-            first_samples = np.random.choice(samples,
-                                             replace=False,
-                                             size=int((
-                                                          num_samples * percentage) // 100.0))
-            second_samples = np.setdiff1d(samples, first_samples,
-                                          assume_unique=True)
+                    "Class {} will not be represented in one part of the split.".format(cls))
+            first_samples = np.random.choice(samples, replace=False,
+                                             size=int((num_samples * percentage) // 100.0))
+            second_samples = np.setdiff1d(samples, first_samples, assume_unique=True)
 
             if level < 4:
                 for p in first_samples:
@@ -125,7 +118,8 @@ class DataManager(object):
         """
         merges two or more data dictionaries into a single one.
 
-        :param data: a list of data dictionaries with key - EC-class and value - list of protein codes.
+        :param data: a list of data dictionaries with key - EC-class and value - list of protein
+        codes.
         :return: a single data dictionary (a union over the input dictionaries)
         """
         if isinstance(data, list):
@@ -146,9 +140,9 @@ class DataManager(object):
 
 class EnzymeDataManager(DataManager):
     """
-    EnzymeDataManager inherits from DataManager the *naive* and *sami-naive* splitting method and implements
-    the essential management processes, required for the EnzymeCategory and ProteinDataBank
-    data maintenance. Roughly the management pipeline can be described as:
+    EnzymeDataManager inherits from DataManager the *naive* and *sami-naive* splitting method and
+    implements the essential management processes, required for the EnzymeCategory and
+    ProteinDataBank data maintenance. Roughly the management pipeline can be described as:
         [download] -> [pre-process] -> [split test/train] -> provide
     where [.] designates a step that can be omitted if already done.
     """
@@ -198,47 +192,45 @@ class EnzymeDataManager(DataManager):
 
         # Download the data if required
         if self.force_download:
-            pass
-            # ef = prep.EnzymeFetcher(categories=self.enzyme_classes,
-            #                         enzyme_dir=self.dirs['data_raw'])
-            # self.all_proteins = ef.fetch_enzymes()
-            # prep.download_pdbs(base_dir=self.dirs['data_raw'],
-            #                    protein_codes=self.all_proteins)
-            # save_pickle(file_path=os.path.join(self.dirs["data_raw"], "all_prot_codes.pickle"),
-            #             data=self.all_proteins)
-            # self._save_enzyme_list(target_dir=self.dirs["data_raw"], proteins_dict=self.all_proteins)
+            ef = prep.EnzymeFetcher(categories=self.enzyme_classes,
+                                    enzyme_dir=self.dirs['data_raw'])
+            self.all_proteins = ef.fetch_enzymes()
+            prep.download_pdbs(base_dir=self.dirs['data_raw'], protein_codes=self.all_proteins)
+            save_pickle(file_path=os.path.join(self.dirs["data_raw"], "all_prot_codes.pickle"),
+                        data=self.all_proteins)
+            self._save_enzyme_list(target_dir=self.dirs["data_raw"],
+                                   proteins_dict=self.all_proteins)
         else:
             log.info("Skipping downloading step")
             self.all_proteins = load_pickle(
                 file_path=os.path.join(self.dirs["data_raw"],
                                        "all_prot_codes.pickle"))
 
-        # failed_downloads, n_successful, n_failed = self.validator.check_downloaded_codes()
-        # self._remove_failed_downloads(failed=failed_downloads)
-        # log.info("Total number of downloaded proteins found is {0}. Failed to download {1}".
-        #          format(n_successful, n_failed))
+        failed_downloads, n_successful, n_failed = self.validator.check_downloaded_codes()
+        self._remove_failed_downloads(failed=failed_downloads)
+        log.info("Total number of downloaded proteins found is {0}. Failed to download {1}".
+                 format(n_successful, n_failed))
 
         # Process the data if required
         if self.force_memmaps or self.force_grids:
-            pass
-            # edp = prep.EnzymeDataProcessor(protein_codes=self.all_proteins,
-            #                                from_dir=self.dirs['data_raw'],
-            #                                target_dir=self.dirs['data_processed'],
-            #                                process_grids=self.force_grids,
-            #                                process_memmaps=self.force_memmaps,
-            #                                use_esp=False)
-            # self.valid_proteins = edp.process()
-            # self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
-            # save_pickle(file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"),
-            #             data=self.valid_proteins)
-            # self._save_enzyme_list(target_dir=self.dirs["data_processed"], proteins_dict=self.valid_proteins)
+            edp = prep.EnzymeDataProcessor(protein_codes=self.all_proteins,
+                                           from_dir=self.dirs['data_raw'],
+                                           target_dir=self.dirs['data_processed'],
+                                           process_grids=self.force_grids,
+                                           process_memmaps=self.force_memmaps,
+                                           use_esp=False)
+            self.valid_proteins = edp.process()
+            self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
+            save_pickle(
+                file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"),
+                data=self.valid_proteins)
+            self._save_enzyme_list(target_dir=self.dirs["data_processed"],
+                                   proteins_dict=self.valid_proteins)
         else:
             log.info("Skipping preprocessing step")
             self.valid_proteins = load_pickle(
-                file_path=os.path.join(self.dirs["data_processed"],
-                                       "valid_prot_codes.pickle"))
-            self.validator.check_class_representation(self.valid_proteins,
-                                                      clean_dict=True)
+                file_path=os.path.join(self.dirs["data_processed"], "valid_prot_codes.pickle"))
+            self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
 
         # Split test / val data set if required
         if self.force_split:
@@ -253,8 +245,8 @@ class EnzymeDataManager(DataManager):
                     trainval_data,
                     percentage=self.p_val, level=3)
 
-                # self.validator.check_splitting(self.valid_proteins, trainval_data, test_dataset)
-                # self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
+                self.validator.check_splitting(self.valid_proteins, trainval_data, test_dataset)
+                self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
 
                 # recreate the train and test dirs
                 shutil.rmtree(self.dirs['data_train'])
@@ -262,8 +254,8 @@ class EnzymeDataManager(DataManager):
                 shutil.rmtree(self.dirs['data_test'])
                 os.makedirs(self.dirs['data_test'])
 
-                # save val and train sets under dirs["data_train"], copy over
-                # all corresponding data samples
+                # save val and train sets under dirs["data_train"], copy over all corresponding
+                # data samples
                 self._copy_processed(target_dir=self.dirs["data_train"],
                                      proteins_dict=trainval_data)
                 self._save_enzyme_list(target_dir=self.dirs["data_train"],
@@ -300,24 +292,19 @@ class EnzymeDataManager(DataManager):
                     trainval_data,
                     percentage=self.p_val, level=3)
 
-                # self.validator.check_splitting(trainval_data, train_dataset,
-                # val_dataset)
+                self.validator.check_splitting(trainval_data, train_dataset, val_dataset)
 
-                save_pickle(file_path=[os.path.join(self.dirs["data_train"],
-                                                    "train_prot_codes.pickle"),
-                                       os.path.join(self.dirs["data_train"],
-                                                    "val_prot_codes.pickle")],
-                            data=[train_dataset, val_dataset])
+                save_pickle(
+                    file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
+                               os.path.join(self.dirs["data_train"], "val_prot_codes.pickle")],
+                    data=[train_dataset, val_dataset])
         else:
             log.info("Skipping splitting step")
 
         train_dataset, val_dataset, test_dataset = \
-            load_pickle(file_path=[os.path.join(self.dirs["data_train"],
-                                                "train_prot_codes.pickle"),
-                                   os.path.join(self.dirs["data_train"],
-                                                "val_prot_codes.pickle"),
-                                   os.path.join(self.dirs["data_test"],
-                                                "test_prot_codes.pickle")])
+            load_pickle(file_path=[os.path.join(self.dirs["data_train"], "train_prot_codes.pickle"),
+                                   os.path.join(self.dirs["data_train"], "val_prot_codes.pickle"),
+                                   os.path.join(self.dirs["data_test"], "test_prot_codes.pickle")])
 
         # only select the enzymes classes we're interested in
         self.train_dataset = self._select_enzymes(train_dataset)
@@ -325,20 +312,19 @@ class EnzymeDataManager(DataManager):
         self.test_dataset = self._select_enzymes(test_dataset)
 
         # generate labels based on the data-sets
-        lf = LabelFactory(self.train_dataset, self.val_dataset,
-                          self.test_dataset,
+        lf = LabelFactory(self.train_dataset, self.val_dataset, self.test_dataset,
                           hierarchical_depth=self.max_hierarchical_depth)
         self.train_labels, self.val_labels, self.test_labels = lf.generate_hierarchical_labels()
 
         # final sanity check
-        self.validator.check_labels(self.train_labels, self.val_labels,
-                                    self.test_labels)
+        self.validator.check_labels(self.train_labels, self.val_labels, self.test_labels)
 
     def _select_enzymes(self, dataset):
         """
         Extracts a subset of a data dictionary according to the enzyme classes of interest.
-        E.g. if the data dictionary contains the whole database and in the new experiment only a subset is needed,
-        in order not to download, process and split the data again, a subset is extracted from the existing data.
+        E.g. if the data dictionary contains the whole database and in the new experiment only a
+        subset is needed, in order not to download, process and split the data again, a subset is
+        extracted from the existing data.
 
         :param dataset: a data dictionary with keys the enzyme classes and values
         - lists of protein codes for each class
@@ -353,12 +339,12 @@ class EnzymeDataManager(DataManager):
 
     def _remove_failed_downloads(self, failed=None):
         """
-        Deprecated. It was meant to clean-up the list of all fetched proteins after the download is completed.
-        This was necessary since the list of all proteins was generated from the EC database and the proteins
-        were downloaded from the PDB database, hence some proteins might be taken into account by fail to download.
+        Deprecated. It was meant to clean-up the list of all fetched proteins after the download is
+        completed. This was necessary since the list of all proteins was generated from the EC
+        database and the proteins were downloaded from the PDB database, hence some proteins might
+        be taken into account by fail to download.
 
         :param failed: the list of all failed-to-download protein codes
-        :return:
         """
         # here the protein codes are stored in a dict according to their classes
         for cls in failed.keys():
@@ -376,8 +362,9 @@ class EnzymeDataManager(DataManager):
 
     def _copy_processed(self, target_dir, proteins_dict):
         """
-        After the data is split, the test proteins are moved to a separate directory so that they do not interfere
-        with the training and validation proteins. This method copies the proteins from one directory to another.
+        After the data is split, the test proteins are moved to a separate directory so that they do
+        not interfere with the training and validation proteins. This method copies the proteins
+        from one directory to another.
 
         :param target_dir: the target directory to which proteins are copied
         :param proteins_dict: the source directory from which proteins are copied
@@ -394,12 +381,11 @@ class EnzymeDataManager(DataManager):
     @staticmethod
     def _save_enzyme_list(target_dir, proteins_dict):
         """
-        Logger of the list of proteins, so that directories are not walked later when a list of all proteins in test
-        or training set is needed.
+        Logger of the list of proteins, so that directories are not walked later when a list of all
+        proteins in test or training set is needed.
 
         :param target_dir: the directory in which the lists should be stored
         :param proteins_dict: the data dictionary of protein classes and list of corresponding codes.
-        :return:
         """
         for cls, prot_codes in proteins_dict.items():
             with open(os.path.join(target_dir, cls + '.proteins'),
