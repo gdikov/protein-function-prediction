@@ -268,6 +268,7 @@ class EnzymesMolDataFeeder(EnzymeDataFeeder):
     EnzymesMolDataFeeder is an enzyme protein feeder, that can provide mini-batches of
     [coordinates, vdwradii, n_atoms], for each enzyme protein in the mini-batch.
     """
+
     def __init__(self, data_dir, minibatch_size, init_samples_per_class,
                  prediction_depth, enzyme_classes):
         """
@@ -320,6 +321,7 @@ class EnzymesGridFeeder(EnzymeDataFeeder):
     The grids can represent different properties of the protein, e.g. the full electron density,
     the electron density of side chains in the protein, electron density of the backbone, etc.
     """
+
     def __init__(self, data_dir, minibatch_size,
                  init_samples_per_class, prediction_depth,
                  enzyme_classes, num_channels, grid_size):

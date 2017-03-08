@@ -6,11 +6,16 @@ log.basicConfig(level=logging.DEBUG)
 
 
 class EnzymeFetcher(object):
-    """ Generate and filter enzyme IDs which are to be downloaded
-     :param categories: list of strings in the form 1.1 or 4.3.2.1 giving the
-     most general category of interest. """
-
+    """
+    EnzymeFetcher queries PDB ids for the enzymes EC2PDB data set, extracting them
+    from the EC2PDB website based on desired EC categories.
+    """
     def __init__(self, categories, excluded_categories=list(), enzyme_dir=None):
+        """
+        :param categories: which enzyme categories to download
+        :param excluded_categories: which enzyme categories to exclude
+        :param enzyme_dir: where to download the enzymes
+        """
         self.enzyme_dir = enzyme_dir
         self.excluded_categories = excluded_categories
         self.leaf_categories = list()
@@ -22,6 +27,12 @@ class EnzymeFetcher(object):
         self.fetched_prot_codes = dict()
 
     def _find_leaf_categories(self, cat):
+        """
+        Internal method, finds all categories in the leafs of the EC tree that are
+        children of the specified category.
+
+        The below code parses the HTML of the website for EC2PDB.
+        """
         import requests
         from bs4 import BeautifulSoup
 
@@ -61,6 +72,13 @@ class EnzymeFetcher(object):
             self._find_leaf_categories(child_cat)
 
     def fetch_enzymes(self):
+        """
+        Fetches the protein codes for all enzymes that were selected by the user in the constructor
+        of this class.
+        :return: a dictionary with keys EC categories (e.g. '3.4.21.4') and values list of protein
+        codes for that category (e.g. ['1A0H', '1A0Z']). Only leaf categories (i.e. depth 4) are
+        put as keys into the dict.
+        """
         if self.leaf_categories is not None:
             log.info(
                 "Processing html pages for each enzyme classes ({0} in total). "
@@ -117,7 +135,11 @@ class EnzymeFetcher(object):
 
 def download_pdbs(base_dir, protein_codes):
     """
-    Downloads the PDB database (or a part of it) as PDB files.
+    Downloads the PDB database (or a part of it) as PDB files. Every protein is stored in it's own
+    directory (with name the PDB code) under base_dir.
+
+    :param base_dir: where to download all the proteins.
+    :param protein_codes: the PDB codes of the proteins that should be downloaded.
     """
     prot_codes = []
     if isinstance(protein_codes, dict):

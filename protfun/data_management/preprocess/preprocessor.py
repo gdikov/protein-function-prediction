@@ -224,31 +224,7 @@ class GODataProcessor(DataProcessor):
         self.go_processor = GeneOntologyProcessor()
 
     def process(self):
-        # valid_codes = []
-        # for pc in self.prot_codes:
-        #     f_path = os.path.join(self.data_dir, 'pdb' + pc.lower() + '.ent')
-        #     # process molecule from file
-        #     mol = molecule_processor.process_molecule(f_path)
-        #     if mol is None:
-        #         log.warning("Ignoring PDB file {} for invalid molecule".format(pc))
-        #         erroneous_pdb_files.append((f_path, "invalid molecule"))
-        #         continue
-        #
-        #     # process gene ontology (GO) target label from file
-        #     if self.label_type == 'gene_ontological':
-        #         go_ids = go_processor.process_gene_ontologies(f_path)
-        #         if go_ids is None or len(go_ids) == 0:
-        #             log.warning("Ignoring PDB file %s because it has no gene ontologies associated with it." % pc)
-        #             erroneous_pdb_files.append((pc, "no associated gene ontologies"))
-        #             continue
-        #         go_targets.append(go_ids)
-        #     molecules.append(mol)
-        #     valid_codes.append(pc)
-        #
-        #     # save the final GO targets into a .csv file
-        #     with open(os.path.join(self.go_dir, "go_ids.csv"), "wb") as f:
-        #         csv.writer(f).writerows(go_targets)
-        raise NotImplementedError
+        return NotImplementedError
 
 
 class PDBMoleculeProcessor(object):
@@ -269,8 +245,7 @@ class PDBMoleculeProcessor(object):
         :return: a ProcessedMolecule object
         """
 
-        # TODO: this is the old code using rdkit for the charge computations.
-        # Gasteiger is an inappropriate algorithm
+        # NOTE: Gasteiger is an inappropriate algorithm for ESP calculation of proteins!
         # read a molecule from the PDB file
         try:
             mol = Chem.MolFromPDBFile(molFileName=pdb_file, removeHs=False,
@@ -311,8 +286,8 @@ class PDBMoleculeProcessor(object):
             "coords": np.asarray(
                 [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
                 [center.x, center.y, center.z]),
-            # "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for
-            # atom in atoms]),
+            "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for
+            atom in atoms]),
             "vdwradii": np.asarray(
                 [self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in
                  atoms]),
