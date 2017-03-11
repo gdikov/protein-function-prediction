@@ -6,52 +6,12 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import os
 
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import auc, roc_curve
 from protfun.utils.data_utils import load_pickle
 
 classes = ['3.4.21', '3.4.24']
-# 360, 47
-# 30, 64
-# 113, 75
-# 200, 55
 colors = ['#991012', '#c4884e', '#93bf8d', '#a3dbff']
-# colors = ['#ffff00', '#00ff40', '#0040ff', '#ff00bf']
 sns.set_palette(colors)
-
-
-def my_roc(predicted, expected):
-    """
-    a home-made ROC data generation. Should be deprecated as sklearn.metrics works just fine...
-
-    :param predicted: a numpy array of predictions
-    :param expected: a numpy array of targets
-    :return: a tuple of numpy arrays for the false and true positive rates
-    """
-    smoothness = 1001
-    T = np.array(predicted[:])
-    Y = np.array(expected[:])
-    T[T == 1.0] = 0.999
-    thresholds = np.linspace(1, 0, smoothness)
-    fpr = []
-    tpr = []
-    for i in range(smoothness):
-        t = thresholds[i]
-
-        # Classifier / label agree and disagreements for current threshold.
-        TP_t = np.logical_and(T > t, Y == 1).sum()
-        TN_t = np.logical_and(T <= t, Y == 0).sum()
-        FP_t = np.logical_and(T > t, Y == 0).sum()
-        FN_t = np.logical_and(T <= t, Y == 1).sum()
-
-        # Compute false positive rate for current threshold.
-        FPR_t = FP_t / float(FP_t + TN_t)
-        fpr.append(FPR_t)
-
-        # Compute true  positive rate for current threshold.
-        TPR_t = TP_t / float(TP_t + FN_t)
-        tpr.append(TPR_t)
-
-    return fpr, tpr
 
 
 class ROCView(object):
@@ -74,12 +34,12 @@ class ROCView(object):
         ax.set_aspect(1)
 
         plt.plot([0, 1], [0, 1], 'k--', lw=2)
-        # plt.axes().set_aspect('equal', 'datalim')
+        plt.axes().set_aspect('equal', 'datalim')
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.0])
         plt.xlabel('False positive rate', size=10)
         plt.ylabel('True positive rate', size=10)
-        # plt.title('Receiver operating characteristic', size=15)
+        plt.title('Receiver operating characteristic', size=15)
 
         return ax, fig
 
@@ -92,17 +52,8 @@ class ROCView(object):
         :param label: the class for which the ROC is computed and drawn
         :return:
         """
-        # fpr, tpr, _ = roc_curve(expected, predicted, drop_intermediate=1)
-        fpr, tpr = my_roc(predicted, expected)
-        # roc_auc = auc(fpr, tpr)
-        # from scipy.integrate import simps
-        # from numpy import trapz
-
-        # roc_auc = trapz(tpr, dx=5)
-        import croc
-
-        roc_auc = roc_auc_score(expected, predicted)
-        print(roc_auc)
+        fpr, tpr, _ = roc_curve(expected, predicted, drop_intermediate=1)
+        roc_auc = auc(fpr, tpr)
         plt.plot(fpr, tpr, lw=2, label='{0} (AUC = {1:0.2f})'.format(label, roc_auc))
 
     def save_anc_close(self, filename):
