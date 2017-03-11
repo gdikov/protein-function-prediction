@@ -258,7 +258,9 @@ class ModelTrainer(object):
             return prots, inputs[1:], output[:-1], output[-1]
 
 
-def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0):
+def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0,
+                                    force_download=False, force_memmaps=False,
+                                    force_grids=False, force_split=False):
     """
     Helper function, that constructs a GridsDisjointClassifer model given a config, and constructs
     the respective EnzymesGridFeeder (provides the minibatches from the train / test / val. sets)
@@ -267,14 +269,18 @@ def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0):
     :param config: the contents of a config.yaml that specifies all the details around the model.
     :param model_name: if left out, a unique name will be given to the model.
     :param start_epoch: default is 0, can be set to something else if a training is being continued.
+    :param force_download: see EnzymeDataManager
+    :param force_memmaps: see EnzymeDataManager
+    :param force_grids: see EnzymeDataManager
+    :param force_split: see EnzymeDataManager
     :return: data_feeder, model, model_trainer
     """
     data_manager = EnzymeDataManager(data_dir=config['data']['dir'],
                                      enzyme_classes=config['proteins']['enzyme_trees'],
-                                     force_download=False,
-                                     force_memmaps=False,
-                                     force_grids=False,
-                                     force_split=False,
+                                     force_download=force_download,
+                                     force_memmaps=force_memmaps,
+                                     force_grids=force_grids,
+                                     force_split=force_split,
                                      split_strategy=config['training']['split_strategy'])
 
     data_feeder = EnzymesGridFeeder(data_manager=data_manager,
@@ -305,7 +311,9 @@ def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0):
     return data_feeder, model, trainer
 
 
-def train_enz_from_grids(config, model_name=None, start_epoch=0):
+def train_enz_from_grids(config, model_name=None, start_epoch=0,
+                         force_download=False, force_memmaps=False,
+                         force_grids=False, force_split=False):
     """
     Utility function to train a GridsDisjointClassifier model on the train set, consisting of
     already precomputed electron density grids. The model need not exist, but if it does exist
@@ -316,9 +324,17 @@ def train_enz_from_grids(config, model_name=None, start_epoch=0):
     :param model_name: can be left out, then a unique name will be given to the newly trained model
     :param start_epoch: default is 0; can be set to something else in case a previous training must
         be continued.
+    :param force_download: see EnzymeDataManager
+    :param force_memmaps: see EnzymeDataManager
+    :param force_grids: see EnzymeDataManager
+    :param force_split: see EnzymeDataManager
     """
     _, _, trainer = _build_enz_feeder_model_trainer(config, model_name=model_name,
-                                                    start_epoch=start_epoch)
+                                                    start_epoch=start_epoch,
+                                                    force_download=force_download,
+                                                    force_memmaps=force_memmaps,
+                                                    force_grids=force_grids,
+                                                    force_split=force_split)
     save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
     if start_epoch != 0:
         trainer.monitor.load_model("params_{}ep_best.npz".format(start_epoch),

@@ -55,7 +55,11 @@ def describe_model():
 
 def run_experiment_from_config(config_filepath):
     config = get_config(config_filepath)
-    train_enz_from_grids(config)
+    train_enz_from_grids(config,
+                         force_download=True,
+                         force_memmaps=True,
+                         force_grids=True,
+                         force_split=True)
 
 
 def run_experiment():
