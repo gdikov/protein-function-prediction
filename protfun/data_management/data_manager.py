@@ -364,9 +364,6 @@ class EnzymeDataManager(DataManager):
                           hierarchical_depth=self.max_hierarchical_depth)
         self.train_labels, self.val_labels, self.test_labels = lf.generate_hierarchical_labels()
 
-        # final sanity check
-        self.validator.check_labels(self.train_labels, self.val_labels, self.test_labels)
-
     def _select_enzymes(self, dataset):
         """
         Extracts a subset of a data dictionary according to the enzyme classes of interest.

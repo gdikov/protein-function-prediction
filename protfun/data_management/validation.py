@@ -146,16 +146,3 @@ class EnzymeValidator(object):
                 second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls) == \
                    set(
                        all_prot_codes_in_cls), "The splits are not a partition of all proteins!"
-
-    def check_labels(self, train_labels=None, val_labels=None,
-                     test_lables=None):
-        """
-        tests whether the labels are correctly generated. Not sure how though...
-
-        :param train_labels: training set labels
-        :param val_labels: validation set labels
-        :param test_lables: test set labels
-        :return:
-        """
-        log.warning("Label checking is not implemented yet")
-        pass

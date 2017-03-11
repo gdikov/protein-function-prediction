@@ -55,7 +55,7 @@ class EnzymeFetcher(object):
                                                                      recursive=False)[
                        first_child_index:]
         except (AttributeError, IndexError):
-            log.warning(
+            log.debug(
                 "No subcategory table found for parent category {0}".format(
                     cat))
             return
@@ -64,7 +64,7 @@ class EnzymeFetcher(object):
                 child_cat = child.find('a', {'class': 'menuClass'},
                                        href=True).text
             except (AttributeError, IndexError):
-                log.warning("Wno link to child category")
+                log.debug("no link to child category")
                 continue
             # remove trailing .- and the "EC " in front
             child_cat = child_cat.rstrip('.-')[3:]
@@ -105,12 +105,12 @@ class EnzymeFetcher(object):
         try:
             pdb_table = parsed_html.find('body').find_all('p')[2].find('table')
         except (AttributeError, IndexError):
-            log.warning("Something went wrong while parsing " + str(
+            log.debug("Something went wrong while parsing " + str(
                 cat) + " Probably no PDB table present.")
             return None
 
         if pdb_table is None:
-            log.warning(
+            log.debug(
                 "A pdbs-containing table was not found while parsing " + str(
                     cat))
             return None
