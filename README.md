@@ -13,6 +13,7 @@ The main datasets used are the [Protein Data Bank](http://pdb101.rcsb.org) and t
 [Enzyme Structures Database](https://www.ebi.ac.uk/thornton-srv/databases/enzymes/).  
 
 The workflow of the framework can be summarized in the following steps:
+
 1. Protein codes of interest are fetched from the Enzyme Structures Database
 2. Protein descriptor files (pdb****.ent) are downloaded from the Protein Data Bank
 3. 3D maps of protein electron density are computed and stored (optionally 3D maps of electrostatic potential 
