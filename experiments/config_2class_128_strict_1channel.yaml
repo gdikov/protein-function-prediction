@@ -1,6 +1,6 @@
 data:
   # directory under which all data is stored
-  dir: data
+  dir: data_128_strict_1_chan
 proteins:
   # define the nodes in the EC tree, the proteins under which we are interested in
   enzyme_trees:
