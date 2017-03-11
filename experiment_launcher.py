@@ -48,7 +48,7 @@ def describe_model():
 
         config_name = '_'.join(['config', str(class_num) + 'class', str(grid_size),
                                 split_strategy, str(channel_count) + 'channel.yaml'])
-        config_path = os.path.join(os.path.dirname(__file__), config_name)
+        config_path = os.path.join(os.path.dirname(__file__), 'experiments', config_name)
 
     return config_path
 
