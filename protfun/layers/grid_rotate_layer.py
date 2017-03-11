@@ -1,12 +1,11 @@
 import numpy as np
 import theano
 import lasagne
-import logging
-import colorlog as log
-
 from theano import tensor as T
 
-log.basicConfig(level=logging.DEBUG)
+from protfun.utils.log import setup_logger
+
+log = setup_logger("grid_rotate_layer")
 floatX = theano.config.floatX
 
 

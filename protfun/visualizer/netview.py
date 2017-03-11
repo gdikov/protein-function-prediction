@@ -24,5 +24,5 @@ class NetworkView(object):
         from nolearn.lasagne.visualize import draw_to_file
 
         file_path = os.path.join(self.data_dir, filename)
-        layers_debug = lasagne.layers.get_all_layers(network)
-        draw_to_file(layers_debug, file_path)
+        layers = lasagne.layers.get_all_layers(network)
+        draw_to_file(layers, file_path)

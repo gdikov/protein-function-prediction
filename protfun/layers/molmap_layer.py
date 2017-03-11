@@ -3,12 +3,11 @@ import numpy as np
 import theano
 import theano.tensor.nlinalg
 import theano.tensor as T
-import colorlog as log
-import logging
 
 from protfun.visualizer.molview import MoleculeView
+from protfun.utils.log import setup_logger
 
-log.basicConfig(level=logging.DEBUG)
+log = setup_logger("molmap_layer")
 floatX = theano.config.floatX
 intX = np.int32
 

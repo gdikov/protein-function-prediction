@@ -1,8 +1,7 @@
 import os
-import colorlog as log
-import logging
+from protfun.utils.log import setup_logger
 
-log.basicConfig(level=logging.DEBUG)
+log = setup_logger("protein_fetcher")
 
 
 class EnzymeFetcher(object):

@@ -1,11 +1,11 @@
 import numpy as np
 import os
 import lasagne
-import colorlog as log
-import logging
 import cPickle
 
-log.basicConfig(level=logging.DEBUG)
+from protfun.utils.log import setup_logger
+
+log = setup_logger("model_monitor")
 
 
 class ModelMonitor(object):

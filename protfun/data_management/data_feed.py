@@ -1,14 +1,12 @@
-import logging
 import abc
-import colorlog as log
 import numpy as np
 import theano
 from os import path
 
-from protfun.data_management.data_manager import EnzymeDataManager
 from protfun.utils import construct_hierarchical_tree
+from protfun.utils.log import setup_logger
 
-log.basicConfig(level=logging.DEBUG)
+log = setup_logger("protein_fetcher")
 floatX = theano.config.floatX
 intX = np.int32
 
@@ -104,7 +102,6 @@ class DataFeeder(object):
         return self.samples_per_class
 
 
-
 class EnzymeDataFeeder(DataFeeder):
     """
     EnzymeDataFeeder implements DataFeeder, but is also an abstract class that should not
@@ -124,9 +121,6 @@ class EnzymeDataFeeder(DataFeeder):
         :param init_samples_per_class: see docs for DataFeeder.
         :param prediction_depth: integer depth in the EC tree of enzymes proteins, it is the
             depth on which we do prediction (e.g. 3)
-        :param enzyme_classes: which enzyme classes in the EC tree should be included into the
-            data set (white list). E.g. ['3.4.21', '3.4.24']. Can be at any level of the hierarchy,
-            all child proteins of the specified classes will be in the data set.
         """
         super(EnzymeDataFeeder, self).__init__(minibatch_size,
                                                init_samples_per_class)
@@ -241,7 +235,7 @@ class EnzymeDataFeeder(DataFeeder):
                 [labels[prot_code][self.prediction_depth - 1].astype(intX) for prot_code in
                  prots_in_minibatch])]
 
-            yield prots_in_minibatch, next_samples + next_targets
+            yield prots_in_minibatch, next_samples, next_targets
 
     @abc.abstractmethod
     def _form_samples_minibatch(self, prot_codes, from_dir):

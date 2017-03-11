@@ -1,17 +1,18 @@
 import numpy as np
 import pickle
 import os
-import colorlog as log
-import logging
 import matplotlib
 
 matplotlib.use('Agg')
 import seaborn as sns
 
+from protfun.utils.log import setup_logger
+
+log = setup_logger("progressview")
+
 sns.set_style("whitegrid")
 colors = ['#1b9e77', '#d95f02', '#7570b3', '#e7298a']
 sns.set_palette(colors)
-log.basicConfig(level=logging.DEBUG)
 
 text = {
     'titles': {

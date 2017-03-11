@@ -3,13 +3,12 @@ import numpy as np
 import theano
 import theano.tensor as T
 import lasagne
-import colorlog as log
-import logging
 
 from protfun.layers.molmap_layer import MoleculeMapLayer
 from protfun.layers.grid_rotate_layer import GridRotationLayer
+from protfun.utils.log import setup_logger
 
-log.basicConfig(level=logging.DEBUG)
+log = setup_logger("disjoint_class_model")
 floatX = theano.config.floatX
 intX = np.int32
 

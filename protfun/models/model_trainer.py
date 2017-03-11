@@ -1,13 +1,10 @@
 import datetime
-import logging
 import random
 import string
-
-import colorlog as log
-import numpy as np
 import os
-from protfun.utils import save_pickle
+import numpy as np
 
+from protfun.utils import save_pickle
 from protfun.config import save_config
 from protfun.data_management.data_feed import EnzymesGridFeeder
 from protfun.data_management.data_manager import EnzymeDataManager
@@ -16,10 +13,10 @@ from protfun.models.model_monitor import ModelMonitor
 from protfun.networks import get_network
 from protfun.utils.np_utils import pp_array
 from protfun.visualizer.netview import NetworkView
-from protfun.visualizer.performance_view import PerformanceAnalyser
 from protfun.visualizer.progressview import ProgressView
+from protfun.utils.log import setup_logger
 
-log.basicConfig(level=logging.DEBUG)
+log = setup_logger("model_trainer")
 
 
 class ModelTrainer(object):
@@ -115,18 +112,16 @@ class ModelTrainer(object):
             self.monitor.save_history_and_model(self.history)
 
     def _train(self, epochs=100):
-        used_proteins = set()
         steps_before_validate = 0
 
         # iterate over epochs
         for e in xrange(self.first_epoch, self.first_epoch + epochs):
-            log.info("Unique proteins used during training so far: {}".format(len(used_proteins)))
             epoch_losses = []
             epoch_accs = []
 
             # iterate over minibatches (via the data_feeder)
-            for proteins, inputs in self.data_feeder.iterate_train_data():
-                output = self.model.train_function(*inputs)
+            for proteins, samples, targets in self.data_feeder.iterate_train_data():
+                output = self.model.train_function(*(samples + targets))
                 loss = output['loss']
                 accuracy = output['accuracy']
                 per_class_accs = output['per_class_accs']
@@ -142,7 +137,6 @@ class ModelTrainer(object):
                 self.history['train_accuracy'].append(accuracy)
                 self.history['train_per_class_accs'].append(per_class_accs)
                 self.history['train_predictions'].append(predictions)
-                used_proteins = used_proteins | set(proteins)
 
                 steps_before_validate += 1
 
@@ -223,8 +217,8 @@ class ModelTrainer(object):
         epoch_predictions = []
         epoch_targets = []
         proteins = []
-        for prots, inputs in data_iter_function():
-            output = self.model.validation_function(*inputs)
+        for prots, samples, targets in data_iter_function():
+            output = self.model.validation_function(*(samples + targets))
             loss = output['loss']
             accuracy = output['accuracy']
             per_class_accs = output['per_class_accs']
@@ -234,8 +228,7 @@ class ModelTrainer(object):
             epoch_per_class_accs.append(per_class_accs)
             epoch_predictions.append(predictions)
             proteins.append(prots)
-            # TODO: this will break when the DataFeeder is different, so refactor too.
-            epoch_targets.append(inputs[1:])
+            epoch_targets.append(targets)
 
         epoch_loss_means = np.mean(np.array(epoch_losses), axis=0)
         epoch_acc_means = np.mean(np.array(epoch_accs), axis=0)
@@ -252,10 +245,10 @@ class ModelTrainer(object):
         :return: protein codes, targets (ground truths), activations, predictions
             for the single mini-batch from the test set that was used.
         """
-        for prots, inputs in self.data_feeder.iterate_test_data():
+        for prots, samples, targets in self.data_feeder.iterate_test_data():
             # do just a single minibatch
-            output = self.model.get_hidden_activations(inputs[0])
-            return prots, inputs[1:], output[:-1], output[-1]
+            output = self.model.get_hidden_activations(samples)
+            return prots, targets, output[:-1], output[-1]
 
 
 def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0,
