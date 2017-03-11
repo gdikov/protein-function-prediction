@@ -35,7 +35,7 @@ def describe_model():
                                      "l2_network, regularized_net, resnet, "
                                      "shallow_net, small_dense_net or standard_network:\n"))
 
-    config_name = '_'.joint(['config', str(class_num) + 'class', str(grid_size),
+    config_name = '_'.join(['config', str(class_num) + 'class', str(grid_size),
                              split_strategy, str(channel_count) + 'channel.yaml'])
 
     return config_name, network_type
