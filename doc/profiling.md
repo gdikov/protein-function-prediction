@@ -1,9 +1,14 @@
 #### Testing the training function for bottlenecks
 
+*01.01.2017 Update:*
+
+Based on the evaluation of the bottlenecks presented below, we introduced the `GridRotationLayer`, and the overall strategy of pre-computing the el. density grids and storing them to the HDD, and then only doing the rotations & translations on the fly (but not the whole grid generation).
+With improvements in the `GridRotationLayer` (to let everything run on the GPU), this led to an apprx. **400x** speedup factor during the augmentation step, which was previously the main bottleneck of the system.
+
+
 *02.12.2016*:
 
-I enabled theano profiling for the train function of the model and checked out the results. Note that you must set the
-environment variable CUDA_LAUNCH_BLOCKING to 1 to be able to use profiling.
+I enabled theano profiling for the train function of the model and checked out the results. Note that you must set the environment variable CUDA_LAUNCH_BLOCKING to 1 to be able to use profiling.
 The results are as follows:
 
 ```
