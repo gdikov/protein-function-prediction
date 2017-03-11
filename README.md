@@ -30,14 +30,15 @@ see `doc/dependency_grpah.pdf`
 
 ## Requirements and Dependencies
 #### Python dependencies: 
-   * RDKit, Bio, prody
-   * lasagne, theano, sklearn
+   * RDKit, Bio, ProDy
+   * numpy, scipy
+   * Lasagne, theano, sklearn, nolearn
    * logging, colorlog
-   * seaborn, tvtk, mayavi
-   * abc, yaml
+   * seaborn, tvtk, mayavi, matplotlib
+   * PyYAML, beautifulsoup4, requests
    
 #### GPU dependencies:
-   * CuDNN, CUDA
+   * CUDA, CuDNN
 
 ## Experiment Configuraiton
 In order to run one of the experiments devised during the lab course, please use the dedicated
