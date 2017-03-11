@@ -67,9 +67,7 @@ def run_experiment(visualize_results=True):
     test_enz_from_grids(config, model_id, best_params_file, mode='test')
 
     if visualize_results:
-        create_history_plots(config,
-                             model_name=model_id,
-                             history_filename="train_history_best.pickle")
+        create_history_plots(config, model_id)
         create_performance_plots(config, model_id)
 
 

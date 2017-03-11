@@ -2,6 +2,7 @@ import datetime
 import random
 import string
 import os
+import re
 import numpy as np
 
 from protfun.utils import save_pickle
@@ -404,7 +405,7 @@ def get_best_params(config, model_name):
 
     model_dir = os.path.join(config["data"]["dir"], "models", model_name)
 
-    param_files = [f for f in os.listdir(model_dir) if f.startswith("params_") and "best" in f]
-    epochs = np.array([int(f.split('_')[1][:-2]) for f in param_files], dtype=np.int32)
+    param_files = [f for f in os.listdir(model_dir) if f.startswith("params_")]
+    epochs = np.array([int(re.search(r'\d+', f.split('_')[1]).group()) for f in param_files], dtype=np.int32)
     best_params_file = param_files[np.argmax(epochs)]
     return best_params_file
