@@ -26,7 +26,7 @@ partial charges is inadequate for such large molecules.)
 training history curves are generated.
  
 #### Framework structure
-see `doc/dependency_grpah.pdf`
+see `doc/dependency_graph.pdf`
 
 ## Requirements and Dependencies
 #### Python dependencies: 
@@ -53,3 +53,20 @@ All additional experiment results can be found in a dedicated directory
 named after the experiment name. 
 
 
+## Input visualizaton
+
+In order to make sure that the input files are being correctly pre-processed and 
+that the 3D electron density (and optionally electrostatics potential) maps are 
+meaningfully generated, there are additional visualization tools which are not 
+invoked during an end-to-end training. They can be found in `protfun/visualizer/molview.py`.
+To generate a sample electron density visualization run:
+```python
+from protfun.visualizer.molview import MoleculeView
+
+# path_to_grid_3d is the full path to the precomputed 3D density map
+# grid_3d is a NxNxN numpy array with the precomputed 3D density map
+viewer = MoleculeView(data_dir=path_to_grid_3d,
+                      data={"density": grid_3d},
+                      info={"name": "Molecule Name"})
+viewer.density3d()
+```
