@@ -3,8 +3,9 @@ import os
 
 sys.setrecursionlimit(10000)
 
-from protfun.models import train_enz_from_grids
+from protfun.models import train_enz_from_grids, test_enz_from_grids, get_best_params
 from protfun.config import get_config
+from protfun.visualizer.experiment_visualizer import create_history_plots, create_performance_plots
 
 
 def describe_model():
@@ -53,18 +54,26 @@ def describe_model():
     return config_path
 
 
-def run_experiment_from_config(config_filepath):
-    config = get_config(config_filepath)
-    train_enz_from_grids(config,
-                         force_download=True,
-                         force_memmaps=True,
-                         force_grids=True,
-                         force_split=True)
-
-
-def run_experiment():
+def run_experiment(visualize_results=True):
     config_filepath = describe_model()
-    run_experiment_from_config(config_filepath)
+    config = get_config(config_filepath)
+    model_id = train_enz_from_grids(config,
+                                    force_download=True,
+                                    force_memmaps=True,
+                                    force_grids=True,
+                                    force_split=True)
+
+    best_params_file = get_best_params(config, model_id)
+    test_enz_from_grids(config, model_id, best_params_file, mode='test')
+
+    if visualize_results:
+        create_history_plots(config,
+                             model_name=model_id,
+                             history_filename="train_history_best.pickle")
+        create_performance_plots(config, model_id)
+
+
+
 
 
 if __name__ == "__main__":

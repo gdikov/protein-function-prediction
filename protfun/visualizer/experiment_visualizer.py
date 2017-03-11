@@ -12,6 +12,7 @@ from protfun.models import test_enz_from_grids, get_hidden_activations
 from protfun.utils import save_pickle, load_pickle
 from protfun.visualizer.molview import MoleculeView
 from protfun.visualizer.progressview import ProgressView
+from protfun.visualizer.performance_view import PerformanceAnalyser
 
 log.basicConfig(level=logging.DEBUG)
 
@@ -39,8 +40,8 @@ def measure_performance():
         # test_enz_from_grids(config=local_config, model_name=model_name, params_file=best_params_file, mode="val")
 
 
-def create_history_plots(model_name, history_filename, checkpoint, until=None):
-    model_dir = os.path.join(root_config["data"]["dir"], "models", model_name)
+def create_history_plots(config, model_name, history_filename, checkpoint=None, until=None):
+    model_dir = os.path.join(config["data"]["dir"], "models", model_name)
     # create plots for the training history of this model
     history_file = os.path.join(model_dir, history_filename)
 
@@ -56,6 +57,21 @@ def create_history_plots(model_name, history_filename, checkpoint, until=None):
         log.info("Saved progress plots for: {}".format(model_name))
     else:
         log.warning("Missing history file for: {}".format(model_name))
+
+
+def create_performance_plots(config, model_name):
+    data_dir = config["data"]["dir"]
+    path_to_model_dir = os.path.join(data_dir, "models", model_name)
+    path_to_predictions = os.path.join(path_to_model_dir, "test_predictions.pickle")
+    path_to_targets = os.path.join(path_to_model_dir, "test_targets.pickle")
+
+    model_predictions = load_pickle(path_to_predictions)
+    targets = load_pickle(path_to_targets)
+
+    pa = PerformanceAnalyser(n_classes=2, y_expected=targets,
+                             y_predicted=model_predictions, data_dir=data_dir,
+                             model_name="grids_val")
+    pa.plot_ROC()
 
 
 def save_hidden_activations():

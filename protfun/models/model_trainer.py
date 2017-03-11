@@ -323,17 +323,18 @@ def train_enz_from_grids(config, model_name=None, start_epoch=0,
     :param force_grids: see EnzymeDataManager
     :param force_split: see EnzymeDataManager
     """
-    _, _, trainer = _build_enz_feeder_model_trainer(config, model_name=model_name,
-                                                    start_epoch=start_epoch,
-                                                    force_download=force_download,
-                                                    force_memmaps=force_memmaps,
-                                                    force_grids=force_grids,
-                                                    force_split=force_split)
+    _, model, trainer = _build_enz_feeder_model_trainer(config, model_name=model_name,
+                                                        start_epoch=start_epoch,
+                                                        force_download=force_download,
+                                                        force_memmaps=force_memmaps,
+                                                        force_grids=force_grids,
+                                                        force_split=force_split)
     save_config(config, os.path.join(trainer.monitor.get_model_dir(), "config.yaml"))
     if start_epoch != 0:
         trainer.monitor.load_model("params_{}ep_best.npz".format(start_epoch),
                                    network=trainer.model.get_output_layers())
     trainer.train(epochs=config['training']['epochs'])
+    return model.get_name()
 
 
 def test_enz_from_grids(config, model_name, params_file, mode='test'):
@@ -389,3 +390,21 @@ def get_hidden_activations(config, model_name, params_file):
     trainer.monitor.load_model(params_filename=params_file, network=model.get_output_layers())
     prots, targets, activations, preds = trainer.get_test_hidden_activations()
     return prots, targets, preds, activations
+
+
+def get_best_params(config, model_name):
+    """
+    Utility function to get the parameters file of the model which achieved best accuracy.
+
+    :param config: the contents of config.yaml for the model. Must match the configuration with
+        which the model was originally trained.
+    :param model_name: name of the model (should be unique)
+    :return: file pointing to the model parameters (weights) to be used for evaluation
+    """
+
+    model_dir = os.path.join(config["data"]["dir"], "models", model_name)
+
+    param_files = [f for f in os.listdir(model_dir) if f.startswith("params_") and "best" in f]
+    epochs = np.array([int(f.split('_')[1][:-2]) for f in param_files], dtype=np.int32)
+    best_params_file = param_files[np.argmax(epochs)]
+    return best_params_file
