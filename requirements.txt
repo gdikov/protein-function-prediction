@@ -1,0 +1,16 @@
+colorlog==2.10.0
+Lasagne==0.2.dev1
+matplotlib==1.5.3
+mayavi==4.5.0
+nolearn==0.6.0
+numpy==1.11.2
+ProDy==1.8.2
+requests==2.11.1
+scipy==0.18.1
+seaborn==0.7.1
+mayavi==4.5.0
+beautifulsoup4==4.5.3
+rdkit==2009.Q1-1
+scikit_learn==0.18.1
+theano==0.9.0rc3
+PyYAML==3.12
