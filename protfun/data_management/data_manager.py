@@ -179,8 +179,9 @@ class EnzymeDataManager(DataManager):
     """
 
     def __init__(self, data_dir,
-                 force_download=False, force_memmaps=False,
-                 force_grids=False, force_split=False,
+                 force_download, force_memmaps,
+                 force_grids, force_split,
+                 grid_size,
                  enzyme_classes=None,
                  hierarchical_depth=4,
                  percentage_test=30,
@@ -192,6 +193,7 @@ class EnzymeDataManager(DataManager):
         :param force_memmaps: forces the memmapping of protein data, i.e. vdw-radii, atom coords. and charges
         :param force_grids: forces the 3D maps of electron density and potential generation
         :param force_split: forces the splitting into train/val/test sets
+        :param grid_size: number of points on the side of the computed el. density grids
         :param enzyme_classes: a subset of EC given by a list of only those classes that should be considered
         :param hierarchical_depth: the maximal depth of prediction
         :param percentage_test: the portion of the data in % for the test set
@@ -205,6 +207,7 @@ class EnzymeDataManager(DataManager):
                                                 percentage_val=percentage_val)
         self.force_grids = force_grids or force_memmaps or force_download
         self.force_memmaps = force_memmaps or force_download
+        self.grid_size = grid_size
         self.enzyme_classes = enzyme_classes
         self.max_hierarchical_depth = hierarchical_depth
         self.split_strategy = split_strategy
@@ -249,6 +252,7 @@ class EnzymeDataManager(DataManager):
             edp = prep.EnzymeDataProcessor(protein_codes=self.all_proteins,
                                            from_dir=self.dirs['data_raw'],
                                            target_dir=self.dirs['data_processed'],
+                                           grid_size=self.grid_size,
                                            process_grids=self.force_grids,
                                            process_memmaps=self.force_memmaps,
                                            use_esp=False)
@@ -484,6 +488,7 @@ if __name__ == "__main__":
                            force_memmaps=False,
                            force_grids=False,
                            force_split=True,
+                           grid_size=64,
                            split_strategy='strict',
                            percentage_test=30,
                            percentage_val=30,

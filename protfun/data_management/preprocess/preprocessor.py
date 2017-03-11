@@ -43,18 +43,21 @@ class EnzymeDataProcessor(DataProcessor):
     numpy.memmap's are created for molecules (from the PDB files with no errors)
     """
 
-    def __init__(self, from_dir, target_dir, protein_codes, process_grids=True,
-                 process_memmaps=True,
-                 force_recreate=False, add_sidechain_channels=True,
+    def __init__(self, from_dir, target_dir, protein_codes, grid_size, process_grids=True,
+                 process_memmaps=True, force_recreate=False, add_sidechain_channels=True,
                  use_esp=False):
         """
         :param from_dir: base data directory
         :param target_dir: target directory for the pre-processed data
         :param protein_codes: a list of protein codes to be pre-processed
+        :param grid_size: number of points on the side of the computed 3D grids (el. density)
         :param process_grids: a boolean flag setting the grid-generation
-        :param process_memmaps: a boolean flag setting the memmaping of coords, vdwradii and charges from pdb files
-        :param force_recreate: a boolean flag setting the recreation of everything (used after bugs were discovered)
-        :param add_sidechain_channels: whether additional channels should be added to the default ones (density)
+        :param process_memmaps: a boolean flag setting the memmaping of coords, vdwradii and charges
+            from pdb files
+        :param force_recreate: a boolean flag setting the recreation of everything (used after bugs
+            were discovered)
+        :param add_sidechain_channels: whether additional channels should be added to the default
+            ones (density)
         :param use_esp: whether electrostatic potential should be used
         """
         super(EnzymeDataProcessor, self).__init__(from_dir=from_dir,
@@ -67,14 +70,17 @@ class EnzymeDataProcessor(DataProcessor):
         self.add_sidechain_channels = add_sidechain_channels
         if add_sidechain_channels:
             self.molecule_processor = PDBSideChainProcessor()
-            self.grid_processor = GridSideChainProcessor()
+            self.grid_processor = GridSideChainProcessor(grid_size=grid_size)
         else:
             self.molecule_processor = PDBMoleculeProcessor()
-            self.grid_processor = GridProcessor()
+            self.grid_processor = GridProcessor(grid_size=grid_size)
 
     def process(self):
         """
-        Runs all pre-processing steps needed to generate a 3D map from pdb files
+        Runs all pre-processing steps needed to generate a 3D map from pdb files.
+        NOTE: only a channel for the electron density will be computed, and not for the ESP,
+        as the Gasteiger charges algorithm is not optimal for protein data.
+
         :return: a list of all correctly pre-processed protein codes
         """
         # will store the valid proteins for each enzyme class, which is the key
@@ -102,8 +108,7 @@ class EnzymeDataProcessor(DataProcessor):
             if self.process_memmaps and (not self.memmaps_exists(prot_dir,
                                                                  num_channels=CNS if self.add_sidechain_channels else 1) or self.force_recreate):
                 # attempt to process the molecule from the PDB file
-                mol = self.molecule_processor.process_molecule(f_path,
-                                                               use_esp=self.use_esp)
+                mol = self.molecule_processor.process_molecule(f_path)
                 if mol is None:
                     log.warning(
                         "Ignoring PDB file {} for invalid molecule".format(pc))
@@ -287,7 +292,7 @@ class PDBMoleculeProcessor(object):
                 [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
                 [center.x, center.y, center.z]),
             "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for
-            atom in atoms]),
+                                   atom in atoms]),
             "vdwradii": np.asarray(
                 [self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in
                  atoms]),
@@ -300,6 +305,7 @@ class PDBSideChainProcessor(object):
     """
     Processor for the additional channels, like amino acids and other stuff.
     """
+
     def __init__(self):
         self.periodic_table = Chem.GetPeriodicTable()
 
@@ -433,16 +439,26 @@ class GridProcessor(object):
     """
     Processor for the 3D maps of electron density and potential.
     """
-    def __init__(self):
+
+    def __init__(self, grid_size):
         """
-        Uses separate input layer for each input, i.e. vdwradii, coords, etc. Sets the MolMap as grid generator.
+        Uses separate input layer for each input, i.e. vdwradii, coords, etc. Sets the MolMap as
+        grid generator.
+
+        :param grid_size: number of points on each side of the produced grid
         """
+
+        # 128 angstroms suffices to fit the enzymes into the grids
+        grid_side = 128
+        resolution = 128 / float(grid_size - 1)
+
         dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
         dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
         dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
         self.processor = MoleculeMapLayer(
             incomings=[dummy_coords_input, dummy_vdwradii_input,
                        dummy_natoms_input],
+            grid_side=grid_side, resolution=resolution,
             minibatch_size=1, rotate=False)
 
     def process(self, prot_dir):
@@ -472,18 +488,23 @@ class GridSideChainProcessor(object):
     """
     channels_count = 24
 
-    def __init__(self):
+    def __init__(self, grid_size):
         """
-        Similar to the GridProcessor
+        :param grid_size: number of points on each side of the produced grid
         """
+
+        # 128 angstroms suffices to fit the enzymes into the grids
+        grid_side = 128
+        resolution = 128 / float(grid_size - 1)
+
         dummy_coords_input = lasagne.layers.InputLayer(shape=(1, None, None))
         dummy_vdwradii_input = lasagne.layers.InputLayer(shape=(1, None))
         dummy_natoms_input = lasagne.layers.InputLayer(shape=(1,))
         self.processor = MoleculeMapLayer(incomings=[dummy_coords_input,
                                                      dummy_vdwradii_input,
                                                      dummy_natoms_input],
-                                          rotate=False,
-                                          minibatch_size=1)
+                                          grid_side=grid_side, resolution=resolution,
+                                          rotate=False, minibatch_size=1)
 
     def process(self, prot_dir):
         """

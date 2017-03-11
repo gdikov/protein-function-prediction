@@ -281,6 +281,7 @@ def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0,
                                      force_memmaps=force_memmaps,
                                      force_grids=force_grids,
                                      force_split=force_split,
+                                     grid_size=config['proteins']['grid_side'],
                                      split_strategy=config['training']['split_strategy'])
 
     data_feeder = EnzymesGridFeeder(data_manager=data_manager,

@@ -8,7 +8,7 @@ proteins:
   - 1.1.2
   - 1.1.5
   # number of points per side of each computed 3D map
-  grid_side: 64
+  grid_side: 32
   # how many channels will the computed maps have
   n_channels: 1
   # how many classes are being discriminated
@@ -24,7 +24,7 @@ training:
   init_samples_per_class: 2000
   # training hyperparameters
   learning_rate: 0.00002
-  minibatch_size: 128
+  minibatch_size: 8
   # name of the network to use:
   network: standard_network
   # network: dense_network
