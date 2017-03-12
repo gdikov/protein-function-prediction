@@ -269,6 +269,8 @@ def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0,
     :param force_split: see EnzymeDataManager
     :return: data_feeder, model, model_trainer
     """
+    add_sidechain_channels = not (config['proteins']['n_channels'] == 1)
+
     data_manager = EnzymeDataManager(data_dir=config['data']['dir'],
                                      enzyme_classes=config['proteins']['enzyme_trees'],
                                      force_download=force_download,
@@ -276,7 +278,8 @@ def _build_enz_feeder_model_trainer(config, model_name=None, start_epoch=0,
                                      force_grids=force_grids,
                                      force_split=force_split,
                                      grid_size=config['proteins']['grid_side'],
-                                     split_strategy=config['training']['split_strategy'])
+                                     split_strategy=config['training']['split_strategy'],
+                                     add_sidechain_channels=add_sidechain_channels)
 
     data_feeder = EnzymesGridFeeder(data_manager=data_manager,
                                     minibatch_size=config['training']['minibatch_size'],

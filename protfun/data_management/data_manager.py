@@ -198,7 +198,8 @@ class EnzymeDataManager(DataManager):
                  hierarchical_depth=4,
                  percentage_test=30,
                  percentage_val=30,
-                 split_strategy='strict'):
+                 split_strategy='strict',
+                 add_sidechain_channels=True):
         """
         :param data_dir: the path to the root data directory
         :param force_download: forces the downloading of the protein pdb files should be done
@@ -210,6 +211,9 @@ class EnzymeDataManager(DataManager):
         :param hierarchical_depth: the maximal depth of prediction
         :param percentage_test: the portion of the data in % for the test set
         :param percentage_val: the portion of the data in % for the validation set
+        :param split_strategy: split strategy to use, 'naive' or 'strict'
+        :param add_sidechain_channels: boolean, whether to use 24-channel grid density maps (with
+            all sidechains as channels) or 1 channel grid density map
         """
         super(EnzymeDataManager, self).__init__(data_dir=data_dir,
                                                 force_download=force_download,
@@ -223,6 +227,7 @@ class EnzymeDataManager(DataManager):
         self.enzyme_classes = enzyme_classes
         self.max_hierarchical_depth = hierarchical_depth
         self.split_strategy = split_strategy
+        self.add_sidechain_channels = add_sidechain_channels
 
         self.validator = EnzymeValidator(enz_classes=enzyme_classes,
                                          dirs=self.dirs)
@@ -267,6 +272,7 @@ class EnzymeDataManager(DataManager):
                                            grid_size=self.grid_size,
                                            process_grids=self.force_grids,
                                            process_memmaps=self.force_memmaps,
+                                           add_sidechain_channels=self.add_sidechain_channels,
                                            use_esp=False)
             self.valid_proteins = edp.process()
             self.validator.check_class_representation(self.valid_proteins, clean_dict=True)
