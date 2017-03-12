@@ -1,6 +1,9 @@
 import numpy as np
 import os
-import colorlog as log
+
+from protfun.utils.log import get_logger
+
+log = get_logger("molview")
 
 
 class MoleculeView(object):

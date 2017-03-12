@@ -1,8 +1,11 @@
 import os
 import ntpath
-import colorlog as log
 import re
 from glob import glob
+
+from protfun.utils.log import get_logger
+
+log = get_logger("validations")
 
 
 class EnzymeValidator(object):

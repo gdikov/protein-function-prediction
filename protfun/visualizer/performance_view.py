@@ -42,7 +42,8 @@ class PerformanceAnalyser(object):
         if export_figure:
             sns.set_style("whitegrid")
             fig = self._plot_ROC(false_positive_rate, true_positive_rate, roc_auc)
-            path_to_fig = os.path.join(self.data_dir, 'models', self.model_name, 'ROC_test_set.png')
+            path_to_fig = os.path.join(self.data_dir, 'models', self.model_name, 'figures',
+                                       'ROC_test_set.png')
             fig.savefig(filename=path_to_fig)
 
     def _plot_ROC(self, false_positive_rate, true_positive_rate, roc_auc):

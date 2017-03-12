@@ -1,6 +1,5 @@
 import shutil
 import abc
-import colorlog as log
 import numpy as np
 import os
 
@@ -8,6 +7,9 @@ import protfun.data_management.preprocess as prep
 from protfun.data_management.label_factory import LabelFactory
 from protfun.data_management.validation import EnzymeValidator
 from protfun.utils import save_pickle, load_pickle, construct_hierarchical_tree
+from protfun.utils.log import get_logger
+
+log = get_logger("data_manager")
 
 
 class DataManager(object):

@@ -1,6 +1,5 @@
 import abc
 import os
-import colorlog as log
 import numpy as np
 import csv
 import StringIO
@@ -16,7 +15,9 @@ import rdkit.Chem.rdMolTransforms as rdMT
 import rdkit.Chem.rdmolops as rdMO
 
 from protfun.layers import MoleculeMapLayer
+from protfun.utils.log import get_logger
 
+log = get_logger("preprocessor")
 floatX = theano.config.floatX
 intX = np.int32
 # number of sidechain channels (20 amino, all, nonhydro, hydro, backbone)

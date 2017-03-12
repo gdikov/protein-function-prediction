@@ -1,6 +1,9 @@
 import cPickle
-import colorlog as log
 import os
+
+from protfun.utils.log import get_logger
+
+log = get_logger("data_utils")
 
 
 def save_pickle(file_path, data):
