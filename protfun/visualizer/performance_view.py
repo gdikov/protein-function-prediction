@@ -157,36 +157,3 @@ class PerformanceAnalyser(object):
         roc_auc["macro"] = auc(false_positive_rate["macro"], true_positive_rate["macro"])
 
         return false_positive_rate, true_positive_rate, roc_auc
-
-
-if __name__ == "__main__":
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../data')
-    path_to_hist_dict = os.path.join(
-        data_dir, 'models', 'from_grids_disjoint_classifier',
-        'train_history_from_grids_disjoint_classifier_interrupted.pickle')
-    with open(path_to_hist_dict, 'rb') as f:
-        history_dict = cPickle.load(f)
-    print(history_dict.keys())
-    val_predictions = history_dict['val_predictions']
-    val_targets = history_dict['val_targets']
-
-    val_predictions = np.asarray(val_predictions)
-    # TODO: fix this, it's now a sigmoid
-    # take the score of predicting 1, since it's a softmax per class and not
-    # sigmoid
-    val_predictions = np.exp(val_predictions[:, :, :, :, 1])
-    # transpose to (epochs x mini_batches x samples in mini_batch x classes)
-    val_predictions = np.transpose(val_predictions, (0, 1, 3, 2))
-    # reshape to a flattened version, N x num_classes
-    val_predictions = np.reshape(val_predictions,
-                                 (-1, val_predictions.shape[-1]))
-
-    # transform the shape of the targets in the same way
-    val_targets = np.asarray(val_targets)
-    val_targets = np.transpose(val_targets, (0, 1, 3, 2))
-    val_targets = np.reshape(val_targets, (-1, val_targets.shape[-1]))
-
-    pa = PerformanceAnalyser(n_classes=2, y_expected=val_targets,
-                             y_predicted=val_predictions, data_dir=data_dir,
-                             model_name="grids_val")
-    pa.plot_ROC()
