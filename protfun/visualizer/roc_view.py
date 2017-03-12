@@ -42,7 +42,7 @@ class ROCView(object):
         ax.set_aspect(1)
 
         plt.plot([0, 1], [0, 1], 'k--', lw=2)
-        plt.axes().set_aspect('equal', 'datalim')
+        plt.axes().set_aspect('equal')
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.0])
         plt.xlabel('False positive rate', size=10)
