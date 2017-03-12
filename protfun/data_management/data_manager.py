@@ -69,18 +69,14 @@ class DataManager(object):
         first_data_dict = dict()
         second_data_dict = dict()
 
-        target_classes = set(
-            ['.'.join(cls.split('.')[:hierarchical_depth]) for cls in
-             data_dict])
+        target_classes = set(['.'.join(cls.split('.')[:hierarchical_depth]) for cls in data_dict])
 
         for target_cls in target_classes:
             children = [(cls, enzymes) for cls, enzymes in data_dict.items() if
                         cls.startswith(target_cls + '.')]
-            target_cls_prots = set(
-                itertools.chain.from_iterable(zip(*children)[1]))
+            target_cls_prots = set(itertools.chain.from_iterable(zip(*children)[1]))
             required_count = ((100 - percentage) * len(target_cls_prots)) // 100
-            sorted_children = sorted(children, key=lambda x: len(x[1]),
-                                     reverse=True)
+            sorted_children = sorted(children, key=lambda x: len(x[1]), reverse=True)
             collected_so_far = set()
             for cls, enzymes in sorted_children:
                 if len(collected_so_far) < required_count:
