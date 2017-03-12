@@ -7,9 +7,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from protfun.utils.log import setup_logger
+from protfun.utils.log import get_logger
 
-log = setup_logger("progressview")
+log = get_logger("progress_view")
 
 sns.set_style("whitegrid")
 colors = ['#1b9e77', '#d95f02', '#7570b3', '#e7298a']

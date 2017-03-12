@@ -1,7 +1,7 @@
 import os
-from protfun.utils.log import setup_logger
+from protfun.utils.log import get_logger
 
-log = setup_logger("protein_fetcher")
+log = get_logger("protein_fetcher")
 
 
 class EnzymeFetcher(object):
@@ -9,6 +9,7 @@ class EnzymeFetcher(object):
     EnzymeFetcher queries PDB ids for the enzymes EC2PDB data set, extracting them
     from the EC2PDB website based on desired EC categories.
     """
+
     def __init__(self, categories, excluded_categories=list(), enzyme_dir=None):
         """
         :param categories: which enzyme categories to download
@@ -50,7 +51,7 @@ class EnzymeFetcher(object):
 
         try:
             children_table = \
-            page.find('body').find_all('table', recursive=False)[2]
+                page.find('body').find_all('table', recursive=False)[2]
             children = children_table.find('tr').find('td').find_all('table',
                                                                      recursive=False)[
                        first_child_index:]

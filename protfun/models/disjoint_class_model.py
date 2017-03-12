@@ -6,9 +6,10 @@ import lasagne
 
 from protfun.layers.molmap_layer import MoleculeMapLayer
 from protfun.layers.grid_rotate_layer import GridRotationLayer
-from protfun.utils.log import setup_logger
+from protfun.utils.log import get_logger
 
-log = setup_logger("disjoint_class_model")
+log = get_logger("disjoint_class_model")
+
 floatX = theano.config.floatX
 intX = np.int32
 

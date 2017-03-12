@@ -3,9 +3,9 @@ import os
 import lasagne
 import cPickle
 
-from protfun.utils.log import setup_logger
+from protfun.utils.log import get_logger
 
-log = setup_logger("model_monitor")
+log = get_logger("model_monitor")
 
 
 class ModelMonitor(object):
@@ -69,7 +69,7 @@ class ModelMonitor(object):
 
         lasagne.layers.set_all_param_values(network, param_values, trainable=True)
 
-    def save_train_history(self, history, epoch_count, save_human_readable=False, msg=''):
+    def save_train_history(self, history, epoch_count=-1, save_human_readable=False, msg=''):
         """
         save_train_history saves the training history of the model so far in the form of either
         a pickle or a human readable .tsv file.
@@ -82,7 +82,7 @@ class ModelMonitor(object):
         log.info("Saving training history")
         # Refactored: instead of saving in a text file, dump the history as a pickle and provide
         # the saving to a human-readable format as an option
-        filename = 'train_history_ep{}'.format(epoch_count)
+        filename = 'train_history_ep{}'.format(epoch_count) if epoch_count >= 0 else 'train_history'
         if msg != '':
             filename += '_' + msg
         with open(os.path.join(self.path_to_model_dir, "{0}.pickle".format(filename)),

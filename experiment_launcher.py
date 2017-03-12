@@ -5,7 +5,8 @@ sys.setrecursionlimit(10000)
 
 from protfun.models import train_enz_from_grids, test_enz_from_grids, get_best_params
 from protfun.config import get_config
-from protfun.visualizer.experiment_visualizer import create_history_plots, create_performance_plots
+from protfun.visualizer.experiment_visualizer import create_history_plots, \
+    create_performance_plots, save_hidden_activations
 
 
 def describe_model():
@@ -68,10 +69,8 @@ def run_experiment(visualize_results=True):
 
     if visualize_results:
         create_history_plots(config, model_id)
-        create_performance_plots(config, model_id)
-
-
-
+        create_performance_plots(config, model_id, n_classes=config["proteins"]["n_classes"])
+        save_hidden_activations(config, model_id)
 
 
 if __name__ == "__main__":

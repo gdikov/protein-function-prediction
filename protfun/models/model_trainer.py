@@ -15,9 +15,9 @@ from protfun.networks import get_network
 from protfun.utils.np_utils import pp_array
 from protfun.visualizer.netview import NetworkView
 from protfun.visualizer.progressview import ProgressView
-from protfun.utils.log import setup_logger
+from protfun.utils.log import get_logger
 
-log = setup_logger("model_trainer")
+log = get_logger("model_trainer")
 
 
 class ModelTrainer(object):
@@ -107,7 +107,7 @@ class ModelTrainer(object):
                       self.data_feeder.get_test_data()])
             self.network_view.save_network_graph(self.model.get_output_layers(), "network.png")
             self._train(epochs)
-            self.monitor.save_history_and_model(self.history, epoch_count=epochs)
+            self.monitor.save_history_and_model(self.history)
         except (KeyboardInterrupt, SystemExit):
             log.warning("Training is interrupted")
             self.monitor.save_history_and_model(self.history)
@@ -248,7 +248,7 @@ class ModelTrainer(object):
         """
         for prots, samples, targets in self.data_feeder.iterate_test_data():
             # do just a single minibatch
-            output = self.model.get_hidden_activations(samples)
+            output = self.model.get_hidden_activations(*samples)
             return prots, targets, output[:-1], output[-1]
 
 
@@ -405,7 +405,9 @@ def get_best_params(config, model_name):
 
     model_dir = os.path.join(config["data"]["dir"], "models", model_name)
 
-    param_files = [f for f in os.listdir(model_dir) if f.startswith("params_")]
-    epochs = np.array([int(re.search(r'\d+', f.split('_')[1]).group()) for f in param_files], dtype=np.int32)
+    param_files = [f for f in os.listdir(model_dir) if
+                   f.startswith("params_") and "meanvalacc" in f]
+    epochs = np.array([int(re.search(r'\d+', f.split('_')[1]).group()) for f in param_files],
+                      dtype=np.int32)
     best_params_file = param_files[np.argmax(epochs)]
     return best_params_file

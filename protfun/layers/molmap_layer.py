@@ -5,9 +5,10 @@ import theano.tensor.nlinalg
 import theano.tensor as T
 
 from protfun.visualizer.molview import MoleculeView
-from protfun.utils.log import setup_logger
+from protfun.utils.log import get_logger
 
-log = setup_logger("molmap_layer")
+log = get_logger("molmap_layer")
+
 floatX = theano.config.floatX
 intX = np.int32
 

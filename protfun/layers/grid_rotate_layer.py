@@ -3,9 +3,9 @@ import theano
 import lasagne
 from theano import tensor as T
 
-from protfun.utils.log import setup_logger
+from protfun.utils.log import get_logger
 
-log = setup_logger("grid_rotate_layer")
+log = get_logger("grid_rotate_layer")
 floatX = theano.config.floatX
 
 

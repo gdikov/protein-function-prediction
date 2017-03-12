@@ -4,9 +4,9 @@ import theano
 from os import path
 
 from protfun.utils import construct_hierarchical_tree
-from protfun.utils.log import setup_logger
+from protfun.utils.log import get_logger
 
-log = setup_logger("protein_fetcher")
+log = get_logger("data_feed")
 floatX = theano.config.floatX
 intX = np.int32
 
