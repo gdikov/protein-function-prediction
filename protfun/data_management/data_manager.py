@@ -65,6 +65,20 @@ class DataManager(object):
 
     @staticmethod
     def split_data_on_sublevel(data_dict, percentage, hierarchical_depth):
+        """
+        Performs a "strict" split by taking the nodes in the EC tree in the level **below**
+        hierarchical_depth, and placing the proteins under each of those nodes **disjointly**
+        in either the first or second part of the split.
+
+        E.g. if hierarchical_depth=3, then each EC tree node on level 4 will be put in
+        either the first part, or in the second part of the split.
+
+        :param data_dict: a dictionary with keys categories and value per key - list of pdb codes
+        :param percentage: the portion of the data in % that should be put into the first split
+        :param hierarchical_depth: depth for the classification, the nodes on the level **below**
+            this depth are each put into one of the two parts of the split
+        :return: a tuple of the two splits as data dictionaries
+        """
         import itertools
         first_data_dict = dict()
         second_data_dict = dict()
@@ -283,10 +297,10 @@ class EnzymeDataManager(DataManager):
                 elif self.split_strategy == 'strict':
                     test_dataset, trainval_data = self.split_data_on_sublevel(
                         self.valid_proteins,
-                        percentage=self.p_test, hierarchical_depth=4)
+                        percentage=self.p_test, hierarchical_depth=3)
                     val_dataset, train_dataset = self.split_data_on_sublevel(
                         trainval_data,
-                        percentage=self.p_val, hierarchical_depth=4)
+                        percentage=self.p_val, hierarchical_depth=3)
                 else:
                     log.error("Split strategy can be 'naive' or 'strict'")
                     raise ValueError

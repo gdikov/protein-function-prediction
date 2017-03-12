@@ -2,6 +2,7 @@ import os
 import ntpath
 import re
 from glob import glob
+import itertools
 
 from protfun.utils.log import get_logger
 
@@ -124,28 +125,24 @@ class EnzymeValidator(object):
         :param second_partition: the second data partition
         :return:
         """
-        # log.info("Checking the data splits for consistency and completeness")
-        # leaf_classes = [x for x in os.listdir(self.dirs['data_processed']) if x.endswith('.proteins')]
-        for cls in all_proteins.keys():
-            # path_to_valid_cls = os.path.join(self.dirs['data_processed'], cls)
-            # with open(path_to_valid_cls, 'r') as f:
-            all_prot_codes_in_cls = all_proteins[cls]
 
-            # path_to_train_cls = os.path.join(self.dirs['data_train'], cls)
-            # with open(path_to_train_cls, 'r') as f:
-            second_partition_prot_codes_in_cls = second_partition[cls]
+        # flatten all protein codes
+        all_prot_codes = set(list(itertools.chain.from_iterable(all_proteins.values())))
+        # flatten first part protein codes
+        first_prot_codes = set(list(itertools.chain.from_iterable(first_partition.values())))
+        # flatten second part protein codes
+        second_prot_codes = set(list(itertools.chain.from_iterable(second_partition.values())))
 
-            # path_to_test_cls = os.path.join(self.dirs['data_test'], cls)
-            # with open(path_to_test_cls, 'r') as f:
-            first_partition_prot_codes_in_cls = first_partition[cls]
+        # check that the intersection is empty
+        assert len(first_prot_codes & second_prot_codes) == 0, "The splits are not disjoint!"
 
-            assert len(set(second_partition_prot_codes_in_cls)) + len(
-                set(first_partition_prot_codes_in_cls)) == \
-                   len(set(
-                       second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls)), \
-                "The splits are not disjoint!"
+        # check that the union gives the full set
+        assert (first_prot_codes | second_prot_codes) == all_prot_codes, \
+            "The splits are not a partition of all proteins!"
 
-            assert set(
-                second_partition_prot_codes_in_cls + first_partition_prot_codes_in_cls) == \
-                   set(
-                       all_prot_codes_in_cls), "The splits are not a partition of all proteins!"
+        if len(first_prot_codes) == 0 or len(second_prot_codes) == 0:
+            log.error("During data set splitting, one part contains 0 samples. "
+                      "Please choose a bigger data set or a different split strategy")
+            log.error("Protein codes in first part: {}".format(first_prot_codes))
+            log.error("Protein codes in second part: {}".format(second_prot_codes))
+            raise ValueError
