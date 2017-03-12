@@ -50,9 +50,9 @@ See `doc/dependency_graph.pdf`, it is the full dependency chart between all syst
 Also see `requirements.txt` for versions that are guaranteed to work.
 
 #### GPU dependencies:
-   * CUDA, (optionally CuDNN)
+   * CUDA, CuDNN
 
-## Experiment Configuraiton
+## Experiment configuraiton
 In order to re-run one of the experiments devised by us during the lab course, please use the dedicated `experiment_launcher.py` and follow the instructions. You will be given the choice to pick from a set of predefined experiments:
 
 ```
@@ -64,7 +64,7 @@ Alternatively, you might want to create a custom `config.yaml` using the `experi
 
 Please consult the contents of `experiments/example_config.yaml` for configuration options.
 
-## Data Management
+## Data management
 Note that every experiment that requires a different pre-processing of the data, or a different set of proteins, should have its own unique data directory, specified in the `config.yaml` as `data.dir`. The structure of the `data_dir` will be as follows:
 
 * `data_dir/raw` - contains the downloaded `pdb****.ent` files, before the pre-processing, in separate folders for each protein.
@@ -81,13 +81,13 @@ ln -s ./experiment1/raw ./experiment2/raw
 ```
 That way, our data manager will not download proteins which have been already downloaded.
 
-## Result Documentation 
+## Result documentation 
 After each experiment, a ROC curve can be produced. In the case of 2 classes, the curve is a standard binary classification ROC. In the case of more than two classes, the plot will contain micro- and macro-average ROC curves. See the documentation in `protfun/visualizer/roc_view.py` for more details. Additionally, a plot of the training progress will be produced (`accuracy_history.png` and `loss_history.png`) and activations of the hidden layers for a small number of proteins from the test set will be saved (`activations.pickle`). The results from the run on the test set are also saved (`test_targets.pickle`, `test_predictions.pickle`, `test_proteins.pickle`). All of this information is stored under the specific model's folder under `data_dir/models`.
 
 The generation of experiment results is automatic if you use the `experiment_launcher.py`, otherwise you can do it manually to suit your needs. Check the code under `protfun/visualizer/experiment_visualizer.py` to get an idea of how it is all put together.
 
 
-## Additional vizualizatons
+## Additional visualizations
 
 In order to make sure that the input files are being correctly pre-processed and 
 that the 3D electron density (and optionally electrostatics potential) maps are 
