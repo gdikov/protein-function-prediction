@@ -123,8 +123,7 @@ class EnzymeDataProcessor(DataProcessor):
                 grid = self.grid_processor.process(prot_dir)
                 if grid is None:
                     log.warning(
-                        "Ignoring PDB file {}, grid could not be processed".format(
-                            pc))
+                        "Ignoring PDB file {}, grid could not be processed".format(pc))
                     invalid_codes.add(pc)
                     continue
                 if not os.path.exists(prot_dir):
@@ -146,9 +145,7 @@ class EnzymeDataProcessor(DataProcessor):
             cPickle.dump(invalid_codes, f)
 
         log.info(
-            "Total proteins: {} Invalid proteins: {}".format(len(prot_codes),
-                                                             len(
-                                                                 invalid_codes)))
+            "Total proteins: {} Invalid proteins: {}".format(len(prot_codes), len(invalid_codes)))
         for cls, prots in self.prot_codes.items():
             valid_codes[cls] = [pc for pc in prots if pc not in invalid_codes]
 

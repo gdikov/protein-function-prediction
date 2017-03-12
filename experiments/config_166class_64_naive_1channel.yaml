@@ -27,7 +27,7 @@ training:
   init_samples_per_class: 2000
   # training hyperparameters
   learning_rate: 0.00002
-  minibatch_size: 128
+  minibatch_size: 32
   # name of the network to use:
   network: standard_network
   # network: dense_network
