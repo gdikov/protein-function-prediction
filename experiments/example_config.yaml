@@ -19,7 +19,7 @@ training:
   # split strategy can be naive or strict
   split_strategy: naive
   # max. number of epochs during training
-  epochs: 10
+  epochs: 40
   # max. number of samples to pick as representatives of each class
   init_samples_per_class: 2000
   # training hyperparameters
