@@ -105,7 +105,9 @@ def micro_macro_roc(n_classes, y_expected, y_predicted):
     per_class_fpr = list()
     per_class_tpr = list()
     for i in range(n_classes):
-        per_class_fpr[i], per_class_tpr[i], _ = roc_curve(y_expected[:, i], y_predicted[:, i])
+        per_cls_fpr, per_cls_tpr, _ = roc_curve(y_expected[:, i], y_predicted[:, i])
+        per_class_fpr.append(per_cls_fpr)
+        per_class_tpr.append(per_cls_tpr)
     all_fpr = np.unique(np.concatenate([per_class_fpr[i] for i in range(n_classes)]))
 
     # Then interpolate all ROC curves at this points

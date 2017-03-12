@@ -4,15 +4,17 @@ data:
 proteins:
   # define the nodes in the EC tree, the proteins under which we are interested in
   enzyme_trees:
-  # these classes contain 12 and 9 proteins respectively and are suitable for fairly fast tests
-  - 1.1.3
-  - 1.1.99
+  # these classes contain 54, 31, 4, and 6 proteins respectively and are suitable for fairly fast tests
+  - 3.1.8
+  - 3.1.11
+  - 3.1.22
+  - 3.1.25
   # number of points per side of each computed 3D map
   grid_side: 32
-  # how many channels will the computed maps have
+  # how many channels will the computed maps have. Currently only 1 and 24 are available options
   n_channels: 1
   # how many classes are being discriminated
-  n_classes: 2
+  n_classes: 4
   # on which level of the EC tree does the classification occur
   prediction_depth: 3
 training:

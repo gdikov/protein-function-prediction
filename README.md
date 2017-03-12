@@ -29,6 +29,11 @@ training history curves are generated.
 See `doc/dependency_graph.pdf`, it is the full dependency chart between all system components.
 
 ## Requirements and Dependencies
+#### Hardware requirements:
+We strongly suggest running the framework on a machine equipped with minimum 8GB of main memory and a GPU with at least 2GB of video memory. 
+Note that the code automatically estimates the available memory and adjusts its behaviour appropriately, i.e. increasing the GPU memory will result
+in a faster computation in general. 
+
 #### Python dependencies:
     * theano
     * Lasagne
@@ -80,6 +85,10 @@ TIP: if you'd like to use the same protein data for experiments that require dif
 ln -s ./experiment1/raw ./experiment2/raw
 ```
 That way, our data manager will not download proteins which have been already downloaded.
+
+**Beware of the following:** if a class ends up being empty after the pre-processing, i.e. all the proteins contained within have been dismissed,
+then it can well happen that the number of classes to be discriminated are less then the stated in the `config.yaml` file.
+In this case one has to amend the configuration file appropriately. 
 
 ## Result documentation 
 After each experiment, a ROC curve can be produced. In the case of 2 classes, the curve is a standard binary classification ROC. In the case of more than two classes, the plot will contain micro- and macro-average ROC curves. See the documentation in `protfun/visualizer/roc_view.py` for more details. Additionally, a plot of the training progress will be produced (`accuracy_history.png` and `loss_history.png`) and activations of the hidden layers for a small number of proteins from the test set will be saved (`activations.pickle`). The results from the run on the test set are also saved (`test_targets.pickle`, `test_predictions.pickle`, `test_proteins.pickle`). All of this information is stored under the specific model's folder under `data_dir/models`.

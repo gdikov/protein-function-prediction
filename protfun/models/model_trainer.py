@@ -174,7 +174,7 @@ class ModelTrainer(object):
         self.history['val_targets'].append(val_targets)
 
         # save parameters if an improvement in accuracy observed
-        if np.alltrue(val_acc_means > self.current_max_val_acc):
+        if np.alltrue(val_acc_means >= self.current_max_val_acc):
             self.current_max_val_acc = val_acc_means
             self.monitor.save_model(epoch,
                                     "meanvalacc{0}".format(pp_array(self.current_max_val_acc)))
