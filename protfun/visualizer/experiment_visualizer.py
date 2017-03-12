@@ -72,7 +72,7 @@ def create_performance_plots(config, model_name, n_classes):
     view = ROCView()
     if n_classes == 2:
         # plot a standard ROC view
-        fpr, tpr = roc_curve(targets[:, 0], model_predictions[:, 0])
+        fpr, tpr, _ = roc_curve(targets[:, 0], model_predictions[:, 0])
         view.add_curve(fpr, tpr, label='binary classification')
         view.save_and_close(roc_file_path)
     else:
