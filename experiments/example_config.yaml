@@ -17,13 +17,13 @@ proteins:
   prediction_depth: 3
 training:
   # split strategy can be naive or strict
-  split_strategy: strict
+  split_strategy: naive
   # max. number of epochs during training
   epochs: 10
   # max. number of samples to pick as representatives of each class
   init_samples_per_class: 2000
   # training hyperparameters
-  learning_rate: 0.00002
+  learning_rate: 0.0001
   minibatch_size: 8
   # name of the network to use:
   network: standard_network
