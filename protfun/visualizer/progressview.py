@@ -4,7 +4,6 @@ import os
 import matplotlib
 
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import seaborn as sns
 
 from protfun.utils.log import get_logger
@@ -27,8 +26,6 @@ text = {
         'per_class_accs': 'Accuracy'
     }
 }
-
-classes = ['3.4.21', '3.4.24']
 
 
 class ProgressView(object):
@@ -137,12 +134,11 @@ class ProgressView(object):
                       ncol=1,
                       prop={'size': 9},
                       frameon=True)
-            # ax.set_title(text['titles'][type], size=15)
+            ax.set_title(text['titles'][type], size=15)
             ax.set_ylabel(text['y_labels'][type], size=12)
             ax.set_xlabel("Mini-batch count", size=12)
 
             # adjust styles before saving
-
             if not os.path.exists(self.model_figures_path):
                 os.makedirs(self.model_figures_path)
             fig.savefig(os.path.join(self.model_figures_path, filename), bbox_inches='tight')
@@ -150,7 +146,7 @@ class ProgressView(object):
 
     def _plot_single(self, fig, values, artifact):
         """
-        Plots a signle curve.
+        Plots a single curve.
 
         :param fig: a pyplot figure object
         :param values: a 1D numpy array of values that will be plotted
@@ -174,13 +170,13 @@ class ProgressView(object):
         """
         Plots multiple curves.
 
-         :param fig: a pyplot figure object
+        :param fig: a pyplot figure object
         :param values: a 1D numpy array of values that will be plotted
         :param artifact: key of the plotted artifact.
         """
         for i in range(0, values.shape[1]):
             vals = values[:, i]
-            class_name = classes[i] if values.shape[1] == 2 else "{}".format(i)
+            class_name = "class {}".format(i)
             if artifact.startswith('train'):
                 vals = self.running_mean(vals, self.mean_window)
 

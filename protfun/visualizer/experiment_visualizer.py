@@ -1,12 +1,13 @@
 import os
 import re
 import numpy as np
+from sklearn.metrics import roc_curve
 
 from protfun.models import get_hidden_activations, get_best_params
 from protfun.utils import save_pickle, load_pickle
 from protfun.visualizer.molview import MoleculeView
 from protfun.visualizer.progressview import ProgressView
-from protfun.visualizer.performance_view import PerformanceAnalyser
+from protfun.visualizer.roc_view import ROCView, micro_macro_roc
 from protfun.utils.log import get_logger
 
 log = get_logger("experiment_visualizer")
@@ -67,10 +68,22 @@ def create_performance_plots(config, model_name, n_classes):
     model_predictions = load_pickle(path_to_predictions)
     targets = load_pickle(path_to_targets)
 
-    pa = PerformanceAnalyser(n_classes=n_classes, y_expected=targets,
-                             y_predicted=model_predictions, data_dir=data_dir,
-                             model_name=model_name)
-    pa.plot_ROC()
+    roc_file_path = os.path.join(model_dir, "figures", "ROC_test_set.png")
+    view = ROCView()
+    if n_classes == 2:
+        # plot a standard ROC view
+        fpr, tpr = roc_curve(targets[:, 0], model_predictions[:, 0])
+        view.add_curve(fpr, tpr, label='binary classification')
+        view.save_and_close(roc_file_path)
+    else:
+        # plot a micro & macro avg. ROC view
+        res = micro_macro_roc(n_classes, targets, model_predictions)
+        view.add_curve(fpr=res['micro'][0], tpr=res['micro'][1],
+                       label='Micro-average of {} classes'.format(n_classes))
+        view.add_curve(fpr=res['macro'][0], tpr=res['macro'][1],
+                       label='Macro-average of {} classes'.format(n_classes))
+        view.save_and_close(roc_file_path)
+
     log.info("Saved ROC plots for: {}".format(model_name))
 
 
