@@ -46,7 +46,7 @@ def describe_model():
             split_strategy = str(raw_input("\tWould you like to use a naive or a strict split: "))
         channel_count = 0
         while not channel_count in available_channel_counts:
-            channel_count = int(raw_input("\tWould you like to use 1 or 24 input channels: s"))
+            channel_count = int(raw_input("\tWould you like to use 1 or 24 input channels: "))
 
         config_name = '_'.join(['config', str(class_num) + 'class', str(grid_size),
                                 split_strategy, str(channel_count) + 'channel.yaml'])
