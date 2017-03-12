@@ -270,8 +270,8 @@ class EnzymeDataManager(DataManager):
                                            from_dir=self.dirs['data_raw'],
                                            target_dir=self.dirs['data_processed'],
                                            grid_size=self.grid_size,
-                                           process_grids=self.force_grids,
-                                           process_memmaps=self.force_memmaps,
+                                           force_process_grids=self.force_grids,
+                                           force_process_memmaps=self.force_memmaps,
                                            add_sidechain_channels=self.add_sidechain_channels,
                                            use_esp=False)
             self.valid_proteins = edp.process()

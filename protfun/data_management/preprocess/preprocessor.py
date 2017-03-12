@@ -44,19 +44,16 @@ class EnzymeDataProcessor(DataProcessor):
     numpy.memmap's are created for molecules (from the PDB files with no errors)
     """
 
-    def __init__(self, from_dir, target_dir, protein_codes, grid_size, process_grids=True,
-                 process_memmaps=True, force_recreate=False, add_sidechain_channels=True,
-                 use_esp=False):
+    def __init__(self, from_dir, target_dir, protein_codes, grid_size, force_process_grids=False,
+                 force_process_memmaps=False, add_sidechain_channels=True, use_esp=False):
         """
         :param from_dir: base data directory
         :param target_dir: target directory for the pre-processed data
         :param protein_codes: a list of protein codes to be pre-processed
         :param grid_size: number of points on the side of the computed 3D grids (el. density)
-        :param process_grids: a boolean flag setting the grid-generation
-        :param process_memmaps: a boolean flag setting the memmaping of coords, vdwradii and charges
-            from pdb files
-        :param force_recreate: a boolean flag setting the recreation of everything (used after bugs
-            were discovered)
+        :param force_process_grids: a boolean flag setting for forcing the grid-generation
+        :param force_process_memmaps: a boolean flag setting for forcing the memmaping of coords,
+            vdwradii and charges from pdb files
         :param add_sidechain_channels: whether additional channels should be added to the default
             ones (density)
         :param use_esp: whether electrostatic potential should be used
@@ -64,9 +61,8 @@ class EnzymeDataProcessor(DataProcessor):
         super(EnzymeDataProcessor, self).__init__(from_dir=from_dir,
                                                   target_dir=target_dir)
         self.prot_codes = protein_codes
-        self.process_grids = process_grids
-        self.process_memmaps = process_memmaps
-        self.force_recreate = force_recreate
+        self.force_process_grids = force_process_grids
+        self.force_process_memmaps = force_process_memmaps
         self.use_esp = use_esp
         self.add_sidechain_channels = add_sidechain_channels
         if add_sidechain_channels:
@@ -106,8 +102,9 @@ class EnzymeDataProcessor(DataProcessor):
                                   'pdb' + pc.lower() + '.ent')
 
             # if required, process the memmaps for the protein again
-            if self.process_memmaps and (not self.memmaps_exists(prot_dir,
-                                                                 num_channels=CNS if self.add_sidechain_channels else 1) or self.force_recreate):
+            memmap_exists = self.memmaps_exists(prot_dir,
+                                                num_channels=CNS if self.add_sidechain_channels else 1)
+            if not memmap_exists or self.force_process_memmaps:
                 # attempt to process the molecule from the PDB file
                 mol = self.molecule_processor.process_molecule(f_path)
                 if mol is None:
@@ -122,8 +119,7 @@ class EnzymeDataProcessor(DataProcessor):
                 log.info("Skipping already processed PDB file: {}".format(pc))
 
             # if required, process the ESP and density grids as well
-            if self.process_grids and (
-                        not self.grid_exists(prot_dir) or self.force_recreate):
+            if not self.grid_exists(prot_dir) or self.force_process_grids:
                 grid = self.grid_processor.process(prot_dir)
                 if grid is None:
                     log.warning(
@@ -292,13 +288,12 @@ class PDBMoleculeProcessor(object):
             "coords": np.asarray(
                 [get_coords(i) for i in range(0, atoms_count)]) - np.asarray(
                 [center.x, center.y, center.z]),
-            "charges": np.asarray([float(atom.GetProp("_GasteigerCharge")) for
-                                   atom in atoms]),
             "vdwradii": np.asarray(
                 [self.periodic_table.GetRvdw(atom.GetAtomicNum()) for atom in
-                 atoms]),
-            "atoms_count": atoms_count
+                 atoms])
         }
+        if use_esp:
+            res['charges'] = np.asarray([float(atom.GetProp("_GasteigerCharge")) for atom in atoms])
         return res
 
 
